@@ -1,0 +1,5 @@
+.DS_Store
+workflows/*.yaml
+db.sqlite3
+.idea
+*__pycache__*

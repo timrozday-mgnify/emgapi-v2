@@ -1,0 +1,3 @@
+.DS_Store
+workflows/*.yaml
+db.sqlite3
