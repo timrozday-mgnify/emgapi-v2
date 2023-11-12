@@ -1,0 +1,117 @@
+version: "3.9"
+services:
+
+  prefect-database:
+    image: postgres:latest
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=prefect
+    expose:
+      - 5432
+    volumes:
+      - prefectdb:/var/lib/postgresql/data
+    profiles: ["prefect", "all"]
+    networks: [emg]
+
+  app-database:
+    image: postgres:latest
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=emg
+    expose:
+      - 5432
+    volumes:
+      - appdb:/var/lib/postgresql/data
+    profiles: ["app", "all"]
+    networks: [emg]
+
+  ### MinIO for flow storage
+  minio:
+    image: minio/minio:latest
+    entrypoint: ["minio", "server", "--address", "0.0.0.0:9100", "--console-address", "0.0.0.0:9101", "/data"]
+    volumes:
+      - "minio:/data"
+    ports:
+      - 9100:9100
+      - 9101:9101
+    profiles: ["prefect", "all"]
+    networks: [emg]
+
+
+  prefect-server:
+    image: prefecthq/prefect:2-latest
+    restart: always
+    volumes:
+      - ./prefectserver:/root/.prefect
+    entrypoint: ["/opt/prefect/entrypoint.sh", "prefect", "server", "start"]
+    environment:
+      - PREFECT_UI_URL=http://127.0.0.1:4200/api
+      - PREFECT_API_URL=http://127.0.0.1:4200/api
+      - PREFECT_SERVER_API_HOST=0.0.0.0
+      - PREFECT_API_DATABASE_CONNECTION_URL=postgresql+asyncpg://postgres:postgres@prefect-database:5432/prefect
+      - EXTRA_PIP_PACKAGES=httpx[cli]
+      - EXTRA_PIP_PACKAGES=nextflowpy
+    healthcheck:
+      interval: 2s
+      retries: 60
+      start_period: 2s
+      test: 'httpx $${PREFECT_API_URL}/ready | grep "\"message\": \"OK\"" || exit 1'
+      timeout: 2s
+    expose:
+      - 4200
+    ports:
+      - "4200:4200"
+    depends_on:
+      prefect-database:
+        condition: service_started
+    profiles: ["prefect", "all"]
+    networks: [emg]
+
+  hpc-agent:
+    build:
+      context: .
+      target: agent
+    restart: always
+    command: "prefectcli agent start -q hpc"
+    environment:
+      - PREFECT_API_URL=http://prefect-server:4200/api
+    profiles: ["agents", "all"]
+    depends_on:
+      prefect-server:
+        condition: service_healthy
+    networks: [emg]
+    volumes:
+      - ".:/app"
+
+  app:
+    build:
+      context: .
+      target: base
+    profiles: ["app", "all"]
+    command: "runserver"
+    environment:
+      - PREFECT_API_URL=http://prefect-server:4200/api
+      - DATABASE_URL=postgres://postgres:postgres@app-database:5432/emg
+    volumes:
+      - ".:/app"
+    depends_on:
+      app-database:
+        condition: service_started
+      prefect-server:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    networks: [emg]
+
+volumes:
+  prefectdb:
+  appdb:
+  minio:
+
+networks:
+  emg:
+    name: emg

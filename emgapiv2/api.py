@@ -5,7 +5,7 @@ from ninja import NinjaAPI, ModelSchema, Schema
 from prefect.deployments import run_deployment
 
 import analyses.models
-from workflows.ena_fetch_study_flow import ena_fetch_study_flow
+from workflows.flows.ena_fetch_study_flow import ena_fetch_study_flow
 
 api = NinjaAPI()
 

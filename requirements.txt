@@ -2,3 +2,6 @@ django==4.2.6
 django-ninja==0.22.2
 prefect==2.14.1
 prefect-shell==0.2.0
+nextflowpy==0.8.0
+dj-database-url
+psycopg2

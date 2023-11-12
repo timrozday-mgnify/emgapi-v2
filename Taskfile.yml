@@ -1,0 +1,22 @@
+version: '3'
+
+tasks:
+  prefect:
+    desc: "Run a command on the prefect CLI. E.g. task prefect -- deployment"
+    cmds:
+      - docker compose run app prefectcli {{.CLI_ARGS}}
+
+  deploy-flow:
+    desc: "Build and deploy a prefect flow. E.g. FLOW=mgnify_run_pipeline_flow task deploy-flow"
+    cmds:
+      - docker compose run app prefectcli deployment build workflows/flows/${FLOW}.py:${FLOW} --name ${FLOW}_deployment --output workflows/deployments/${FLOW}_deployment.yaml -q hpc --apply
+
+  run:
+    desc: "Run everything"
+    cmds:
+      - docker compose --profile all up
+
+  manage:
+    desc: "Run a management command. E.g. task manage -- migrate"
+    cmds:
+      - docker compose run app {{.CLI_ARGS}}

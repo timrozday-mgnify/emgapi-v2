@@ -3,3 +3,8 @@ workflows/*.yaml
 db.sqlite3
 .idea
 *__pycache__*
+minio/
+prefectdb/
+appdb/
+workflows/deployments/*.yaml
+prefectserver
