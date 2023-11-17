@@ -1,6 +1,9 @@
 version: "3.9"
-services:
 
+include:
+  - slurm/docker-compose.yaml
+
+services:
   prefect-database:
     image: postgres:latest
     restart: always

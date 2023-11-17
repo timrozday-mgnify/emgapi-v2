@@ -1,0 +1,90 @@
+version: "3.9"
+services:
+  slurm_db:
+    image: mariadb:latest
+    hostname: slurm_db
+    container_name: slurm_db
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: slurm
+      MYSQL_USER: slurm
+      MYSQL_PASSWORD: slurm
+    volumes:
+      - db:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    profiles: ["slurm", "all"]
+    healthcheck:
+      test: ['CMD', '/usr/local/bin/healthcheck.sh', '--connect']
+      interval: 2s
+      timeout: 2s
+      retries: 5
+
+  slurm_db_daemon:
+    build:
+      context: .
+      target: dbd
+    command: ["slurmdbd"]
+    hostname: slurm_db_daemon
+    container_name: slurm_db_daemon
+    volumes:
+      - munge:/etc/munge
+      - log:/var/log/slurm
+    expose:
+      - "6819"
+    depends_on:
+      slurm_db:
+        condition: service_healthy
+    profiles: ["slurm", "all"]
+    healthcheck:
+       test: ["CMD", "nc", "-z", "localhost", "6819"]
+       interval: 2s
+       timeout: 2s
+       retries: 10
+
+  slurm_controller:
+    hostname: slurm_controller
+    container_name: slurm_controller
+    build:
+      context: .
+      target: ctl
+    command: ["slurmctld"]
+    volumes:
+      - munge:/etc/munge
+      - log:/var/log/slurm
+      - jobs:/opt/jobs
+    expose:
+      - "6817"
+    depends_on:
+      slurm_db_daemon:
+        condition: service_healthy
+    profiles: ["slurm", "all"]
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "localhost", "6817" ]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  slurm_worker:
+    hostname: slurm_worker
+    container_name: slurm_worker
+    build:
+      context: .
+      target: worker
+    command: ["slurmd"]
+    volumes:
+      - munge:/etc/munge
+      - log:/var/log/slurm
+      - jobs:/opt/jobs
+    expose:
+      - "6818"
+    depends_on:
+      slurm_controller:
+        condition: service_healthy
+    profiles: ["slurm", "all"]
+
+volumes:
+  db:
+  munge:
+  log:
+  jobs:

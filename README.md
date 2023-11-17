@@ -16,6 +16,10 @@ There are three main parts – an API server, a Prefect server, and a Prefect ag
 In a real world these would probably live on separate VMs: on HPC, on hosted DBs, and on K8s. 
 For local development, these are all run in a docker-compose environment.
 
+There is also a docker-compose setup of [Slurm](https://slurm.schedmd.com), so that automation of HPC scheduling can be developed.
+This creates a tiny slurm cluster called `donco` (not `codon`).
+This is in the `slurm` directory.
+
 ### Set up docker-compose
 E.g. following [the docker docs](https://docs.docker.com/compose/install/) or using Podman, as you prefer.
 
@@ -28,11 +32,12 @@ task manage -- migrate
 ```
 This will have created a Django-managed DB on a dockerized Postgres host.
 
-### Run everything (the databases, the Django app, the Prefect workflow server, and a Prefect work egent) 
+### Run everything (the databases, the Django app, the Prefect workflow server, a Prefect work egent, and a small Slurm cluster with associated controllers+dbs.) 
 ```shell
 task run
 ```
-You'll see logs from all of the containers.
+(Be aware this runs 10 containers using ~2GB of RAM. Configure your Podman Machine / Docker Desktop setup accordingly.)
+You'll see logs from all the containers.
 You can then go to http://127.0.0.1:4200 to see the Prefect dashboard (workflows to be run).
 You can also go to http://127.0.0.1:8000 to see the Django app.
 
@@ -51,3 +56,14 @@ In a real world these nextflow pipelines might have a config to use an HPC sched
 Either: open the [Prefect dashboard](http://localhost:4200), or use a POST request on the [MGnify API](http://localhost:8000/api/v2/), or use the prefect CLI via docker compose.
 E.g. kick off the "ENA fetch studies and samples" flow with a PRJxxxxx accession.
 This example flow will call the ENA API to list samples for the project, create entities in the DB for them, and then launch a nextflow pipeline to fetch read-run FASTQ files for each sample.
+
+
+### Interacting with Slurm
+The Slurm cluster is started provided the `--profile slurm` is included in your docker compose up command.
+`task slurm` will open a shell on the slurm controller node, where you can run things like `sinfo`, `squeue`, `srun`, `sbatch` etc.
+
+`task sbatch -- --wait -t 00:00:30 --mem 10M --wrap="ls" -o listing.txt` will dispatch a job directly.
+
+Use e.g. `docker logs slurm_worker -f` to see the job execute.
+
+Connect a DB tool to `jdbc:mariadb://localhost:3306/slurm` to inspect the Slurm DB including `donco_job_table` table of jobs.

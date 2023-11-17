@@ -20,3 +20,14 @@ tasks:
     desc: "Run a management command. E.g. task manage -- migrate"
     cmds:
       - docker compose run app {{.CLI_ARGS}}
+
+  sbatch:
+    desc: "Dispatch a slurm job to the mini slurm cluster. E.g. task sbatch -- --wait -t 0:00:30 --mem=10M --wrap=\"echo 'hello world'\" -o hello-world.out"
+    cmds:
+      - docker exec slurm_controller "sbatch {{.CLI_ARGS}}"
+
+  slurm:
+    desc: "Connect to the slurm controller node to run commands there."
+    cmds:
+      - docker exec -it slurm_controller bash
+    interactive: true
