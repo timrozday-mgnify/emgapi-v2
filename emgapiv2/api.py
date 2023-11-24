@@ -13,19 +13,19 @@ api = NinjaAPI()
 class MGnifyStudy(ModelSchema):
     class Config:
         model = analyses.models.Study
-        model_fields = ['accession', 'ena_study']
+        model_fields = ["accession", "ena_study"]
 
 
 class MGnifySample(ModelSchema):
     class Config:
         model = analyses.models.Sample
-        model_fields = ['accession', 'ena_sample']
+        model_fields = ["accession", "ena_sample"]
 
 
 class MGnifyAnalysis(ModelSchema):
     class Config:
         model = analyses.models.Analysis
-        model_fields = ['accession', 'study', 'results_dir']
+        model_fields = ["accession", "study", "results_dir"]
 
 
 @api.get("/studies/{accession}}", response=MGnifyStudy)
@@ -59,9 +59,8 @@ class StudyAnalysisIntent(Schema):
 @api.post("/analyse")
 def create_study_analysis_intent(request, payload: StudyAnalysisIntent):
     run_deployment(
-        'Fetch Study and Samples from ENA/ena_fetch_study_deployment',
+        "Fetch Study and Samples from ENA/ena_fetch_study_deployment",
         timeout=0,
-        parameters={
-            'accession': payload.study_accession
-        })
+        parameters={"accession": payload.study_accession},
+    )
     return

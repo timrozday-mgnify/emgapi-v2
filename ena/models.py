@@ -3,6 +3,7 @@ from django.db import models
 
 # Some models that mirror ENA objects, like Study, Sample, Run etc
 
+
 class ENAModel(models.Model):
     accession = models.CharField(primary_key=True, max_length=20)
     fetched_at = models.DateTimeField(auto_now=True)

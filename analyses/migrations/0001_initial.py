@@ -5,43 +5,66 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
-        ('ena', '0001_initial'),
+        ("ena", "0001_initial"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Study',
+            name="Study",
             fields=[
-                ('accession', models.CharField(max_length=20, primary_key=True, serialize=False)),
-                ('ena_study', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='ena.study')),
+                (
+                    "accession",
+                    models.CharField(max_length=20, primary_key=True, serialize=False),
+                ),
+                (
+                    "ena_study",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE, to="ena.study"
+                    ),
+                ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Sample',
+            name="Sample",
             fields=[
-                ('accession', models.CharField(max_length=20, primary_key=True, serialize=False)),
-                ('ena_sample', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='ena.sample')),
+                (
+                    "accession",
+                    models.CharField(max_length=20, primary_key=True, serialize=False),
+                ),
+                (
+                    "ena_sample",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE, to="ena.sample"
+                    ),
+                ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Analysis',
+            name="Analysis",
             fields=[
-                ('accession', models.CharField(max_length=20, primary_key=True, serialize=False)),
-                ('results_dir', models.CharField(max_length=100)),
-                ('study', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='analyses.study')),
+                (
+                    "accession",
+                    models.CharField(max_length=20, primary_key=True, serialize=False),
+                ),
+                ("results_dir", models.CharField(max_length=100)),
+                (
+                    "study",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE, to="analyses.study"
+                    ),
+                ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

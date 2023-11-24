@@ -1,0 +1,10 @@
+---
+extends: default
+
+rules:
+  line-length:
+    max: 100
+    ignore: |
+      Taskfile.yaml
+      docker-compose.yaml
+      slurm/docker-compose.yaml

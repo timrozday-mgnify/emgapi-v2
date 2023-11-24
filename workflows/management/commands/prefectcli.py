@@ -3,7 +3,7 @@ from prefect.cli import app
 
 
 class Command(BaseCommand):
-    help = 'Run the Prefect CLI'
+    help = "Run the Prefect CLI"
 
     def run_from_argv(self, argv):
         app(argv[2:])

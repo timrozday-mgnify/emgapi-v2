@@ -18,20 +18,27 @@ from prefect import flow, task
 
 @task(retries=2)
 def get_study_from_ena(accession: str):
-    time.sleep(30)  # such a long running process
-    portal = httpx.get(f"https://www.ebi.ac.uk/ena/portal/api/search?result=study&query=accession%3D{accession}&limit=10&format=json&fields=study_title")
+    portal = httpx.get(
+        f"https://www.ebi.ac.uk/ena/portal/api/search?result=study&query=accession%3D{accession}&limit=10&format=json&fields=study_title"
+    )
     if portal.status_code == httpx.codes.OK:
-        study = ena.models.Study.objects.get_or_create(accession=accession, title=portal.json()[0]['study_title'])
+        study = ena.models.Study.objects.get_or_create(
+            accession=accession, title=portal.json()[0]["study_title"]
+        )
 
 
 @task(retries=2)
 def get_study_samples_from_ena(accession: str) -> [str]:
     study = ena.models.Study.objects.get(accession=accession)
-    portal = httpx.get(f"https://www.ebi.ac.uk/ena/portal/api/links/study?accession={accession}&result=sample&limit=100&format=json")
+    portal = httpx.get(
+        f"https://www.ebi.ac.uk/ena/portal/api/links/study?accession={accession}&result=sample&limit=100&format=json"
+    )
     if portal.status_code == httpx.codes.OK:
         for sample in portal.json():
-            ena.models.Sample.objects.get_or_create(accession=sample['sample_accession'], study=study)
-    return [sample['sample_accession'] for sample in portal.json()]
+            ena.models.Sample.objects.get_or_create(
+                accession=sample["sample_accession"], study=study
+            )
+    return [sample["sample_accession"] for sample in portal.json()]
 
 
 @task(name="Fetch sample read files from ENA", log_prints=True)
@@ -41,7 +48,9 @@ def ena_fetch_sample_reads(accession: str):
     Uses nextflow.
     :param accession: Sample accession e.g. SAMEAxxxxxxxx
     """
-    execution = nextflow.run("workflows/pipelines/download_read_runs.nf", params={"sample": accession})
+    execution = nextflow.run(
+        "workflows/pipelines/download_read_runs.nf", params={"sample": accession}
+    )
     create_markdown_artifact(
         key="sample-fetch",
         markdown=f"""
@@ -49,7 +58,7 @@ def ena_fetch_sample_reads(accession: str):
             Reads downloaded.
             Took {execution.duration}.
             Status {execution.status}.
-            """
+            """,
     )
     return execution
 

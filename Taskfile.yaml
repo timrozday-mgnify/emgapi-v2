@@ -1,3 +1,4 @@
+---
 version: '3'
 
 tasks:
@@ -6,10 +7,23 @@ tasks:
     cmds:
       - docker compose run app prefectcli {{.CLI_ARGS}}
 
+  create-pool:
+    desc: "Create a Prefect workpool. E.g. NAME=slurm task create-process-pool"
+    cmds:
+      - docker compose exec app python manage.py prefectcli work-pool create --type {{.TYPE}} {{.CLI_ARGS}} {{.NAME}}
+    vars:
+      TYPE: "process"
+      NAME: "slurm"
+      TEMPLATE: "./slurm/base-job-templates/local-slurm-job-template.json"
+
   deploy-flow:
     desc: "Build and deploy a prefect flow. E.g. FLOW=mgnify_run_pipeline_flow task deploy-flow"
     cmds:
-      - docker compose run app prefectcli deployment build workflows/flows/${FLOW}.py:${FLOW} --name ${FLOW}_deployment --output workflows/deployments/${FLOW}_deployment.yaml -q hpc --apply
+      - docker compose run app prefectcli deployment build workflows/flows/{{.FLOW}}.py:{{.FLOW}} --name {{.FLOW}}_deployment --output workflows/deployments/{{.FLOW}}_deployment.yaml -p {{.POOL}} --apply
+    vars:
+      POOL: "slurm"
+    requires:
+      vars: [FLOW]
 
   run:
     desc: "Run everything"

@@ -5,6 +5,7 @@ import ena.models
 
 # Some models associated with MGnify Analyses (MGYS, MGYA etc).
 
+
 class MGnifyAccessionedModel(models.Model):
     accession = models.CharField(primary_key=True, max_length=20)
 

@@ -5,36 +5,47 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='Study',
+            name="Study",
             fields=[
-                ('accession', models.CharField(max_length=20, primary_key=True, serialize=False)),
-                ('fetched_at', models.DateTimeField(auto_now=True)),
-                ('additional_accessions', models.JSONField(default=list)),
-                ('title', models.TextField()),
+                (
+                    "accession",
+                    models.CharField(max_length=20, primary_key=True, serialize=False),
+                ),
+                ("fetched_at", models.DateTimeField(auto_now=True)),
+                ("additional_accessions", models.JSONField(default=list)),
+                ("title", models.TextField()),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Sample',
+            name="Sample",
             fields=[
-                ('accession', models.CharField(max_length=20, primary_key=True, serialize=False)),
-                ('fetched_at', models.DateTimeField(auto_now=True)),
-                ('additional_accessions', models.JSONField(default=list)),
-                ('metadata', models.JSONField(default=dict)),
-                ('study', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='samples', to='ena.study')),
+                (
+                    "accession",
+                    models.CharField(max_length=20, primary_key=True, serialize=False),
+                ),
+                ("fetched_at", models.DateTimeField(auto_now=True)),
+                ("additional_accessions", models.JSONField(default=list)),
+                ("metadata", models.JSONField(default=dict)),
+                (
+                    "study",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="samples",
+                        to="ena.study",
+                    ),
+                ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

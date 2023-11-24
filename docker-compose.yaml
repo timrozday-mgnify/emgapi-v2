@@ -1,3 +1,4 @@
+---
 version: "3.9"
 
 include:
@@ -7,6 +8,7 @@ services:
   prefect-database:
     image: postgres:latest
     restart: always
+    container_name: prefect-database
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -21,6 +23,7 @@ services:
   app-database:
     image: postgres:latest
     restart: always
+    container_name: app-database
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -32,22 +35,10 @@ services:
     profiles: ["app", "all"]
     networks: [emg]
 
-  ### MinIO for flow storage
-  minio:
-    image: minio/minio:latest
-    entrypoint: ["minio", "server", "--address", "0.0.0.0:9100", "--console-address", "0.0.0.0:9101", "/data"]
-    volumes:
-      - "minio:/data"
-    ports:
-      - 9100:9100
-      - 9101:9101
-    profiles: ["prefect", "all"]
-    networks: [emg]
-
-
   prefect-server:
     image: prefecthq/prefect:2-latest
     restart: always
+    container_name: prefect-server
     volumes:
       - ./prefectserver:/root/.prefect
     entrypoint: ["/opt/prefect/entrypoint.sh", "prefect", "server", "start"]
@@ -74,26 +65,42 @@ services:
     profiles: ["prefect", "all"]
     networks: [emg]
 
-  hpc-agent:
+  prefect-agent:
     build:
       context: .
       target: agent
     restart: always
-    command: "prefectcli agent start -q hpc"
+    container_name: prefect-agent
+    hostname: prefect_agent
+    command: "prefectcli worker start --pool \"slurm\""
     environment:
       - PREFECT_API_URL=http://prefect-server:4200/api
-    profiles: ["agents", "all"]
+    profiles: ["prefect", "all"]
     depends_on:
       prefect-server:
         condition: service_healthy
-    networks: [emg]
+    networks: [emg, slurm]
+    volumes:
+      - ".:/app"
+      - munge:/etc/munge
+      - logs:/var/log/slurm
+      - jobdir:/opt/jobs
+
+  debug:
+    # Just used to give pycharm a python interpreter built accordingly
+    container_name: debug
+    build:
+      context: .
+      target: slurm
+    profiles: ["debug"]
     volumes:
       - ".:/app"
 
   app:
     build:
       context: .
-      target: base
+      target: django
+    container_name: app
     profiles: ["app", "all"]
     command: "runserver"
     environment:
@@ -104,8 +111,8 @@ services:
     depends_on:
       app-database:
         condition: service_started
-      prefect-server:
-        condition: service_healthy
+        # prefect-server:
+        # condition: service_healthy
     ports:
       - "8000:8000"
     networks: [emg]
@@ -113,7 +120,6 @@ services:
 volumes:
   prefectdb:
   appdb:
-  minio:
 
 networks:
   emg:

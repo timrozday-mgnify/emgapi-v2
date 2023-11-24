@@ -1,6 +1,6 @@
 # Prototype EMG backlog/API, using Prefect
 
-There are two real Django apps here: 
+There are two real Django apps here:
 * `ena`, for models that mirror objects in ENA: studies, samples, etc.
 * `analyses`, for models associated with MGnify analysis production work (MGYS, MGYA etc).
 * ... other models like genomes, proteins, could live in separate apps.
@@ -10,10 +10,16 @@ This is bidi: it creates a `manage.py prefectcli` command to run Prefect, and it
 
 The API is implemented with `ninja` (`emgapiv2/api.py`).
 
+## Dev setup
+Clone the repo.
+`pip install -r requirements-dev.txt` (or just have `pre-commit` installed somehow).
+
+`pre-commit install`.
+
 ## Running it
 There are three main parts – an API server, a Prefect server, and a Prefect agent.
 (There are also database and object stores to run – these can be sqlite/local-fs, but this aims to be a more production-like setup.)
-In a real world these would probably live on separate VMs: on HPC, on hosted DBs, and on K8s. 
+In a real world these would probably live on separate VMs: on HPC, on hosted DBs, and on K8s.
 For local development, these are all run in a docker-compose environment.
 
 There is also a docker-compose setup of [Slurm](https://slurm.schedmd.com), so that automation of HPC scheduling can be developed.
@@ -32,7 +38,7 @@ task manage -- migrate
 ```
 This will have created a Django-managed DB on a dockerized Postgres host.
 
-### Run everything (the databases, the Django app, the Prefect workflow server, a Prefect work egent, and a small Slurm cluster with associated controllers+dbs.) 
+### Run everything (the databases, the Django app, the Prefect workflow server, a Prefect work egent, and a small Slurm cluster with associated controllers+dbs.)
 ```shell
 task run
 ```
@@ -43,7 +49,7 @@ You can also go to http://127.0.0.1:8000 to see the Django app.
 
 ### Register the Prefect flows (new shell)
 ```shell
-FLOW=ena_fetch_study_flow task task deploy-flow 
+FLOW=ena_fetch_study_flow task deploy-flow
 ```
 This "builds" a prefect flow (from the `workflows/flows/` directory, in a file of name `ena_fetch_study_flow` with an `@flow`-decorated method also called `ena_fetch_study_flow`).
 It also "applies" the "flow deployment", which means the Prefect server knows how to execute it.

@@ -1,3 +1,4 @@
+---
 version: "3.9"
 services:
   slurm_db:
@@ -19,6 +20,7 @@ services:
       interval: 2s
       timeout: 2s
       retries: 5
+    networks: [slurm]
 
   slurm_db_daemon:
     build:
@@ -29,7 +31,7 @@ services:
     container_name: slurm_db_daemon
     volumes:
       - munge:/etc/munge
-      - log:/var/log/slurm
+      - logs:/var/log/slurm
     expose:
       - "6819"
     depends_on:
@@ -37,10 +39,11 @@ services:
         condition: service_healthy
     profiles: ["slurm", "all"]
     healthcheck:
-       test: ["CMD", "nc", "-z", "localhost", "6819"]
-       interval: 2s
-       timeout: 2s
-       retries: 10
+      test: ["CMD", "nc", "-z", "localhost", "6819"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+    networks: [slurm]
 
   slurm_controller:
     hostname: slurm_controller
@@ -51,8 +54,8 @@ services:
     command: ["slurmctld"]
     volumes:
       - munge:/etc/munge
-      - log:/var/log/slurm
-      - jobs:/opt/jobs
+      - logs:/var/log/slurm
+      - jobdir:/opt/jobs
     expose:
       - "6817"
     depends_on:
@@ -60,10 +63,12 @@ services:
         condition: service_healthy
     profiles: ["slurm", "all"]
     healthcheck:
-      test: [ "CMD", "nc", "-z", "localhost", "6817" ]
-      interval: 2s
+      test: ["CMD", "nc", "-z", "localhost", "6817"]
+      interval: 30s
+      start_interval: 2s
       timeout: 2s
       retries: 10
+    networks: [slurm]
 
   slurm_worker:
     hostname: slurm_worker
@@ -74,17 +79,23 @@ services:
     command: ["slurmd"]
     volumes:
       - munge:/etc/munge
-      - log:/var/log/slurm
-      - jobs:/opt/jobs
+      - logs:/var/log/slurm
+      - jobdir:/opt/jobs
+      - "..:/app"
     expose:
       - "6818"
     depends_on:
       slurm_controller:
-        condition: service_healthy
+        condition: service_started
     profiles: ["slurm", "all"]
+    networks: [slurm]
 
 volumes:
   db:
   munge:
-  log:
-  jobs:
+  logs:
+  jobdir:
+
+networks:
+  slurm:
+    name: slurm
