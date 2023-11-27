@@ -24,7 +24,7 @@ For local development, these are all run in a docker-compose environment.
 
 There is also a docker-compose setup of [Slurm](https://slurm.schedmd.com), so that automation of HPC scheduling can be developed.
 This creates a tiny slurm cluster called `donco` (not `codon`).
-This is in the `slurm` directory.
+This is in the `slurm` directory: see [slurm/README.md](slurm/README.md) for more.
 
 ### Set up docker-compose
 E.g. following [the docker docs](https://docs.docker.com/compose/install/) or using Podman, as you prefer.
@@ -65,11 +65,4 @@ This example flow will call the ENA API to list samples for the project, create 
 
 
 ### Interacting with Slurm
-The Slurm cluster is started provided the `--profile slurm` is included in your docker compose up command.
-`task slurm` will open a shell on the slurm controller node, where you can run things like `sinfo`, `squeue`, `srun`, `sbatch` etc.
-
-`task sbatch -- --wait -t 00:00:30 --mem 10M --wrap="ls" -o listing.txt` will dispatch a job directly.
-
-Use e.g. `docker logs slurm_worker -f` to see the job execute.
-
-Connect a DB tool to `jdbc:mariadb://localhost:3306/slurm` to inspect the Slurm DB including `donco_job_table` table of jobs.
+See [the slurm/README.md](slurm/README.md) for details. In short: `task slurm`.
