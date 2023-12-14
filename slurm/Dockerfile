@@ -9,17 +9,8 @@ RUN apt -y install munge python3-pip python-is-python3
 
 RUN apt -y install sudo gosu netcat-traditional slurm-wlm
 
-#RUN apt -y install hwloc libbpf-dev libdbus-1-dev
-#ARG SLURM_URL=https://download.schedmd.com/slurm/slurm-23.02.6.tar.bz2
-#ARG SLURM_VER=23.02.6
-#
-#RUN curl -fsL ${SLURM_URL} | tar xfj - -C /opt/ && \
-#    cd /opt/slurm-${SLURM_VER}/ && \
-#    ./configure --sysconfdir=/etc/slurm && make && make install
-#RUN mkdir -p /sys/fs/cgroup/system.slice/
-
-COPY slurm.conf /etc/slurm/slurm.conf
-COPY slurmdbd.conf /etc/slurm/slurmdbd.conf
+COPY configs/slurm.conf /etc/slurm/slurm.conf
+COPY configs/slurmdbd.conf /etc/slurm/slurmdbd.conf
 RUN chmod 600 /etc/slurm/slurmdbd.conf
 RUN chown -R slurm:slurm /etc/slurm/
 
@@ -30,18 +21,21 @@ RUN mkdir -p /var/spool/slurmctld && chown -R slurm:slurm /var/spool/slurmctld
 RUN mkdir -p /var/spool/slurmd && chown -R slurm:slurm /var/spool/slurmd
 
 FROM base as dbd
+# Just the database daemon
 RUN apt install -y slurmdbd
-COPY dbd-entrypoint.sh /usr/local/bin/dbd-entrypoint.sh
+COPY entrypoints/dbd-entrypoint.sh /usr/local/bin/dbd-entrypoint.sh
 RUN chmod +x /usr/local/bin/dbd-entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/dbd-entrypoint.sh"]
 
 FROM base as ctl
-COPY ctl-entrypoint.sh /usr/local/bin/ctl-entrypoint.sh
+# Just the controller
+COPY entrypoints/ctl-entrypoint.sh /usr/local/bin/ctl-entrypoint.sh
 RUN chmod +x /usr/local/bin/ctl-entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/ctl-entrypoint.sh"]
 
 FROM base as worker
-COPY worker-entrypoint.sh /usr/local/bin/worker-entrypoint.sh
+# The slurm worker, and base HPC tools like Nextflow
+COPY entrypoints/worker-entrypoint.sh /usr/local/bin/worker-entrypoint.sh
 RUN chmod +x /usr/local/bin/worker-entrypoint.sh
 ENV SLURM_INCLUDE_DIR=/usr/include
 ENV SLURM_LIB_DIR=/usr/lib/x86_64-linux-gnu
@@ -52,8 +46,12 @@ RUN chmod +x nextflow
 RUN mv nextflow /usr/bin/
 ENTRYPOINT ["/usr/local/bin/worker-entrypoint.sh"]
 
-#FROM worker as submitter
-#WORKDIR /app
-#COPY .. .
-#RUN pip install -r requirements.txt
-#ENTRYPOINT ["python", "manage.py"]
+FROM worker as single_node
+# DBD + Ctl + Worker in a single container
+RUN apt install -y slurmdbd
+COPY entrypoints/single-node-entrypoint.sh /usr/local/bin/worker-entrypoint.sh
+RUN chmod +x /usr/local/bin/worker-entrypoint.sh
+COPY configs/slurm_single_node.conf /etc/slurm/slurm.conf
+COPY configs/slurmdbd_single_node.conf /etc/slurm/slurmdbd.conf
+RUN chmod 600 /etc/slurm/slurmdbd.conf
+RUN chown -R slurm:slurm /etc/slurm/

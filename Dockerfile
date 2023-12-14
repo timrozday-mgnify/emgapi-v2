@@ -14,10 +14,10 @@ ENTRYPOINT ["python3", "manage.py"]
 FROM base as agent
 RUN apt -y update && apt -y upgrade
 RUN apt -y install munge gosu netcat-traditional slurm-wlm libslurm-dev
-COPY slurm/slurm.conf /etc/slurm/slurm.conf
+COPY slurm/configs/slurm_single_node.conf /etc/slurm/slurm.conf
 RUN chown -R slurm:slurm /etc/slurm/
 RUN mkdir -p /run/munge && chown -R munge /run/munge
-COPY slurm/submitter-entrypoint.sh /usr/local/bin/submitter-entrypoint.sh
+COPY slurm/entrypoints/submitter-entrypoint.sh /usr/local/bin/submitter-entrypoint.sh
 RUN chmod +x /usr/local/bin/submitter-entrypoint.sh
 ENV SLURM_INCLUDE_DIR=/usr/include
 ENV SLURM_LIB_DIR=/usr/lib/x86_64-linux-gnu

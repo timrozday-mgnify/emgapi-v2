@@ -12,9 +12,12 @@ This `include`s the `docker-compose.yaml` file in this `slurm` dir.
 ## What you get
 It starts:
 * `slurm_db`: a Maria DB host for the `slurm` database. Port `3306` is mapped to your host machine, so you can inspect the Slurm Job DB at `mariadb://slurm:slurm@localhost:3306/slurm` (see e.g. `donco_job_table`).
-* `slurm_db_daemon`: a container running the [Slurm database daemon](https://slurm.schedmd.com/slurmdbd.html). This is the interface between Slurm and the above DB.
-* `slurm_controller`: a container running the [Slurm controller / central manager daemon](https://slurm.schedmd.com/slurmctld.html). This is the node workers poll for jobs.
-* `slurm_worker`: a container running the [Slurm compute node daemon](https://slurm.schedmd.com/slurmd.html). This container executes jobs in the queue.
+* `slurm_node`: a container running the slurm database daemon, controller, and a worker node (see below).
+* The alternative setup (profile `slurm_full`, not started by default) separates these into separate containers for a more realistic setup:
+  * `slurm_db_daemon`: a container running the [Slurm database daemon](https://slurm.schedmd.com/slurmdbd.html). This is the interface between Slurm and the above DB.
+  * `slurm_controller`: a container running the [Slurm controller / central manager daemon](https://slurm.schedmd.com/slurmctld.html). This is the node workers poll for jobs.
+  * `slurm_worker`: a container running the [Slurm compute node daemon](https://slurm.schedmd.com/slurmd.html). This container executes jobs in the queue.
+  * Note the difference in `congigs/` and `entrypoints/` for these single node vs. full setups.
 
 Other than the Maria DB container, the others share a common Ubuntu-based image from `Dockerfile`.
 The `*-entrypoint.sh` scripts start the respective daemons in the respective containers.
@@ -28,16 +31,16 @@ This is used by the parent docker-compose setup, to submit Slurm jobs from Prefe
 ## Using it
 ### Interactively on the nodes
 The Slurm cluster is called `donco` (not `codon` :-] ).
-You can dispatch Slurm commands on one of the nodes, e.g. the `slurm_worker` or `_controller`:
+You can dispatch Slurm commands on one of the nodes, e.g. the `slurm_node` (single node setup) or `slurm_worker` or `_controller` in the full setup.
 
 ```shell
-user@host:/# docker exec -it slurm_worker bash
-root@slurm_worker:/# sinfo
+user@host:/# docker exec -it slurm_node bash
+root@slurm_node:/# sinfo
 # PARTITION AVAIL  TIMELIMIT  NODES  STATE NODELIST
-# debug*       up   infinite      1  alloc slurm_worker
-root@slurm_worker:/# sbatch --wait -t 00:00:30 --mem 10M --wrap="ls" -o listing.txt
+# debug*       up   infinite      1  alloc slurm_node
+root@slurm_node:/# sbatch --wait -t 00:00:30 --mem 10M --wrap="ls" -o listing.txt
 # Submitted batch job 54
-root@slurm_worker:/# sacct -j 54
+root@slurm_node:/# sacct -j 54
 # JobID           JobName  Partition    Account  AllocCPUS      State ExitCode
 # ------------ ---------- ---------- ---------- ---------- ---------- --------
 # 54                 wrap      debug       root          1  COMPLETED      0:0

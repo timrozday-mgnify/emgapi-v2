@@ -15,6 +15,8 @@ services:
       - POSTGRES_DB=prefect
     expose:
       - 5432
+    ports:
+      - "5433:5432"
     volumes:
       - prefectdb:/var/lib/postgresql/data
     profiles: ["prefect", "all"]
@@ -30,9 +32,11 @@ services:
       - POSTGRES_DB=emg
     expose:
       - 5432
+    ports:
+      - "5434:5432"
     volumes:
       - appdb:/var/lib/postgresql/data
-    profiles: ["app", "all"]
+    profiles: ["app", "prefect", "all"]
     networks: [emg]
 
   prefect-server:
@@ -49,6 +53,7 @@ services:
       - PREFECT_API_DATABASE_CONNECTION_URL=postgresql+asyncpg://postgres:postgres@prefect-database:5432/prefect
       - EXTRA_PIP_PACKAGES=httpx[cli]
       - EXTRA_PIP_PACKAGES=nextflowpy
+      - PREFECT_LOCAL_STORAGE_PATH=/root/.prefect/storage
     healthcheck:
       interval: 2s
       retries: 60
@@ -75,16 +80,21 @@ services:
     command: "prefectcli worker start --pool \"slurm\""
     environment:
       - PREFECT_API_URL=http://prefect-server:4200/api
+      - PREFECT_LOCAL_STORAGE_PATH=/root/.prefect/storage
+      - DATABASE_URL=postgres://postgres:postgres@app-database:5432/emg
     profiles: ["prefect", "all"]
     depends_on:
       prefect-server:
         condition: service_healthy
+      app-database:
+        condition: service_started
     networks: [emg, slurm]
     volumes:
       - ".:/app"
       - munge:/etc/munge
       - logs:/var/log/slurm
       - jobdir:/opt/jobs
+      - ./prefectserver:/root/.prefect
 
   debug:
     # Just used to give pycharm a python interpreter built accordingly

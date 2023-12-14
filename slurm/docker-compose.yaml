@@ -14,12 +14,34 @@ services:
       - db:/var/lib/mysql
     ports:
       - "3306:3306"
-    profiles: ["slurm", "all"]
+    profiles: ["slurm", "all", "slurm_full"]
     healthcheck:
       test: ['CMD', '/usr/local/bin/healthcheck.sh', '--connect']
       interval: 2s
       timeout: 2s
       retries: 5
+    networks: [slurm]
+
+  slurm_node:
+    # A single node instance of slurm (dbd, controller, worker)
+    build:
+      context: .
+      target: single_node
+    command: ["slurmd"]
+    hostname: slurm_node
+    container_name: slurm_node
+    depends_on:
+      slurm_db:
+        condition: service_healthy
+    volumes:
+      - munge:/etc/munge
+      - logs:/var/log/slurm
+      - jobdir:/opt/jobs
+      - "..:/app"
+      - "./entrypoints/single-node-entrypoint.sh:/usr/local/bin/worker-entrypoint.sh"
+    expose:
+      - "6818"
+    profiles: ["slurm", "all"]
     networks: [slurm]
 
   slurm_db_daemon:
@@ -37,7 +59,7 @@ services:
     depends_on:
       slurm_db:
         condition: service_healthy
-    profiles: ["slurm", "all"]
+    profiles: ["slurm_full"]
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "6819"]
       interval: 2s
@@ -61,7 +83,7 @@ services:
     depends_on:
       slurm_db_daemon:
         condition: service_healthy
-    profiles: ["slurm", "all"]
+    profiles: ["slurm_full"]
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "6817"]
       interval: 30s
@@ -87,7 +109,7 @@ services:
     depends_on:
       slurm_controller:
         condition: service_started
-    profiles: ["slurm", "all"]
+    profiles: ["slurm_full"]
     networks: [slurm]
 
 volumes:

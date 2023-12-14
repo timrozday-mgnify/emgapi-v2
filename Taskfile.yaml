@@ -19,11 +19,20 @@ tasks:
   deploy-flow:
     desc: "Build and deploy a prefect flow. E.g. FLOW=mgnify_run_pipeline_flow task deploy-flow"
     cmds:
+      - docker compose --profile prefect up -d
       - docker compose run app prefectcli deployment build workflows/flows/{{.FLOW}}.py:{{.FLOW}} --name {{.FLOW}}_deployment --output workflows/deployments/{{.FLOW}}_deployment.yaml -p {{.POOL}} --apply
+      - docker compose --profile prefect --profile app down
     vars:
       POOL: "slurm"
     requires:
       vars: [FLOW]
+
+  deploy-utils:
+    desc: "Build and deploy the Prefect/Slurm util flows."
+    cmds:
+      - docker compose --profile prefect up -d
+      - docker compose run app prefectcli deployment build workflows/prefect_utils/slurm_flow.py:resume_flow_run --name resume_flow_run_deployment --output workflows/deployments/resume_flow_run_deployment.yaml -p slurm --apply
+      - docker compose --profile prefect --profile app down
 
   run:
     desc: "Run everything"
@@ -38,10 +47,11 @@ tasks:
   sbatch:
     desc: "Dispatch a slurm job to the mini slurm cluster. E.g. task sbatch -- --wait -t 0:00:30 --mem=10M --wrap=\"echo 'hello world'\" -o hello-world.out"
     cmds:
-      - docker exec slurm_controller "sbatch {{.CLI_ARGS}}"
+
+      - docker exec slurm_node "sbatch {{.CLI_ARGS}}"
 
   slurm:
-    desc: "Connect to the slurm controller node to run commands there."
+    desc: "Connect to the slurm node to run commands there."
     cmds:
-      - docker exec -it slurm_controller bash
+      - docker exec -it slurm_node bash
     interactive: true

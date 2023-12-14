@@ -40,9 +40,10 @@ This will have created a Django-managed DB on a dockerized Postgres host.
 
 ### Run everything (the databases, the Django app, the Prefect workflow server, a Prefect work egent, and a small Slurm cluster with associated controllers+dbs.)
 ```shell
+task deploy-utils
 task run
 ```
-(Be aware this runs 10 containers using ~2GB of RAM. Configure your Podman Machine / Docker Desktop setup accordingly.)
+(Be aware this runs 9 containers using ~2GB of RAM. Configure your Podman Machine / Docker Desktop setup accordingly.)
 You'll see logs from all the containers.
 You can then go to http://127.0.0.1:4200 to see the Prefect dashboard (workflows to be run).
 You can also go to http://127.0.0.1:8000 to see the Django app.
@@ -63,6 +64,9 @@ Either: open the [Prefect dashboard](http://localhost:4200), or use a POST reque
 E.g. kick off the "ENA fetch studies and samples" flow with a PRJxxxxx accession.
 This example flow will call the ENA API to list samples for the project, create entities in the DB for them, and then launch a nextflow pipeline to fetch read-run FASTQ files for each sample.
 
-
 ### Interacting with Slurm
 See [the slurm/README.md](slurm/README.md) for details. In short: `task slurm`.
+
+
+## Writing flows
+See [the workflows/README.md](workflows/README.md) for details. In short: add Python/Prefect code to a file in `workflows/flows/` and then `FLOW=my_flow task deploy-flow`.
