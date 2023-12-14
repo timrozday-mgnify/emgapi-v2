@@ -46,25 +46,27 @@ Steps 2. — 5. are repeated until the Slurm jobs are finished (or perhaps all i
 There are helpers for this process in `prefect_utils/slurm_flow.py`.
 
 Essentially:
+
 ```python
 from datetime import timedelta
-from anyio import run
 
 from prefect import flow
 from django.conf import settings
 import django
+from asgiref.sync import sync_to_async
 
-from workflows.prefect_utils.slurm_flow import submit_cluster_jobs, check_or_repause
+from workflows.prefect_utils.slurm_flow import run_cluster_jobs, after_cluster_jobs
 
 from some_django_app.models import Study
 
 django.setup()
 
-@flow
-def my_long_flow(study: str):
-    samples = Study.get(id=study).samples.all()
 
-    job_ids = submit_cluster_jobs(
+@flow
+async def my_long_flow(study: str):
+    samples = sync_to_async(Study.get)(id=study).samples.all()
+
+    await run_cluster_jobs(
         name_pattern="Get read runs for {sample}",
         command_pattern=f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/do_something_slow_with_a_sample.nf --sample={{sample}}",
         jobs_args=[{'sample': sample.id} for sample in samples],
@@ -73,8 +75,9 @@ def my_long_flow(study: str):
         memory="100M",
     )
 
-    finished = run(check_or_repause(job_ids, timedelta(seconds=10)))
-    print(f"{finished = }")
+    after_cluster_jobs()  # unless a @task follows pause/resumes, prefect won't bother resuming
 ```
 
 Note the helpers for submitting a single command with several different parameters, using the `pattern`s.
+
+`sync_to_async()` is also needed around the Django functions, since we're in an `async` context.

@@ -1,13 +1,12 @@
-from asyncio import run
 from datetime import timedelta
 
 import django
+from asgiref.sync import sync_to_async
 from django.conf import settings
 
 from workflows.prefect_utils.slurm_flow import (
-    submit_cluster_jobs,
-    after_resumption,
-    check_or_repause,
+    run_cluster_jobs,
+    after_cluster_jobs,
 )
 
 django.setup()
@@ -63,7 +62,7 @@ def get_study_samples_from_ena(accession: str, limit: int = 10) -> [str]:
     log_prints=True,
     flow_run_name="Fetch study's samples and reads from ENA: {accession}",
 )
-def ena_fetch_study_flow_slurm(accession: str = "PRJEB65441"):
+async def ena_fetch_study_flow_slurm(accession: str = "PRJEB65441"):
     """
     Get a study and all of its samples from the ENA API, and store in db.
     :param accession: Study accession e.g. PRJxxxxxx
@@ -72,11 +71,11 @@ def ena_fetch_study_flow_slurm(accession: str = "PRJEB65441"):
     print(f"Made study {study}")
     samples = get_study_samples_from_ena(accession, limit=2)
     print(f"Need to get study {accession}")
-    study = ena.models.Study.objects.get(accession=accession)
-    samples_count = study.samples.count()
+    study = await sync_to_async(ena.models.Study.objects.get)(accession=accession)
+    samples_count = await sync_to_async(study.samples.count)()
     print(f"{study = } has {samples_count} samples")
 
-    job_ids = submit_cluster_jobs(
+    await run_cluster_jobs(
         name_pattern="Get read runs for {sample}",
         command_pattern=f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/download_read_runs.nf --sample={{sample}}",
         jobs_args=[{"sample": sample} for sample in samples],
@@ -85,7 +84,4 @@ def ena_fetch_study_flow_slurm(accession: str = "PRJEB65441"):
         memory="100M",
     )
 
-    finished = run(check_or_repause(job_ids, timedelta(seconds=10)))
-    print(f"{finished = }")
-
-    after_resumption(str(job_ids))
+    after_cluster_jobs()

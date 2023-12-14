@@ -53,14 +53,13 @@ def slurm_timedelta(delta: timedelta) -> str:
     return f"{days:02}-{hours:02}:{minutes:02}:{seconds:02}"
 
 
-@task(persist_result=False)
-def after_resumption(message: str):
-    print("ran!")
-    print(message)
-    return message
+@task(persist_result=True, log_prints=True)
+def after_cluster_jobs():
+    print(
+        "Dummy task to run after cluster jobs, simply to ensure there is a task after pause/resume."
+    )
 
 
-# @task(persist_result=True, task_run_name="Check status of SLURM job: {job_id}")
 def check_cluster_job(
     job_id: int,
 ):
@@ -108,6 +107,7 @@ def start_cluster_job(
         **kwargs,
     )
     job_id = desc.submit()
+    print(f"Submitted as slurm job {job_id}")
 
     create_markdown_artifact(
         key="slurm-job-submission",
@@ -137,7 +137,6 @@ async def _get_resumer_deployment() -> DeploymentResponse:
             return resumer_deployments[0]
 
 
-# @task(persist_result=True)
 async def _pause_parent_flow(expected_time: timedelta):
     async with get_client() as client:
         parent_flow_run = await client.read_flow_run(flow_run.parent_flow_run_id)
@@ -203,12 +202,7 @@ def _generate_flow_run_name_from_jobs_pattern():
     return f"Collection of {len(params.get('jobs_args'))} cluster jobs: \"{params.get('name_pattern')}\""
 
 
-@flow(
-    flow_run_name=_generate_flow_run_name_from_jobs_pattern,
-    log_prints=True,
-    persist_result=True,
-)
-async def submit_cluster_jobs(
+async def run_cluster_jobs(
     name_pattern: str,
     command_pattern: str,
     jobs_args: List[Dict],
@@ -229,12 +223,6 @@ async def submit_cluster_jobs(
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription
     :return: List of outputs from each job.
     """
-    if flow_run.parent_flow_run_id is None:
-        raise ValueError(
-            "submit_cluster_jobs can only be called from a parent flow, since there must be a calling flow to pause/resume."
-        )
-
-    # async with get_client() as client:
     job_ids = [
         start_cluster_job(
             name=name_pattern.format(**job_args),
@@ -260,7 +248,12 @@ async def submit_cluster_jobs(
         description="Jobs submitted to Slurm",
     )
 
-    # await _pause_parent_flow(expected_time)
+    await check_or_repause(
+        job_ids,
+        next_expected_time=timedelta(
+            seconds=expected_time.total_seconds() / status_checks_limit
+        ),
+    )
 
     return job_ids
 
@@ -281,14 +274,13 @@ async def resume_flow_run(
         assert orchestrated_state.status == SetStateStatus.ACCEPT
 
 
-# @flow(log_prints=True, persist_result=True, retries=10)
 async def check_or_repause(
     job_ids: List[int], next_expected_time: timedelta = timedelta(seconds=30)
 ):
     print(f"This is try number {flow_run.run_count}")
     statuses = [check_cluster_job(job_id) for job_id in job_ids]
     print(f"Slurm Job statuses: {statuses}")
-    create_table_artifact(
+    await create_table_artifact(
         key="slurm-group-of-jobs-submission",
         table=[
             {"Slurm Job ID": job_id, "Status": status}
