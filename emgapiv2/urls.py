@@ -19,3 +19,4 @@ from django.urls import path
 from .api import api
 
 urlpatterns = [path("admin/", admin.site.urls), path("api/v2/", api.urls)]
+admin.site.index_title = "EMG DB Administration"

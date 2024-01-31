@@ -1,10 +1,11 @@
 import logging
 from datetime import timedelta, datetime
 from enum import Enum
+from pathlib import Path
 from textwrap import dedent as _, indent
 from typing import Union, List, Dict
 
-from prefect import task, flow, get_client
+from prefect import task, flow, get_client, get_run_logger
 from prefect.artifacts import create_markdown_artifact, create_table_artifact
 from prefect.client.schemas.filters import DeploymentFilter, DeploymentFilterName
 from prefect.runtime import flow_run
@@ -36,9 +37,19 @@ class SlurmStatus(str, Enum):
     terminated = "TERMINATED"
     suspended = "SUSPENDED"
     stopped = "STOPPED"
+    timeout = "TIMEOUT"
 
     # Custom responses
     unknown = "UNKNOWN"
+
+
+def slurm_status_is_okay(state: SlurmStatus):
+    return state in [
+        SlurmStatus.pending,
+        SlurmStatus.running,
+        SlurmStatus.unknown,
+        SlurmStatus.completed,
+    ]
 
 
 def slurm_timedelta(delta: timedelta) -> str:
@@ -63,13 +74,30 @@ def after_cluster_jobs():
 def check_cluster_job(
     job_id: int,
 ):
+    logger = get_run_logger()
     try:
         job = pyslurm.db.Job(job_id).load(job_id)
     except pyslurm.core.error.RPCError:
-        logging.warning(f"Error talking to slurm for job {job_id}")
-        print(f"Failed to get job state for {job_id}")
+        logger.warning(f"Error talking to slurm for job {job_id}")
         return SlurmStatus.unknown.value
-    print(f"SLURM status of {job_id = } is {job.state}")
+    logger.info(f"SLURM status of {job_id = } is {job.state}")
+    job_log_path = Path(EMG_CONFIG.slurm.default_workdir) / Path(f"slurm-{job_id}.out")
+    if job_log_path.exists():
+        with open(job_log_path, "r") as job_log:
+            log = "\n".join(job_log.readlines())
+            logger.info(
+                _(
+                    f"""\
+                    Slurm Job Stdout Log:
+                    ----------
+                    {indent(log, ' ' * 20)}
+                    ----------
+                    """
+                )
+            )
+    else:
+        logger.info(f"No Slurm Job Stdout available at {job_log_path}")
+
     return job.state
 
 
@@ -91,13 +119,14 @@ def start_cluster_job(
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription
     :return: A promise (Prefect Future) for the submitted job's future state.
     """
+    logger = get_run_logger()
     script = _(
         f"""\
         #!/bin/bash
         {command}
         """
     )
-    print(f"Will run the script ```{script}```")
+    logger.info(f"Will run the script ```{script}```")
     desc = pyslurm.JobSubmitDescription(
         name=name,
         time_limit=slurm_timedelta(expected_time),
@@ -107,7 +136,7 @@ def start_cluster_job(
         **kwargs,
     )
     job_id = desc.submit()
-    print(f"Submitted as slurm job {job_id}")
+    logger.info(f"Submitted as slurm job {job_id}")
 
     create_markdown_artifact(
         key="slurm-job-submission",
@@ -126,22 +155,24 @@ def start_cluster_job(
 
 
 async def _get_resumer_deployment() -> DeploymentResponse:
+    logger = get_run_logger()
     async with get_client() as client:
         resumer_deployments = await client.read_deployments(
             deployment_filter=DeploymentFilter(
-                name=DeploymentFilterName(any_=["resume_flow_run_deployment"])
+                name=DeploymentFilterName(like_="resume_flow_run_deployment")
             )
         )
-        print(f"Got deployments: {resumer_deployments}")
+        logger.info(f"Got deployments: {resumer_deployments}")
         if resumer_deployments:
             return resumer_deployments[0]
 
 
 async def _pause_parent_flow(expected_time: timedelta):
+    logger = get_run_logger()
     async with get_client() as client:
         parent_flow_run = await client.read_flow_run(flow_run.parent_flow_run_id)
 
-        print(
+        logger.info(
             "Will now schedule a job for later to resume this flow run’s parent, and then pause the parent flow run."
         )
 
@@ -154,24 +185,25 @@ async def _pause_parent_flow(expected_time: timedelta):
             parameters={"flow_run_id": parent_flow_run.id},
             state=sched_state,
         )
-        print(
+        logger.info(
             f"The resumer flowrun is called {resumer_run.name}. In state {resumer_run.state}."
         )
 
         paused_state = Paused(
             timeout_seconds=int(expected_time.total_seconds()) + 600, reschedule=True
         )
-        print(f"Will pause flow {parent_flow_run.id} ({parent_flow_run.name})")
+        logger.info(f"Will pause flow {parent_flow_run.id} ({parent_flow_run.name})")
         orchestrated_state = await client.set_flow_run_state(
             parent_flow_run.id, paused_state
         )
-        print(orchestrated_state)
+        logger.debug(orchestrated_state)
         assert orchestrated_state.status == SetStateStatus.ACCEPT
 
 
 async def _pause_this_flow(expected_time: timedelta):
+    logger = get_run_logger()
     async with get_client() as client:
-        print(
+        logger.info(
             "Will now schedule a job for later to resume this flow run, and then pause the flow run."
         )
 
@@ -184,16 +216,16 @@ async def _pause_this_flow(expected_time: timedelta):
             parameters={"flow_run_id": flow_run.id},
             state=sched_state,
         )
-        print(
+        logger.info(
             f"The resumer flowrun is called {resumer_run.name}. In state {resumer_run.state}."
         )
 
         paused_state = Paused(
             timeout_seconds=int(expected_time.total_seconds()) + 600, reschedule=True
         )
-        print(f"Will pause flow {flow_run.id} ({flow_run.name})")
+        logger.info(f"Will pause flow {flow_run.id} ({flow_run.name})")
         orchestrated_state = await client.set_flow_run_state(flow_run.id, paused_state)
-        print(orchestrated_state)
+        logger.debug(orchestrated_state)
         assert orchestrated_state.status == SetStateStatus.ACCEPT
 
 
@@ -223,6 +255,7 @@ async def run_cluster_jobs(
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription
     :return: List of outputs from each job.
     """
+    logger = get_run_logger()
     job_ids = [
         start_cluster_job(
             name=name_pattern.format(**job_args),
@@ -233,7 +266,7 @@ async def run_cluster_jobs(
         )
         for job_args in jobs_args
     ]
-    print(f"{len(job_ids)} jobs submitted to cluster")
+    logger.info(f"{len(job_ids)} jobs submitted to cluster")
 
     await create_table_artifact(
         key="slurm-group-of-jobs-submission",
@@ -258,7 +291,7 @@ async def run_cluster_jobs(
     return job_ids
 
 
-@flow(flow_run_name="Resume {flow_run_id}", log_prints=True)
+@flow(flow_run_name="Resume {flow_run_id}")
 async def resume_flow_run(
     flow_run_id: str,
 ):
@@ -267,19 +300,25 @@ async def resume_flow_run(
     :param flow_run_id: UUID of the FlowRun to resume
     :return:
     """
+    logger = get_run_logger()
     async with get_client() as client:
-        print(f"Will resume flow fun {flow_run_id}")
+        logger.info(f"Will resume flow fun {flow_run_id}")
         orchestrated_state = await client.resume_flow_run(flow_run_id)
-        print(orchestrated_state)
+        logger.debug(orchestrated_state)
         assert orchestrated_state.status == SetStateStatus.ACCEPT
 
 
 async def check_or_repause(
     job_ids: List[int], next_expected_time: timedelta = timedelta(seconds=30)
 ):
-    print(f"This is try number {flow_run.run_count}")
+    logger = get_run_logger()
+    logger.info(f"This is try number {flow_run.run_count}")
     statuses = [check_cluster_job(job_id) for job_id in job_ids]
-    print(f"Slurm Job statuses: {statuses}")
+    logger.info(f"Slurm Job statuses: {statuses}")
+
+    if not all(map(slurm_status_is_okay, statuses)):
+        raise ValueError("One or more jobs were in a bad state")
+
     await create_table_artifact(
         key="slurm-group-of-jobs-submission",
         table=[
@@ -289,8 +328,8 @@ async def check_or_repause(
         description="Job statuses from Slurm",
     )
     if all([s == SlurmStatus.completed for s in statuses]):
-        print(f"All jobs {job_ids} completed.")
+        logger.info(f"All jobs {job_ids} completed.")
         return True
     else:
         await _pause_this_flow(next_expected_time)
-        print("Some jobs not finished yet")
+        logger.info("Some jobs not finished yet")

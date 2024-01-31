@@ -14,6 +14,9 @@ import os
 from pathlib import Path
 
 import dj_database_url
+from django.templatetags.static import static
+from django.urls import reverse_lazy
+from django.utils.translation import gettext_lazy as _
 
 from emgapiv2.config import EMGConfig
 
@@ -42,6 +45,12 @@ EMG_CONFIG: EMGConfig = EMGConfig(_env_file=emg_config_env)
 # Application definition
 
 INSTALLED_APPS = [
+    "unfold",
+    # "unfold.contrib.filters"
+    # "unfold.contrib.forms",
+    # "unfold.contrib.import_export",  # optional, if django-import-export package is used
+    # "unfold.contrib.guardian",  # optional, if django-guardian package is used
+    # "unfold.contrib.simple_history",  # optional, if django-simple-history package is used
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -55,6 +64,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -130,8 +140,102 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
 
 STATIC_URL = "static/"
+STATICFILES_DIRS = (os.path.join(BASE_DIR, "static"),)
+
+STATICFILES_FINDERS = [
+    "django.contrib.staticfiles.finders.FileSystemFinder",
+    "django.contrib.staticfiles.finders.AppDirectoriesFinder",
+]
+
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
+
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+UNFOLD = {
+    "SITE_ICON": {
+        "light": lambda request: static(
+            "img/icons/mgnify_lettermark_dark_on_light.png"
+        ),
+        "dark": lambda request: static("img/icons/mgnify_lettermark_light_on_dark.png"),
+    },
+    "SITE_LOGO": {
+        "light": lambda request: static("img/icons/mgnify_wordmark_dark_on_light.png"),
+        "dark": lambda request: static("img/icons/mgnify_wordmark_light_on_dark.png"),
+    },
+    "SITE_TITLE": "MGnify Production",
+    "SITE_HEADER": "MGnify Production",
+    "COLORS": {
+        "primary": {
+            "900": "8 80 37",
+            "800": "11 99 47",
+            "700": "15 117 56",
+            "600": "19 134 66",
+            "500": "24 151 76",
+            "400": "59 170 80",
+            "300": "98 188 95",
+            "200": "150 205 131",
+            "100": "#194 221 168",
+            "050": "228 237 206",
+        },
+    },
+    "SIDEBAR": {
+        "show_search": True,
+        "navigation": [
+            {
+                "title": _("EMG DB Admin"),
+                "separator": True,
+                "items": [
+                    {
+                        "title": _("DB Admin dashboard"),
+                        "icon": "database",
+                        "link": reverse_lazy("admin:index"),
+                        "permission": lambda request: request.user.is_superuser,
+                    },
+                ],
+            },
+            {
+                "title": _("Flow automation"),
+                "separator": True,
+                "items": [
+                    {
+                        "title": _("Prefect Flows dashboard"),
+                        "icon": "rebase",
+                        "link": os.getenv("PREFECT_API_URL", "").replace(
+                            "api", "dashboard"
+                        ),
+                    },
+                ],
+            },
+            {
+                "title": _("Public facing"),
+                "separator": True,
+                "items": [
+                    {
+                        "title": _("MGnify API"),
+                        "icon": "code",
+                        "link": reverse_lazy("api:api-root"),
+                    },
+                    {
+                        "title": _("MGnify Website"),
+                        "icon": "home",
+                        "link": "https://www.ebi.ac.uk/metagenomics",
+                    },
+                    {
+                        "title": _("MGnify Docs"),
+                        "icon": "help_center",
+                        "link": "https://docs.mgnify.org",
+                    },
+                ],
+            },
+        ],
+    },
+}

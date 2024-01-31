@@ -70,3 +70,10 @@ See [the slurm/README.md](slurm/README.md) for details. In short: `task slurm`.
 
 ## Writing flows
 See [the workflows/README.md](workflows/README.md) for details. In short: add Python/Prefect code to a file in `workflows/flows/` and then `FLOW=my_flow task deploy-flow`.
+
+## TODO
+* DB Schema for merged EMG + Backlog DB
+* JSON:API in Django Ninja
+* Slurm-job cancellation on flow failure (using Prefect state change hooks)
+* Job cleanup flows
+* Flow test

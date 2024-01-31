@@ -81,3 +81,30 @@ async def my_long_flow(study: str):
 Note the helpers for submitting a single command with several different parameters, using the `pattern`s.
 
 `sync_to_async()` is also needed around the Django functions, since we're in an `async` context.
+
+
+## Triggering flows from models
+A common pattern in production is likely to be triggering a workflow (a Prefect flow) when an object in the EMG
+database changes.
+For example, when a Study is created, run some prefect flow to fetch it from ENA, and assemble it's reads.
+The pattern for this is to use [signals](https://docs.djangoproject.com/en/5.0/topics/signals/).
+Signals (e.g., `post_save`) are events/hooks/triggers that call some function e.g. before or after a model is saved.
+(Typically `post_save` is preferable, as it limits the amount of possibly failing work done before commiting the thing to the database.)
+To keep things clean, flow-invoking-model-hooks should be registered in the `workflows/signals.py` file.
+
+For example:
+```python
+@receiver(post_save, sender=analyses.models.AssemblyAnalysisRequest)
+def on_assembly_analysis_saved(sender, instance: analyses.models.AssemblyAnalysisRequest, created, **kwargs):
+    if not created: return
+    flowrun = async_to_sync(run_deployment)(
+        "Assemble and analyse a study/assembly_analysis_request_deployment", # <-- naming here is NOT arbitrary
+        timeout=0,
+        parameters={
+            "accession": instance.requested_study,
+            "request_id": instance.id,
+        },
+    )
+    instance.request_metadata['flow_run_id'] = str(flowrun.id) # <-- potentially useful to save this for admin purposes
+    instance.save()
+```

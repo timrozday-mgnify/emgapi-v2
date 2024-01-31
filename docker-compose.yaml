@@ -112,7 +112,7 @@ services:
       target: django
     container_name: app
     profiles: ["app", "all"]
-    command: "runserver"
+    command: "runserver 0:8000"
     environment:
       - PREFECT_API_URL=http://prefect-server:4200/api
       - DATABASE_URL=postgres://postgres:postgres@app-database:5432/emg
