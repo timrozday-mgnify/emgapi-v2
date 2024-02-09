@@ -10,6 +10,10 @@ tasks:
     cmds:
       - kubectl --context=emgapiv2-hl-exp get pods -l app=emgapi -o jsonpath='{.items[0].metadata.name}'
 
+  get-prefect-pod-name:
+    cmds:
+      - kubectl --context=emgapiv2-hl-exp get pods -l app=prefect-server -o jsonpath='{.items[0].metadata.name}'
+
   make-pool:
     cmds:
       - kubectl --context=emgapiv2-hl-exp exec -it $(task get-api-pod-name) -- python manage.py prefectcli work-pool create 'slurm'
@@ -17,6 +21,15 @@ tasks:
   deploy-utils:
     cmds:
       - kubectl --context=emgapiv2-hl-exp exec -it $(task get-api-pod-name) -- python manage.py prefectcli deployment build workflows/prefect_utils/slurm_flow.py:resume_flow_run --name resume_flow_run_deployment --output /app/data/prefect/workflows/deployments/resume_flow_run_deployment.yaml -p slurm --apply
+
+  deploy-flow:
+    desc: "Build and deploy a prefect flow. E.g. FLOW=mgnify_run_pipeline_flow task deploy-flow"
+    cmds:
+      - kubectl --context=emgapiv2-hl-exp exec -it $(task get-api-pod-name) -- python manage.py prefectcli deployment build workflows/flows/{{.FLOW}}.py:{{.FLOW}} --path /nfs/production/rdf/metagenomics/jenkins-slurm/dev-prefect-agent/ --name {{.FLOW}}_deployment --output /app/data/prefect/workflows/deployments/{{.FLOW}}_deployment.yaml -p {{.POOL}} --apply
+    vars:
+      POOL: "slurm"
+    requires:
+      vars: [FLOW]
 
   deploy:
     cmds:
@@ -28,6 +41,11 @@ tasks:
       - |
         kubectl --context=emgapiv2-hl-exp rollout restart deployment prefect-server
         kubectl --context=emgapiv2-hl-exp rollout restart deployment emgapiv2-app
+
+  stop:
+    cmds:
+      - kubectl --context=emgapiv2-hl-exp scale deployment/emgapiv2-app --replicas 0
+      - kubectl --context=emgapiv2-hl-exp scale deployment/prefect-server --replicas 0
 
   kubectl:
     cmds:
