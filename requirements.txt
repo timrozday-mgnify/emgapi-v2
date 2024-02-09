@@ -3,7 +3,7 @@ django-ninja==0.22.2
 prefect==2.14.18
 prefect-shell==0.2.0
 dj-database-url
-psycopg2
+psycopg2-binary
 cython<3.0
 pydantic
 nextflowpy==0.8.1
