@@ -9,3 +9,6 @@ workflows/deployments/*.yaml
 prefectserver
 logs/
 slurm/jobdir/
+secret*.yaml
+secret*.yml
+secret*.env

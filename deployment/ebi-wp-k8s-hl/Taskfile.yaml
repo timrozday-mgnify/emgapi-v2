@@ -1,0 +1,45 @@
+---
+version: '3'
+
+env:
+  KUBECONFIG: "~/credentials/mgnify-k8s-team-admin-hh.conf"
+
+
+tasks:
+  get-api-pod-name:
+    cmds:
+      - kubectl --context=emgapiv2-hl-exp get pods -l app=emgapi -o jsonpath='{.items[0].metadata.name}'
+
+  make-pool:
+    cmds:
+      - kubectl --context=emgapiv2-hl-exp exec -it $(task get-api-pod-name) -- python manage.py prefectcli work-pool create 'slurm'
+
+  deploy-utils:
+    cmds:
+      - kubectl --context=emgapiv2-hl-exp exec -it $(task get-api-pod-name) -- python manage.py prefectcli deployment build workflows/prefect_utils/slurm_flow.py:resume_flow_run --name resume_flow_run_deployment --output /app/data/prefect/workflows/deployments/resume_flow_run_deployment.yaml -p slurm --apply
+
+  deploy:
+    cmds:
+      - |
+        kubectl --context=emgapiv2-hl-exp apply -f ebi-wp-k8s-hl.yaml
+
+  restart:
+    cmds:
+      - |
+        kubectl --context=emgapiv2-hl-exp rollout restart deployment prefect-server
+        kubectl --context=emgapiv2-hl-exp rollout restart deployment emgapiv2-app
+
+  kubectl:
+    cmds:
+      - kubectl --context=emgapiv2-hl-exp {{.CLI_ARGS}}
+
+  exec:
+    vars:
+      CLI_ARGS: /bin/sh
+    cmds:
+      - kubectl --context=emgapiv2-hl-exp exec -it $(task get-api-pod-name) -- {{.CLI_ARGS}}
+
+  build:
+    cmds:
+      - docker build -f Dockerfile -t quay.io/microbiome-informatics/emgapiv2:ebi-wp-k8s-hl --load ../..
+      - docker push  quay.io/microbiome-informatics/emgapiv2:ebi-wp-k8s-hl
