@@ -97,7 +97,7 @@ async def assembly_analysis_request(request_id: int, accession: str):
         jobs_args=[{"study": ena_study.accession}],
         expected_time=timedelta(seconds=10),
         status_checks_limit=1,
-        memory="100M",
+        memory="8G",
     )
 
     after_cluster_jobs()
