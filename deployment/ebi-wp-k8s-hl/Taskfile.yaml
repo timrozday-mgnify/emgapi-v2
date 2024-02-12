@@ -7,20 +7,24 @@ env:
 
 tasks:
   get-api-pod-name:
+    desc: "Gets a current podname running EMG API"
     cmds:
       - kubectl --context=emgapiv2-hl-exp get pods -l app=emgapi -o jsonpath='{.items[0].metadata.name}'
 
   get-prefect-pod-name:
+    desc: "Gets a current podname running Prefect Server"
     cmds:
       - kubectl --context=emgapiv2-hl-exp get pods -l app=prefect-server -o jsonpath='{.items[0].metadata.name}'
 
   make-pool:
+    desc: "Creates a workpool called 'slurm' for prefect. Not usually needed as the worker creates its own."
     cmds:
       - kubectl --context=emgapiv2-hl-exp exec -it $(task get-api-pod-name) -- python manage.py prefectcli work-pool create 'slurm'
 
   deploy-utils:
+    desc: "Deploys util workflows for prefect – ones that are used by many others"
     cmds:
-      - kubectl --context=emgapiv2-hl-exp exec -it $(task get-api-pod-name) -- python manage.py prefectcli deployment build workflows/prefect_utils/slurm_flow.py:resume_flow_run --name resume_flow_run_deployment --output /app/data/prefect/workflows/deployments/resume_flow_run_deployment.yaml -p slurm --apply
+      - kubectl --context=emgapiv2-hl-exp exec -it $(task get-api-pod-name) -- python manage.py prefectcli deployment build workflows/prefect_utils/slurm_flow.py:resume_flow_run --path /nfs/production/rdf/metagenomics/jenkins-slurm/dev-prefect-agent/ --name resume_flow_run_deployment --output /app/data/prefect/workflows/deployments/resume_flow_run_deployment.yaml -p slurm --apply
 
   deploy-flow:
     desc: "Build and deploy a prefect flow. E.g. FLOW=mgnify_run_pipeline_flow task deploy-flow"
@@ -32,32 +36,45 @@ tasks:
       vars: [FLOW]
 
   deploy:
+    desc: "Deploys the EMG API and Prefect Server, plus their databases and ingresses etc, to kubernetes"
     cmds:
       - |
         kubectl --context=emgapiv2-hl-exp apply -f ebi-wp-k8s-hl.yaml
 
+  up:
+    desc: "Scale up the EMG API and Prefect Server deployments to 1 replica each"
+    cmds:
+      - kubectl --context=emgapiv2-hl-exp scale deployment/emgapiv2-app --replicas 1
+      - kubectl --context=emgapiv2-hl-exp scale deployment/prefect-server --replicas 1
+
   restart:
+    desc: "Restart the EMG API and Prefect Server deployments (will pull fresh containers)"
     cmds:
       - |
         kubectl --context=emgapiv2-hl-exp rollout restart deployment prefect-server
         kubectl --context=emgapiv2-hl-exp rollout restart deployment emgapiv2-app
 
-  stop:
+  down:
+    desc: "Scale down the EMG API and Prefect Server deployments to 0 replicas. Makes service unavailable."
     cmds:
       - kubectl --context=emgapiv2-hl-exp scale deployment/emgapiv2-app --replicas 0
       - kubectl --context=emgapiv2-hl-exp scale deployment/prefect-server --replicas 0
 
   kubectl:
+    desc: "Run generic kubectl commands. E.g. task kubectl -- get pods"
     cmds:
       - kubectl --context=emgapiv2-hl-exp {{.CLI_ARGS}}
 
   exec:
+    desc: "Run commands on an EMG API pod. E.g. task exec -- python manage.py migrate"
     vars:
       CLI_ARGS: /bin/sh
     cmds:
       - kubectl --context=emgapiv2-hl-exp exec -it $(task get-api-pod-name) -- {{.CLI_ARGS}}
 
   build:
+    desc: "Build and push the docker image for EMG API"
+    prompt: "This will also push the container to quay. Ok?"
     cmds:
       - docker build -f Dockerfile -t quay.io/microbiome-informatics/emgapiv2:ebi-wp-k8s-hl --load ../..
       - docker push  quay.io/microbiome-informatics/emgapiv2:ebi-wp-k8s-hl

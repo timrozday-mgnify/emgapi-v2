@@ -5,3 +5,4 @@ prefectdb/
 appdb/
 workflows/deployments/*.yaml
 prefectserver
+deployment/
