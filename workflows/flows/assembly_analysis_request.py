@@ -84,7 +84,7 @@ async def assembly_analysis_request(request_id: int, accession: str):
     request.status[request.AssemblyAnalysisStates.ASSEMBLY_STARTED] = True
     await run_cluster_jobs(
         name_pattern="Assemble study {study}",
-        command_pattern=f"nextflow run ebi-metagenomics/miassembler "
+        command_pattern=f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/miassembler/main.nf "
         f"-profile codon_slurm "
         f"-resume "
         f"--assembler metaspades "
