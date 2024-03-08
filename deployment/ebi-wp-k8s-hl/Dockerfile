@@ -15,6 +15,10 @@ RUN addgroup --gid "$GID" "$USER" \
    "$USER"
 
 WORKDIR /app
+
+ADD requirements.txt ./requirements.txt
+RUN pip install -r requirements.txt
+
 ADD analyses ./analyses
 ADD emgapiv2 ./emgapiv2
 ADD ena ./ena
@@ -22,10 +26,8 @@ ADD static ./static
 ADD templates ./templates
 ADD --chown=7123:1347 workflows ./workflows
 ADD manage.py ./manage.py
-ADD requirements.txt ./requirements.txt
-ADD .prefectignore .prefectignore
 
-RUN pip install -r requirements.txt
+ADD .prefectignore .prefectignore
 
 EXPOSE 8000
 ENV DJANGO_SETTINGS_MODULE=emgapiv2.settings

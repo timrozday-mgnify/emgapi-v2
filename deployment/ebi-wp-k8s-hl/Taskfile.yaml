@@ -76,5 +76,4 @@ tasks:
     desc: "Build and push the docker image for EMG API"
     prompt: "This will also push the container to quay. Ok?"
     cmds:
-      - docker build -f Dockerfile -t quay.io/microbiome-informatics/emgapiv2:ebi-wp-k8s-hl --load ../..
-      - docker push  quay.io/microbiome-informatics/emgapiv2:ebi-wp-k8s-hl
+      - docker build -f Dockerfile -t quay.io/microbiome-informatics/emgapiv2:ebi-wp-k8s-hl --push ../..

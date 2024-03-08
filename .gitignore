@@ -12,3 +12,5 @@ slurm/jobdir/
 secret*.yaml
 secret*.yml
 secret*.env
+secret*.htaccess
+deployment/**/*job*.yaml

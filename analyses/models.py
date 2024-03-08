@@ -1,4 +1,5 @@
 import os
+from enum import Enum
 
 from django.db import models
 from django.db.models import F, Value, CharField, JSONField, AutoField
@@ -32,7 +33,7 @@ class MGnifyAccessionedModel(models.Model):
             Value(accession_prefix),
             LPad(Cast(F("id"), CharField()), accession_length, Value("0")),
         ),
-        output_field=CharField(),
+        output_field=CharField(max_length=20),
         db_persist=True,
         db_index=True,
     )
@@ -92,13 +93,68 @@ class Sample(MGnifyAccessionedModel, ENADerivedModel, TimeStampedModel):
 
 
 class Analysis(MGnifyAccessionedModel, TimeStampedModel, VisibilityControlledModel):
-    suppression_following_fields = ["sample"]
+    accession_prefix = "MGYA"
+    accession_length = 8
 
+    GENOME_PROPERTIES = "genome_properties"
+    GO_TERMS = "go_terms"
+    GO_SLIMS = "go_slims"
+    INTERPRO_IDENTIFIERS = "interpro_identifiers"
+    KEGG_MODULES = "kegg_modules"
+    KEGG_ORTHOLOGS = "kegg_orthologs"
+    TAXONOMIES = "taxonomies"
+    ANTISMASH_GENE_CLUSTERS = "antismash_gene_clusters"
+    PFAMS = "pfams"
+
+    suppression_following_fields = ["sample"]
     study = models.ForeignKey(Study, on_delete=models.CASCADE)
     results_dir = models.CharField(max_length=100)
     sample = models.ForeignKey(
         Sample, on_delete=models.CASCADE, related_name="analyses"
     )
+
+    @staticmethod
+    def default_annotations():
+        return {
+            Analysis.GENOME_PROPERTIES: [],
+            Analysis.GO_TERMS: [],
+            Analysis.GO_SLIMS: [],
+            Analysis.INTERPRO_IDENTIFIERS: [],
+            Analysis.KEGG_MODULES: [],
+            Analysis.KEGG_ORTHOLOGS: [],
+            Analysis.TAXONOMIES: [],
+            Analysis.ANTISMASH_GENE_CLUSTERS: [],
+            Analysis.PFAMS: [],
+        }
+
+    annotations = models.JSONField(default=default_annotations.__func__)
+
+
+class AnalysedContig(TimeStampedModel):
+    analysis = models.ForeignKey(Analysis, on_delete=models.CASCADE)
+    contig_id = models.CharField(max_length=255)
+    coverage = models.FloatField()
+    length = models.IntegerField()
+
+    PFAMS = "pfams"
+    KEGGS = "keggs"
+    INTERPROS = "interpros"
+    COGS = "cogs"
+    GOS = "gos"
+    ANTISMASH_GENE_CLUSTERS = "antismash_gene_clusters"
+
+    @staticmethod
+    def default_annotations():
+        return {
+            AnalysedContig.PFAMS: [],
+            AnalysedContig.KEGGS: [],
+            AnalysedContig.INTERPROS: [],
+            AnalysedContig.COGS: [],
+            AnalysedContig.GOS: [],
+            AnalysedContig.ANTISMASH_GENE_CLUSTERS: [],
+        }
+
+    annotations = models.JSONField(default=default_annotations.__func__)
 
 
 class Assembly(TimeStampedModel, ENADerivedModel):

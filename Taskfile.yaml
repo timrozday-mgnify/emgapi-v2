@@ -15,7 +15,7 @@ tasks:
   create-pool:
     desc: "Create a Prefect workpool. E.g. NAME=slurm task create-process-pool"
     cmds:
-      - docker compose exec app python manage.py prefectcli work-pool create --type {{.TYPE}} {{.CLI_ARGS}} {{.NAME}}
+      - docker compose exec app python manage.py prefectcli work-pool create --annotation_type {{.TYPE}} {{.CLI_ARGS}} {{.NAME}}
     vars:
       TYPE: "process"
       NAME: "slurm"

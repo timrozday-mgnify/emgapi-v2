@@ -155,7 +155,7 @@ STORAGES = {
     },
 }
 
-# Default primary key field type
+# Default primary key field annotation_type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -239,3 +239,23 @@ UNFOLD = {
         ],
     },
 }
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "level": "DEBUG"},
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": "INFO",
+        },
+        "": {
+            "handlers": ["console"],
+            "level": "INFO",
+        },
+    },
+}
+
+NINJA_PAGINATION_CLASS = "ninja.pagination.PageNumberPagination"

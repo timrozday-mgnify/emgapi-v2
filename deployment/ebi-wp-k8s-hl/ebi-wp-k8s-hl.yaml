@@ -49,6 +49,35 @@ items:
         requests:
           storage: 3Gi
       volumeName: emgapi-vol-nfs
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: emgapi-vol-nfs-services
+      namespace: emgapiv2-hl-exp
+    spec:
+      capacity:
+        storage: 10Gi
+      volumeMode: Filesystem
+      accessModes:
+        - ReadOnlyMany
+      mountOptions:
+        - nfsvers=3
+      nfs:
+        server: hh-isi-srv-vlan1496.ebi.ac.uk
+        path: /ifs/public/services/metagenomics/results
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: emgapi-services-volume-claim-1
+      namespace: emgapiv2-hl-exp
+    spec:
+      storageClassName: ""
+      accessModes:
+        - ReadOnlyMany
+      resources:
+        requests:
+          storage: 3Gi
+      volumeName: emgapi-vol-nfs-services
 
   - apiVersion: v1
     kind: ConfigMap
@@ -86,6 +115,9 @@ items:
             - name: emgapi-app-storage
               persistentVolumeClaim:
                 claimName: emgapi-volume-claim-3
+            - name: emgapi-results-storage
+              persistentVolumeClaim:
+                claimName: emgapi-services-volume-claim-1
           containers:
             - image: quay.io/microbiome-informatics/emgapiv2:ebi-wp-k8s-hl
               imagePullPolicy: Always
@@ -103,6 +135,8 @@ items:
               volumeMounts:
                 - mountPath: "/app/data"
                   name: emgapi-app-storage
+                - mountPath: "/results"
+                  name: emgapi-results-storage
           imagePullSecrets:
             - name: quay-pull-secret
   - apiVersion: v1
@@ -139,133 +173,6 @@ items:
                     name: emgapiv2
                     port:
                       number: 8000
-
-  ###############################
-  #### DATABASES (temporary) ####
-  ###############################
-
-  ## PREFECT DB ##
-  - apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      name: postgres-prefect
-      namespace: emgapiv2-hl-exp
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: postgres-prefect
-      template:
-        metadata:
-          labels:
-            app: postgres-prefect
-        spec:
-          containers:
-            - name: postgres-prefect
-              image: postgres:latest
-              env:
-                - name: POSTGRES_USER
-                  valueFrom:
-                    secretKeyRef:
-                      key: POSTGRES_PREFECT_USER
-                      name: emgapi-secret
-                - name: POSTGRES_PASSWORD
-                  valueFrom:
-                    secretKeyRef:
-                      key: POSTGRES_PREFECT_PASSWORD
-                      name: emgapi-secret
-                - name: POSTGRES_DB
-                  value: "prefect"
-              ports:
-                - containerPort: 5432
-          volumes:
-            - name: postgres-prefect-storage
-              persistentVolumeClaim:
-                claimName: postgres-prefect-pv-claim
-  - apiVersion: v1
-    kind: PersistentVolumeClaim
-    metadata:
-      name: postgres-prefect-pv-claim
-      namespace: emgapiv2-hl-exp
-    spec:
-      accessModes:
-        - ReadWriteOnce
-      resources:
-        requests:
-          storage: 4Gi
-  - apiVersion: v1
-    kind: Service
-    metadata:
-      name: postgres-prefect
-      namespace: emgapiv2-hl-exp
-    spec:
-      ports:
-        - port: 5432
-      selector:
-        app: postgres-prefect
-      clusterIP: None
-
-  ## APP DB ##
-  - apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      name: postgres-app
-      namespace: emgapiv2-hl-exp
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: postgres-app
-      template:
-        metadata:
-          labels:
-            app: postgres-app
-        spec:
-          containers:
-            - name: postgres-app
-              image: postgres:latest
-              env:
-                - name: POSTGRES_USER
-                  valueFrom:
-                    secretKeyRef:
-                      key: POSTGRES_APP_USER
-                      name: emgapi-secret
-                - name: POSTGRES_PASSWORD
-                  valueFrom:
-                    secretKeyRef:
-                      key: POSTGRES_APP_PASSWORD
-                      name: emgapi-secret
-                - name: POSTGRES_DB
-                  value: "emg"
-              ports:
-                - containerPort: 5432
-          volumes:
-            - name: postgres-app-storage
-              persistentVolumeClaim:
-                claimName: postgres-app-pv-claim
-  - apiVersion: v1
-    kind: Service
-    metadata:
-      name: postgres-app
-      namespace: emgapiv2-hl-exp
-    spec:
-      type: NodePort
-      selector:
-        app: postgres-app
-      ports:
-        - port: 5432
-          nodePort: 30100
-  - apiVersion: v1
-    kind: PersistentVolumeClaim
-    metadata:
-      name: postgres-app-pv-claim
-      namespace: emgapiv2-hl-exp
-    spec:
-      accessModes:
-        - ReadWriteOnce
-      resources:
-        requests:
-          storage: 4Gi
 
   ###############################
   #### PREFECT SERVER        ####
