@@ -33,6 +33,16 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "insecure-dev-key")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+
+def show_toolbar(request):
+    return False
+
+
+DEBUG_TOOLBAR_CONFIG = {
+    "SHOW_TOOLBAR_CALLBACK": "emgapiv2.settings.show_toolbar",
+}
+
+
 ALLOWED_HOSTS = ["apiv2-dev.mgnify.org"]
 
 
@@ -57,12 +67,14 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "debug_toolbar",
     "ena",
     "analyses",
     "workflows",
 ]
 
 MIDDLEWARE = [
+    "debug_toolbar.middleware.DebugToolbarMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -246,14 +258,25 @@ LOGGING = {
     "handlers": {
         "console": {"class": "logging.StreamHandler", "level": "DEBUG"},
     },
+    "root": {
+        "handlers": ["console"],
+        "level": "DEBUG",
+    },
     "loggers": {
         "django": {
             "handlers": ["console"],
-            "level": "INFO",
+            "level": "DEBUG",
+            "propagate": True,
+        },
+        "django.db.backends": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+            "propagate": True,
         },
         "": {
             "handlers": ["console"],
-            "level": "INFO",
+            "level": "DEBUG",
+            "propagate": True,
         },
     },
 }

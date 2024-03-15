@@ -1,13 +1,28 @@
 import logging
-from enum import Enum
+from textwrap import dedent
 from typing import List, Optional
 
 from django.http import Http404
 from django.shortcuts import get_object_or_404
-from ninja import NinjaAPI, ModelSchema, Schema
+from ninja import NinjaAPI
 from ninja.pagination import RouterPaginated
 
 import analyses.models
+from analyses.schemas import (
+    MGnifyStudy,
+    MGnifyAnalysis,
+    MGnifyAnalysisWithAnnotations,
+    MGnifyAnalysisTypedAnnotation,
+    MGnifyAssemblyAnalysisRequestCreate,
+    MGnifyAssemblyAnalysisRequest,
+    MGnifyFunctionalAnalysisAnnotationType,
+)
+from emgapiv2.schema_utils import (
+    ApiSections,
+    OpenApiKeywords,
+    make_links_section,
+    make_related_detail_link,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,60 +34,52 @@ api = NinjaAPI(
     csrf=True,
     version="2.0-alpha",
     default_router=RouterPaginated(),
+    openapi_extra={
+        "tags": [
+            {
+                OpenApiKeywords.NAME.value: ApiSections.STUDIES.value,
+                OpenApiKeywords.DESCRIPTION.value: dedent(
+                    """
+                MGnify studies are based on ENA studies/projects, and are collections of samples, runs, assemblies,
+                and analyses associated with a certain set of experiments.
+                """
+                ),
+            },
+            {
+                OpenApiKeywords.NAME.value: ApiSections.SAMPLES.value,
+                OpenApiKeywords.DESCRIPTION.value: dedent(
+                    """
+                MGnify samples are based on ENA/BioSamples samples, and represent individual biological samples.
+                """
+                ),
+            },
+            {
+                OpenApiKeywords.NAME.value: ApiSections.ANALYSES.value,
+                OpenApiKeywords.DESCRIPTION.value: dedent(
+                    """
+                MGnify analyses are runs of a standard pipeline on an individual sequencing run or assembly.
+                They can include collections of taxonomic and functional annotations.
+                """
+                ),
+            },
+            {
+                OpenApiKeywords.NAME.value: ApiSections.REQUESTS.value,
+                OpenApiKeywords.DESCRIPTION.value: dedent(
+                    """
+                Requests are user-initiated processes for MGnify to assemble and/or analyse the samples in a study.
+                """
+                ),
+            },
+        ]
+    },
 )
 
 
-class ApiSections(Enum):
-    STUDIES = "Studies"
-    SAMPLES = "Samples"
-    ANALYSES = "Analyses"
-    REQUESTS = "Requests"
-
-
-class MGnifyStudy(ModelSchema):
-    class Config:
-        model = analyses.models.Study
-        model_fields = ["accession", "ena_study"]
-
-
-class MGnifySample(ModelSchema):
-    class Config:
-        model = analyses.models.Sample
-        model_fields = ["accession", "ena_sample"]
-
-
-class MGnifyAnalysis(ModelSchema):
-    class Config:
-        model = analyses.models.Analysis
-        model_fields = ["accession", "study", "results_dir"]
-
-
-class MGnifyAnalysisWithAnnotations(ModelSchema):
-    class Config:
-        model = analyses.models.Analysis
-        model_fields = ["accession", "study", "results_dir", "annotations"]
-
-
-class MGnifyAnalysisTypedAnnotation(Schema):
-    count: int
-    description: str
-
-
-# class MGnifyAnalysisWithTypedAnnotations(Schema):
-#     accession: str
-#     annotations_list = List[MGnifyAnalysisTypedAnnotation]
-
-
-class MGnifyAssemblyAnalysisRequestCreate(ModelSchema):
-    class Config:
-        model = analyses.models.AssemblyAnalysisRequest
-        model_fields = ["requestor", "request_metadata"]
-
-
-class MGnifyAssemblyAnalysisRequest(ModelSchema):
-    class Config:
-        model = analyses.models.AssemblyAnalysisRequest
-        model_fields = ["requestor", "status", "study", "request_metadata", "id"]
+#################################################################
+#                                                               #
+#                           STUDIES                             #
+#                                                               #
+#################################################################
 
 
 @api.get(
@@ -81,6 +88,7 @@ class MGnifyAssemblyAnalysisRequest(ModelSchema):
     tags=[ApiSections.STUDIES.value],
     summary="Get the detail of a single study analysed by MGnify",
     description="MGnify studies inherit directly from studies (or projects) in ENA.",
+    operation_id="get_mgnify_study",
 )
 def get_mgnify_study(request, accession: str):
     study = get_object_or_404(analyses.models.Study, accession=accession)
@@ -93,16 +101,32 @@ def get_mgnify_study(request, accession: str):
     tags=[ApiSections.STUDIES.value],
     summary="List all studies analysed by MGnify",
     description="MGnify studies inherit directly from studies (or projects) in ENA.",
+    operation_id="list_mgnify_studies",
 )
 def list_mgnify_studies(request):
     qs = analyses.models.Study.objects.all()
     return qs
 
 
+#################################################################
+#                                                               #
+#                           ANALYSES                            #
+#                                                               #
+#################################################################
+
+
 @api.get(
     "/analyses/{accession}",
     response=MGnifyAnalysis,
     tags=[ApiSections.ANALYSES.value],
+    openapi_extra=make_links_section(
+        make_related_detail_link(
+            related_detail_operation_id="get_mgnify_study",
+            related_object_name="study",
+            self_object_name="analysis",
+            related_id_in_response="study_accession",
+        )
+    ),
 )
 def get_mgnify_analysis(request, accession: str):
     analysis = get_object_or_404(analyses.models.Analysis, accession=accession)
@@ -115,20 +139,10 @@ def get_mgnify_analysis(request, accession: str):
     tags=[ApiSections.ANALYSES.value],
 )
 def get_mgnify_analysis_with_annotations(request, accession: str):
-    analysis = get_object_or_404(analyses.models.Analysis, accession=accession)
+    analysis = get_object_or_404(
+        analyses.models.Analysis.objects_and_annotations, accession=accession
+    )
     return analysis
-
-
-class MGnifyFunctionalAnalysisAnnotationType(Enum):
-    genome_properties: str = analyses.models.Analysis.GENOME_PROPERTIES
-    go_terms: str = analyses.models.Analysis.GO_TERMS
-    go_slims: str = analyses.models.Analysis.GO_SLIMS
-    interpro_identifiers: str = analyses.models.Analysis.INTERPRO_IDENTIFIERS
-    kegg_modules: str = analyses.models.Analysis.KEGG_MODULES
-    kegg_orthologs: str = analyses.models.Analysis.KEGG_ORTHOLOGS
-    taxonomies: str = analyses.models.Analysis.TAXONOMIES
-    antismash_gene_clusters: str = analyses.models.Analysis.ANTISMASH_GENE_CLUSTERS
-    pfams: str = analyses.models.Analysis.PFAMS
 
 
 @api.get(
@@ -166,8 +180,11 @@ def list_mgnify_analyses(request):
     return qs
 
 
-class StudyAnalysisIntent(Schema):
-    study_accession: str
+#################################################################
+#                                                               #
+#                          REQUESTS                             #
+#                                                               #
+#################################################################
 
 
 @api.get(

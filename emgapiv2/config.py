@@ -1,4 +1,5 @@
-from pydantic import BaseModel, BaseSettings
+from pydantic import BaseModel
+from pydantic_settings import BaseSettings
 
 
 class SlurmConfig(BaseModel):

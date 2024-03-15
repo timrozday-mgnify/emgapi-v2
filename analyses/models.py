@@ -19,24 +19,56 @@ class ConcatOp(models.Func):
     template = "%(expressions)s"
 
 
-class MGnifyAccessionedModel(models.Model):
+class MGnifyAccessionField(models.GeneratedField):
+    accession_prefix: str = None
+    accession_length: int = None
+
     """
-    Base class for models that are accessioned like MGYX001, with an auto ID and a zero-padded accession.
-    Accessions are auto-generated, and persisted and indexed to the database.
+    A special type of GeneratedField, that uses the models `id` to form a column of accessions.
+    The accessions are prefixed (e.g. MGYA) and zero padded (e.g. MGYA000001).
+    The accession are persisted to the DB (stored as a column) and unique and indexed (for use as lookups e.g. as a key).
+    """
+
+    def __init__(self, accession_prefix: str, accession_length: int, **kwargs):
+        self.accession_prefix = accession_prefix
+        self.accession_length = accession_length
+        for dont_pass in [
+            "expression",
+            "output_field",
+            "db_index",
+            "db_persist",
+            "unique",
+        ]:
+            kwargs.pop(dont_pass, None)
+
+        super().__init__(
+            expression=ConcatOp(
+                Value(accession_prefix),
+                LPad(Cast(F("id"), CharField()), accession_length, Value("0")),
+            ),
+            output_field=CharField(
+                max_length=(accession_length + len(accession_prefix) + 2)
+            ),
+            db_persist=True,
+            db_index=True,
+            unique=True,
+            **kwargs,
+        )
+
+    def deconstruct(self):
+        name, path, args, kwargs = super().deconstruct()
+        kwargs["accession_prefix"] = self.accession_prefix
+        kwargs["accession_length"] = self.accession_length
+        return name, path, args, kwargs
+
+
+class MGnifyAutomatedModel(models.Model):
+    """
+    Base class for models that have an autoincrementing ID (perhaps for use as an accession)
+    and an `is_ready` bool for when they should appear on website vs. in automation only.
     """
 
     id = AutoField(primary_key=True)
-    accession_prefix = "MGY?"
-    accession_length = 7
-    accession = models.GeneratedField(
-        expression=ConcatOp(
-            Value(accession_prefix),
-            LPad(Cast(F("id"), CharField()), accession_length, Value("0")),
-        ),
-        output_field=CharField(max_length=20),
-        db_persist=True,
-        db_index=True,
-    )
     is_ready = models.BooleanField(default=False)
 
     class Meta:
@@ -78,9 +110,10 @@ class TimeStampedModel(models.Model):
         abstract = True
 
 
-class Study(MGnifyAccessionedModel, ENADerivedModel, TimeStampedModel):
-    accession_prefix = "MGYS"
-    accession_length = 8
+class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
+    accession = MGnifyAccessionField(
+        accession_prefix="MGYS", accession_length=8, db_index=True
+    )
     ena_study = models.ForeignKey(
         ena.models.Study, on_delete=models.CASCADE, null=True, blank=True
     )
@@ -88,13 +121,30 @@ class Study(MGnifyAccessionedModel, ENADerivedModel, TimeStampedModel):
     title = models.CharField(max_length=255)
 
 
-class Sample(MGnifyAccessionedModel, ENADerivedModel, TimeStampedModel):
+class Sample(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
     ena_sample = models.ForeignKey(ena.models.Sample, on_delete=models.CASCADE)
 
 
-class Analysis(MGnifyAccessionedModel, TimeStampedModel, VisibilityControlledModel):
-    accession_prefix = "MGYA"
-    accession_length = 8
+class AnalysisManagerDeferringAnnotations(models.Manager):
+    """
+    The annotations field is a potentially large JSONB field.
+    Defer it by default, since most queries don't need to transfer this large dataset.
+    """
+
+    def get_queryset(self):
+        return super().get_queryset().defer("annotations")
+
+
+class AnalysisManagerIncludingAnnotations(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset()
+
+
+class Analysis(MGnifyAutomatedModel, TimeStampedModel, VisibilityControlledModel):
+    objects = AnalysisManagerDeferringAnnotations()
+    objects_and_annotations = AnalysisManagerIncludingAnnotations()
+
+    accession = MGnifyAccessionField(accession_prefix="MGYA", accession_length=8)
 
     GENOME_PROPERTIES = "genome_properties"
     GO_TERMS = "go_terms"
@@ -107,7 +157,7 @@ class Analysis(MGnifyAccessionedModel, TimeStampedModel, VisibilityControlledMod
     PFAMS = "pfams"
 
     suppression_following_fields = ["sample"]
-    study = models.ForeignKey(Study, on_delete=models.CASCADE)
+    study = models.ForeignKey(Study, on_delete=models.CASCADE, to_field="accession")
     results_dir = models.CharField(max_length=100)
     sample = models.ForeignKey(
         Sample, on_delete=models.CASCADE, related_name="analyses"

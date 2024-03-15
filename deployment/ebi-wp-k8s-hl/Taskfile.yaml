@@ -77,3 +77,10 @@ tasks:
     prompt: "This will also push the container to quay. Ok?"
     cmds:
       - docker build -f Dockerfile -t quay.io/microbiome-informatics/emgapiv2:ebi-wp-k8s-hl --push ../..
+
+  update-api:
+    desc: "Build, push, and restart EMG API."
+    prompt: "This has side effects... it will push to quay and restart the app on K8s. Ok?"
+    cmds:
+      - task: build
+      - kubectl --context=emgapiv2-hl-exp rollout restart deployment emgapiv2-app
