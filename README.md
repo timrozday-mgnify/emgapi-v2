@@ -8,7 +8,7 @@ There are two real Django apps here:
 There is one fake Django app `workflows`, which is used to tie Prefect (the workflow scheduler) into Django.
 This is bidi: it creates a `manage.py prefectcli` command to run Prefect, and it allows Prefect tasks to use instantiated Django.
 
-The API is implemented with `ninja` (`emgapiv2/api.py`).
+The API is implemented with `ninja` (`emgapiv2/api.py`), and uses Open API spec with Swagger.
 
 ## Dev setup
 Clone the repo.
@@ -71,9 +71,17 @@ See [the slurm/README.md](slurm/README.md) for details. In short: `task slurm`.
 ## Writing flows
 See [the workflows/README.md](workflows/README.md) for details. In short: add Python/Prefect code to a file in `workflows/flows/` and then `FLOW=my_flow task deploy-flow`.
 
+
+## Deployment
+The `deployment/` folder has deployment configs for different environments.
+Each should have its own `Taskfile`, included in the main `Taskfile`.
+E.g. see [the EBI WP K8s HL deployment README](deployment/ebi-wp-k8s-hl/README.md).
+Run e.g. `task ebi-wp-k8s-hl:update-api` to build/push/restart the EMG API service in that deployment (**requires some secrets setup**).
+
+
 ## TODO
 * DB Schema for merged EMG + Backlog DB
-* JSON:API in Django Ninja
 * Slurm-job cancellation on flow failure (using Prefect state change hooks)
 * Job cleanup flows
 * Flow test
+* Meta-queue

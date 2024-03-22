@@ -26,6 +26,7 @@ def on_assembly_analysis_saved(
             "accession": instance.requested_study,
             "request_id": instance.id,
         },
+        idempotency_key=f"assembly_analysis_request_deployment__request_id_{instance.id}",
     )
     instance.request_metadata[instance.RequestMetadata.FLOW_RUN_ID] = str(flowrun.id)
     instance.save()
