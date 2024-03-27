@@ -23,11 +23,27 @@ Make the secrets
 `kubectl apply -f ebi-wp-k8s-hl.yaml`
 
 ## Migrate
-`kubectl get nodes -n emgapiv2-hl-exp`
+`task exec -- migrate`
 
-Find the emgapi pod.
+# Auth (needed first, if this is a from-scratch setup)
+Auth is handled using an OAuth2-proxy in front of Prefect.
+Unauthenticated users will be redirected to an auth screen.
+Currently using GitHub org as the auth backend, since EBI LDAP not available in this deployment.
 
-`kubectl exec -it <the pod name> -- /bin/sh`
-`python manage.py migrate`
+## Create a `secrets-github-auth.env` file:
+```bash
+OAUTH2_PROXY_CLIENT_ID=...
+OAUTH2_PROXY_CLIENT_SECRET=...
+```
 
-##
+These should be creds for a github oauth2 application, which will handle authentication for users.
+
+`kubectl create secret generic github-oauth-secret --from-env-file=secrets-github-oauth.env -n emgapiv2-hl-exp`
+
+## Create other secrets:
+Trusted IPs of worker nodes, that should not need to authenticate to access the Prefect API.
+`kubectl create secret generic oauth2-proxy-trusted-ip --from-literal=oauth2-proxy-trusted-ip='1.1.1.1' -n emgapiv2-hl-exp
+secret/oauth2-proxy-trusted-ip created`
+
+Cookie secret:
+`kubectl create secret generic oauth2-proxy-cookie-secret --from-literal=oauth2-proxy-cookie-secret='<some base64 thing>' -n emgapiv2-hl-exp`

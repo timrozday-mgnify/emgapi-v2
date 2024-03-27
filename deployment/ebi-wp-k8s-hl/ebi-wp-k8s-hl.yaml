@@ -195,6 +195,7 @@ items:
           containers:
             - name: prefect-server
               image: prefecthq/prefect:2-latest
+              imagePullPolicy: Always
               command: ["/opt/prefect/entrypoint.sh"]
               args: ["prefect", "server", "start"]
               envFrom:
@@ -226,31 +227,148 @@ items:
     metadata:
       name: prefect-server
       namespace: emgapiv2-hl-exp
-      labels:
-        app: prefect-server
     spec:
-      type: NodePort
+      type: ClusterIP
       ports:
-        - name: prefect
-          port: 4200
+        - port: 4200
           targetPort: 4200
-          protocol: TCP
       selector:
         app: prefect-server
 
+  #### OAUTH2 PROXY (USER LOGIN VIA GITHUB)  ####
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: oauth2-proxy
+      namespace: emgapiv2-hl-exp
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: oauth2-proxy
+      template:
+        metadata:
+          labels:
+            app: oauth2-proxy
+        spec:
+          containers:
+            - name: oauth2-proxy
+              image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+              envFrom:
+                - configMapRef:
+                    name: proxy-config
+                - secretRef:
+                    name: github-oauth-secret
+              env:
+                - name: OAUTH2_PROXY_COOKIE_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: oauth2-proxy-cookie-secret
+                      key: oauth2-proxy-cookie-secret
+                - name: OAUTH2_PROXY_TRUSTED_IPS
+                  valueFrom:
+                    secretKeyRef:
+                      name: oauth2-proxy-trusted-ip
+                      key: oauth2-proxy-trusted-ip
+              ports:
+                - containerPort: 4180
+              args:
+                - --provider=github
+                - --github-org=EBI-Metagenomics
+                - --email-domain=*
+                - --upstream=file:///dev/null
+                - --http-address=0.0.0.0:4180
+                - --redirect-url=http://prefect-dev.mgnify.org/oauth2/callback
+                - --custom-sign-in-logo=https://raw.githubusercontent.com/EBI-Metagenomics/ebi-metagenomics-client/main/public/images/mgnify_logo_reverse.svg
+                - --cookie-secure=false
+                - --cookie-domain=.mgnify.org
+                - --reverse-proxy=true
+                - --standard-logging=true
+                - --auth-logging=true
+                - --request-logging=true
+                - --real-client-ip-header=X-Forwarded-For
+
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: prefect-via-oauth
+      namespace: emgapiv2-hl-exp
+      labels:
+        app: oauth2-proxy
+    spec:
+      ports:
+        - port: 4180
+          targetPort: 4180
+          protocol: TCP
+      selector:
+        app: oauth2-proxy
+
+  #### INGRESSES ####
+  #### Handle oauth flow ####
+  - apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: prefect-oauth2-proxy-ingress
+      namespace: emgapiv2-hl-exp
+    spec:
+      ingressClassName: nginx
+      rules:
+        - host: prefect-dev.mgnify.org
+          http:
+            paths:
+              - path: /oauth2
+                pathType: Prefix
+                backend:
+                  service:
+                    name: prefect-via-oauth
+                    port:
+                      number: 4180
+
+  #### Serve prefect to auth'd users, redirect unauth'd users to oauth2-proxy ####
   - apiVersion: networking.k8s.io/v1
     kind: Ingress
     metadata:
       name: prefect-ingress
       namespace: emgapiv2-hl-exp
       annotations:
-        kubernetes.io/ingress.class: "nginx"
+        nginx.ingress.kubernetes.io/auth-signin: http://$host/oauth2/sign_in?rd=$escaped_request_uri
+        nginx.ingress.kubernetes.io/auth-url: http://$host/oauth2/auth
+        nginx.ingress.kubernetes.io/configuration-snippet: |
+          # Forward the real client IP header
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
     spec:
+      ingressClassName: nginx
       rules:
         - host: prefect-dev.mgnify.org
           http:
             paths:
               - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: prefect-server
+                    port:
+                      number: 4200
+
+
+  #### TEMPORARY Allow to access prefect API directly (for worker nodes) ####
+  - apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: prefect-work-node-ingress
+      annotations:
+        nginx.ingress.kubernetes.io/configuration-snippet: |
+          if ($request_uri ~* "^/workers/api") {
+            rewrite ^/workers/api(.*)$ /api$1 break;
+          }
+    spec:
+      rules:
+        - host: prefect-dev.mgnify.org
+          http:
+            paths:
+              - path: /workers/api
                 pathType: Prefix
                 backend:
                   service:
