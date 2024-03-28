@@ -14,3 +14,4 @@ secret*.yml
 secret*.env
 secret*.htaccess
 deployment/**/*job*.yaml
+deployment/**/auth

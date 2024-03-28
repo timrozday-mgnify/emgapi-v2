@@ -28,7 +28,7 @@ Make the secrets
 # Auth (needed first, if this is a from-scratch setup)
 Auth is handled using an OAuth2-proxy in front of Prefect.
 Unauthenticated users will be redirected to an auth screen.
-Currently using GitHub org as the auth backend, since EBI LDAP not available in this deployment.
+Currently, we're using GitHub org as the auth backend since EBI LDAP not available in this deployment.
 
 ## Create a `secrets-github-auth.env` file:
 ```bash
@@ -40,10 +40,78 @@ These should be creds for a github oauth2 application, which will handle authent
 
 `kubectl create secret generic github-oauth-secret --from-env-file=secrets-github-oauth.env -n emgapiv2-hl-exp`
 
-## Create other secrets:
-Trusted IPs of worker nodes, that should not need to authenticate to access the Prefect API.
-`kubectl create secret generic oauth2-proxy-trusted-ip --from-literal=oauth2-proxy-trusted-ip='1.1.1.1' -n emgapiv2-hl-exp
-secret/oauth2-proxy-trusted-ip created`
+## Worker's auth
+Prefect workers also need to be able to authenticate to the Prefect Server API.
+This isn't built into Prefect, and they can't use oauth2 easily.
 
+In this deployment we are using [MITMProxy in upstream mode](https://docs.mitmproxy.org/stable/concepts-modes/#upstream-proxy),
+on the workers, to intercept HTTP requests to the Prefect API and add a basic auth header.
+The credentials for this need to be added to Kubernetes, as well as env vars on the worker VM.
+E.g. if the worker is deployed by a Jenkins job, these basic auth headers can be in Jenkins secrets and MITM Proxy should be started before the prefer worker.
+
+```shell
+ htpasswd -c auth my-worker-name...
+ #<enter a password twice>
+kubectl create secret generic prefect-workers-basic-auth --from-file=auth -n emgapiv2-hl-exp
+```
+
+And on the worker, before starting prefect (to also chain the EBI Proxy):
+```shell
+export PREFECT_API_AUTH_PASSWORD=my-worker-name...
+export PREFECT_API_AUTH_USERNAME=mypassword...
+export PREFECT_API_URL='http://prefect-dev.mgnify.org/workers/api'
+mitmdump --mode upstream:http://hh-wwwcache.ebi.ac.uk:3128 -s mitm_auth_for_workers.py
+```
+
+## Create other secrets:
 Cookie secret:
 `kubectl create secret generic oauth2-proxy-cookie-secret --from-literal=oauth2-proxy-cookie-secret='<some base64 thing>' -n emgapiv2-hl-exp`
+
+# Auth setup:
+
+```text
+┌────────────────────────────────────────┬───────┬───────────────────────────────────────────────┐  ┌──────────────────────────────────────┬────────────┬──────────────────────────────────┐
+│                                        │ CODON │                                               │  │                                      │ KUBERNETES │                                  │
+│                                        └───────┘                                               │  │                                      └────────────┘                                  │
+│                                                                                                │  │                                                                                      │
+│                                                                                                │  │                                                                                      │
+│          ┌───────────────────────┬─────────────────┬────────────────────────┐                  │  │                                           ┌─────────┬────────────────┬──────────┐    │
+│          │                       │ mi-slurm-worker │                        │                  │  │                                           │         │ prefect-server │          │    │
+│          │                       └─────────────────┘                        │                  │  │                                           │         └────────────────┘          │    │
+│          │                                                                  │                  │  │        worker ingress                     │     API             UI              │    │
+│          │   ┌───┬────────────────┬───┐    ┌────┬────────────┬─────┐        │                  │  │      ┌──────────────────┐                 │  ┌───────────┐  ┌──────────┐        │    │
+│          │   │   │ prefect worker │   │    │    │ mitm-proxy │     │        │                  │  │      │                  │                 │  │           │  │          │        │    │
+│          │   │   └────────────────┘   │    │    └────────────┘     │        │                  │  │      │                  │                 │  │           │  │          │        │    │
+│          │   │                        │    │                       │        │     polls for work  │      │check auth header │                 │  │           │  │          │        │    │
+│          │   │ prefect worker start   ├───►│ +http auth headers    ├────────┼──────────────────┬──┼──────┼──────────────────┼─────────────────┼─►│           │◄─┤          │        │    │
+│          │   │                        │    │                       │        │                  │  │      │                  │                 │  │           │  │          │        │    │
+│          │   │                        │    └───────────────────────┘        │                  │  │      └──────────────────┘                 │  │           │  │          │        │    │
+│          │   └───────────────┬────────┘                                     │                  │  │                                           │  │           │  │          │        │    │
+│          │                   │                                              │                  │  │                                           │  └───────────┘  └──────────┘        │    │
+│          └───────────────────┼──────────────────────────────────────────────┘                  │  │                                           │                       ▲             │    │
+│                              │                                                                 │  │         oauth ingress                     │                       │             │    │
+│                              │ submits to                                                      │  │      ┌──────────────────┐                 │                 ┌─────┼────┐        │    │
+│                              │                                                                 │  │      │                  │                 │     oauth2-proxy│     │    │        │    │
+│                 slurm nodes  ▼                                                                 │  │      │                  │  logged in      │                 │     │    │        │    │
+│               ┌──────────────┐                                                                 │  │      │         ┌────┬───┴─────────────────┼─────────────────┼─────┘    │        │    │
+│               │              │                                                                 │  │      │         │    │   ◄─────────────────┼─────────────────┤          │        │    │
+│               │  ┌───────────┼───┐                                                             │  │      └─────────┼────┼───┘                 │                 └──────────┘        │    │
+│               │  │           │   │                                                             │  │                │    │                     │                                     │    │
+│               │  │  ┌────────┼───┼───┐                                                         │  │                │    │                     └─────────────────────────────────────┘    │
+│               │  │  │        │   │   │                                                         │  │                │    │login needed                                                    │
+│               │  │  │        │   │   │                                                         │  │                │    │                                                                │
+│               └──┼──┼────────┘   │   │                                                         │  └────────────────┼────┼────────────────────────────────────────────────────────────────┘
+│                  │  │            │   │                                                         │                   │    │       github oauth provider
+│                  └──┼────────────┘   │                                                         │                   │    │        ┌─────────────────┐
+│                     │                │                                                         │                        │        │                 │
+│                     └────────────────┘                                                         │                  user  └───────►│      tokens     │
+│                                                                                                │                                 │                 │
+└────────────────────────────────────────────────────────────────────────────────────────────────┘                 ┌───┐           └─────────────────┘
+                                                                                                                   │###│
+                                                                                                                   ├───┤
+                                                                                                                  ┌┴───┴┐
+                                                                                                                  │ ### │
+                                                                                                                  │ ### │
+                                                                                                                    │ │
+                                                                                                                    │ │
+```

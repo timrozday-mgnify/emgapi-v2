@@ -353,12 +353,15 @@ items:
                       number: 4200
 
 
-  #### TEMPORARY Allow to access prefect API directly (for worker nodes) ####
   - apiVersion: networking.k8s.io/v1
     kind: Ingress
     metadata:
       name: prefect-work-node-ingress
+      namespace: emgapiv2-hl-exp
       annotations:
+        nginx.ingress.kubernetes.io/auth-type: basic
+        nginx.ingress.kubernetes.io/auth-secret: prefect-workers-basic-auth
+        nginx.ingress.kubernetes.io/auth-realm: 'Authentication Required'
         nginx.ingress.kubernetes.io/configuration-snippet: |
           if ($request_uri ~* "^/workers/api") {
             rewrite ^/workers/api(.*)$ /api$1 break;
