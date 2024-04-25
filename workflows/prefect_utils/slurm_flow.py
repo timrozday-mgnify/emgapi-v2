@@ -352,7 +352,7 @@ async def run_cluster_jobs(
                 "Prefect Subflow ID": job.prefect_flow_run_id,
                 "Initial state": job.last_known_state,
             }
-            for job_args, job in zip(jobs_args, jobs)
+            async for job_args, job in zip(jobs_args, jobs)
         ],
         description="Jobs submitted to Slurm",
     )
