@@ -331,7 +331,7 @@ async def run_cluster_jobs(
     logger = get_run_logger()
 
     jobs = [
-        run_cluster_job(
+        await run_cluster_job(
             name=name_pattern.format(**job_args),
             command=command_pattern.format(**job_args),
             expected_time=expected_time,
@@ -352,7 +352,7 @@ async def run_cluster_jobs(
                 "Prefect Subflow ID": job.prefect_flow_run_id,
                 "Initial state": job.last_known_state,
             }
-            async for job_args, job in zip(jobs_args, jobs)
+            for job_args, job in zip(jobs_args, jobs)
         ],
         description="Jobs submitted to Slurm",
     )
