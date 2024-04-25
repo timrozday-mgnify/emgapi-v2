@@ -43,7 +43,7 @@ DEBUG_TOOLBAR_CONFIG = {
 }
 
 
-ALLOWED_HOSTS = ["apiv2-dev.mgnify.org"]
+ALLOWED_HOSTS = ["apiv2-dev.mgnify.org", "localhost"]
 
 
 emg_config_env = os.getenv("EMG_ENV_FILE")
@@ -273,6 +273,11 @@ LOGGING = {
             "level": "DEBUG",
             "propagate": True,
         },
+        "django.utils.autoreload": {
+            "level": "INFO",
+        },
+        "django.template.base": {"level": "INFO"},
+        "graphviz": {"level": "INFO"},
         "": {
             "handlers": ["console"],
             "level": "DEBUG",

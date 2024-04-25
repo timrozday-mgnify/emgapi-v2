@@ -38,8 +38,8 @@ We do this by:
 1. submitting jobs to the Slurm cluster;
 2. checking the state of the Slurm jobs;
 3. pausing the prefect flow out of process if the Slurm jobs are not complete;
-4. scheduling a "resumer" flow for some duration in the future, which sits in the Prefect database until the scheduler starts it;
-5. running the resumer flow, which simply unpauses the main flow.
+4. having a job management (cluster monitoring) flow which runs on a cron timer, and every few minutes tells prefect flows to unpause and check on their slurm jobs.
+   5. this manager also drip feeds new jobs into slurm, again by unpausing their flows, if slurm was saturated when the cluster job was initially demanded.
 
 Steps 2. — 5. are repeated until the Slurm jobs are finished (or perhaps all in terminal states like completed and failed).
 

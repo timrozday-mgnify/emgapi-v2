@@ -1,18 +1,24 @@
 import logging
-from datetime import timedelta, datetime
+import time
+from collections import Counter
+from datetime import timedelta
 from enum import Enum
 from pathlib import Path
 from textwrap import dedent as _, indent
 from typing import Union, List, Dict
 
-from prefect import task, flow, get_client, get_run_logger
+import django
+from asgiref.sync import sync_to_async
+from django.db.models import QuerySet
+
+django.setup()
+
+from prefect import task, flow, get_run_logger, suspend_flow_run, resume_flow_run
 from prefect.artifacts import create_markdown_artifact, create_table_artifact
-from prefect.client.schemas.filters import DeploymentFilter, DeploymentFilterName
 from prefect.runtime import flow_run
-from prefect.server.schemas.responses import SetStateStatus, DeploymentResponse
-from prefect.states import Paused, Scheduled
 
 from emgapiv2.settings import EMG_CONFIG
+from workflows.models import PrefectInitiatedHPCJob
 
 try:
     import pyslurm
@@ -50,6 +56,24 @@ def slurm_status_is_okay(state: SlurmStatus):
         SlurmStatus.unknown,
         SlurmStatus.completed,
     ]
+
+
+def slurm_status_is_finished_successfully(state: SlurmStatus):
+    return state in [SlurmStatus.completed]
+
+
+def slurm_status_is_finished_unsuccessfully(state: SlurmStatus):
+    return state in [
+        SlurmStatus.failed,
+        SlurmStatus.stopped,
+        SlurmStatus.timeout,
+        SlurmStatus.suspended,
+        SlurmStatus.terminated,
+    ]
+
+
+def slurm_status_is_running(state: SlurmStatus):
+    return state in [SlurmStatus.running, SlurmStatus.completing]
 
 
 def slurm_timedelta(delta: timedelta) -> str:
@@ -101,7 +125,37 @@ def check_cluster_job(
     return job.state
 
 
-@task(task_run_name="Job submission: {name}", log_prints=True, persist_result=True)
+def get_cluster_state_counts() -> dict[SlurmStatus, int]:
+    logger = get_run_logger()
+    try:
+        our_jobs = pyslurm.db.JobFilter(users=[EMG_CONFIG.slurm.user])
+        jobs = pyslurm.db.Jobs.load(our_jobs)
+    except pyslurm.core.error.RPCError:
+        logger.warning(f"Error talking to slurm")
+        return {}
+    logger.info(f"SLURM job total count: {len(jobs)}")
+    return Counter([job.state for job in jobs.values()])
+
+
+def cluster_can_accept_jobs() -> int:
+    """
+    Does the cluster have "space" for more pending jobs? And how many?
+    :return: Zero if there is no space. Otherwise positive int of how many jobs can be taken.
+    """
+    current_job_state_counts = get_cluster_state_counts()
+    job_load = (
+        current_job_state_counts[SlurmStatus.running]
+        + current_job_state_counts[SlurmStatus.pending]
+    )
+    space = EMG_CONFIG.slurm.incomplete_job_limit - job_load
+    return max(space, 0)
+
+
+@task(
+    task_run_name="Job submission: {name}",
+    log_prints=True,
+    persist_result=True,
+)
 def start_cluster_job(
     name: str,
     command: str,
@@ -154,84 +208,103 @@ def start_cluster_job(
     return job_id
 
 
-async def _get_resumer_deployment() -> DeploymentResponse:
+class ClusterJobFailedException(Exception):
+    ...
+
+
+@task(
+    persist_result=False,
+    task_run_name="Monitor slurm: {job.prefect_flow_run_id}",
+    log_prints=True,
+)
+async def _monitor_cluster_job(job: PrefectInitiatedHPCJob) -> PrefectInitiatedHPCJob:
+    if job.last_known_state == job.JobStates.COMPLETED_SUCCESS:
+        # Already finished.
+        pass
+
+    if (
+        job.cluster_job_id is not None
+        and job.last_known_state is not job.JobStates.COMPLETED_SUCCESS
+    ):
+        # On slurm already so check if now finished
+        slurm_status = check_cluster_job(job.cluster_job_id)
+        if slurm_status_is_finished_successfully(slurm_status):
+            job.last_known_state = job.JobStates.COMPLETED_SUCCESS
+        elif slurm_status_is_finished_unsuccessfully(slurm_status):
+            job.last_known_state = job.JobStates.COMPLETED_FAIL
+        elif slurm_status_is_running(slurm_status):
+            job.last_known_state = job.JobStates.CLUSTER_RUNNING
+        elif slurm_status == SlurmStatus.pending:
+            job.last_known_state = job.JobStates.CLUSTER_PENDING
+        job.save()
+
+    if job.last_known_state in [
+        job.JobStates.CLUSTER_PENDING,
+        job.JobStates.CLUSTER_RUNNING,
+        job.JobStates.PRE_CLUSTER_PENDING,
+    ]:
+        # parent flow should pause again to wait for job
+        # this task isn't persisted so will run again with next flow run
+        await suspend_flow_run(timeout=None)
+
+    if job.last_known_state == job.JobStates.COMPLETED_FAIL:
+        # Bubble up failed jobs to flow level failures, to be handled by any parent flow logic
+        raise ClusterJobFailedException(
+            f"Job {job.cluster_job_id} failed on the cluster"
+        )
+
+    return job
+
+
+@flow(flow_run_name="Cluster job: {name}")
+async def run_cluster_job(
+    name: str,
+    command: str,
+    expected_time: timedelta,
+    memory: Union[int, str],
+    **kwargs,
+) -> PrefectInitiatedHPCJob:
+    """
+    Run and wait for a job on the HPC cluster.
+
+    :param name: Name for the job on slurm.
+    :param command: Shell-level command to run.
+    :param expected_time: A timedelta after which the job will be killed if unfinished.
+    :param memory: Max memory the job may use. In MB, or with a suffix. E.g. `100` or `10G`.
+    :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
+    :return: Django model instance representing the link between Prefect and Slurm.
+    """
     logger = get_run_logger()
-    async with get_client() as client:
-        resumer_deployments = await client.read_deployments(
-            deployment_filter=DeploymentFilter(
-                name=DeploymentFilterName(like_="resume_flow_run_deployment")
+    job, is_new = PrefectInitiatedHPCJob.objects.get_or_create(
+        prefect_flow_run_id=flow_run.id,
+        defaults={
+            "command": command,
+        },
+    )
+
+    if is_new or job.last_known_state == job.JobStates.PRE_CLUSTER_PENDING:
+        # Need to submit job to slurm if there is space
+        if cluster_can_accept_jobs():
+            logger.info("There is space on the cluster for this job.")
+            job_id = await start_cluster_job(
+                name=name,
+                command=command,
+                expected_time=expected_time,
+                memory=memory,
+                **kwargs,
             )
-        )
-        logger.info(f"Got deployments: {resumer_deployments}")
-        if resumer_deployments:
-            return resumer_deployments[0]
+            job.cluster_job_id = job_id
+            job.last_known_state = job.JobStates.CLUSTER_PENDING
+            job.save()
+        else:
+            logger.info("No space on cluster right now.")
+        await suspend_flow_run(timeout=None)
+    else:
+        await _monitor_cluster_job(job)
 
+    after_cluster_jobs()
 
-async def _pause_parent_flow(expected_time: timedelta):
-    logger = get_run_logger()
-    async with get_client() as client:
-        parent_flow_run = await client.read_flow_run(flow_run.parent_flow_run_id)
-
-        logger.info(
-            "Will now schedule a job for later to resume this flow run’s parent, and then pause the parent flow run."
-        )
-
-        sched_state = Scheduled(scheduled_time=datetime.utcnow() + expected_time)
-
-        resumer_deployment = await _get_resumer_deployment()
-
-        resumer_run = await client.create_flow_run_from_deployment(
-            deployment_id=resumer_deployment.id,
-            parameters={"flow_run_id": parent_flow_run.id},
-            state=sched_state,
-        )
-        logger.info(
-            f"The resumer flowrun is called {resumer_run.name}. In state {resumer_run.state}."
-        )
-
-        paused_state = Paused(
-            timeout_seconds=int(expected_time.total_seconds()) + 600, reschedule=True
-        )
-        logger.info(f"Will pause flow {parent_flow_run.id} ({parent_flow_run.name})")
-        orchestrated_state = await client.set_flow_run_state(
-            parent_flow_run.id, paused_state
-        )
-        logger.debug(orchestrated_state)
-        assert orchestrated_state.status == SetStateStatus.ACCEPT
-
-
-async def _pause_this_flow(expected_time: timedelta):
-    logger = get_run_logger()
-    async with get_client() as client:
-        logger.info(
-            "Will now schedule a job for later to resume this flow run, and then pause the flow run."
-        )
-
-        sched_state = Scheduled(scheduled_time=datetime.utcnow() + expected_time)
-
-        resumer_deployment = await _get_resumer_deployment()
-
-        resumer_run = await client.create_flow_run_from_deployment(
-            deployment_id=resumer_deployment.id,
-            parameters={"flow_run_id": flow_run.id},
-            state=sched_state,
-        )
-        logger.info(
-            f"The resumer flowrun is called {resumer_run.name}. In state {resumer_run.state}."
-        )
-
-        paused_state = Paused(
-            timeout_seconds=int(expected_time.total_seconds()) + 600, reschedule=True
-        )
-        logger.info(f"Will pause flow {flow_run.id} ({flow_run.name})")
-        orchestrated_state = await client.set_flow_run_state(flow_run.id, paused_state)
-        logger.debug(orchestrated_state)
-        assert orchestrated_state.status == SetStateStatus.ACCEPT
-
-
-def _generate_flow_run_name_from_jobs_pattern():
-    params = flow_run.parameters
-    return f"Collection of {len(params.get('jobs_args'))} cluster jobs: \"{params.get('name_pattern')}\""
+    return job
 
 
 async def run_cluster_jobs(
@@ -256,8 +329,9 @@ async def run_cluster_jobs(
     :return: List of outputs from each job.
     """
     logger = get_run_logger()
-    job_ids = [
-        start_cluster_job(
+
+    jobs = [
+        run_cluster_job(
             name=name_pattern.format(**job_args),
             command=command_pattern.format(**job_args),
             expected_time=expected_time,
@@ -266,7 +340,7 @@ async def run_cluster_jobs(
         )
         for job_args in jobs_args
     ]
-    logger.info(f"{len(job_ids)} jobs submitted to cluster")
+    logger.info(f"{len(jobs)} jobs (potentially) submitted to cluster")
 
     await create_table_artifact(
         key="slurm-group-of-jobs-submission",
@@ -274,62 +348,52 @@ async def run_cluster_jobs(
             {
                 "Name": name_pattern.format(**job_args),
                 "Command": command_pattern.format(**job_args),
-                "Slurm Job ID": job_id,
+                "Slurm Job ID": job.cluster_job_id,
+                "Prefect Subflow ID": job.prefect_flow_run_id,
+                "Initial state": job.last_known_state,
             }
-            for job_args, job_id in zip(jobs_args, job_ids)
+            for job_args, job in zip(jobs_args, jobs)
         ],
         description="Jobs submitted to Slurm",
     )
 
-    await check_or_repause(
-        job_ids,
-        next_expected_time=timedelta(
-            seconds=expected_time.total_seconds() / status_checks_limit
-        ),
+    return jobs
+
+
+def get_next_jobs_to_submit(n: int) -> Union[QuerySet, List[PrefectInitiatedHPCJob]]:
+    return PrefectInitiatedHPCJob.objects.filter(
+        last_known_state=PrefectInitiatedHPCJob.JobStates.PRE_CLUSTER_PENDING
+    ).order_by("created")[:n]
+
+
+def _make_timely_monitor_name():
+    return f"Job state at {time.strftime('%Y-%m-%d-%H:%M:%S')}UTC"
+
+
+@flow(flow_run_name=_make_timely_monitor_name)
+async def monitor_cluster():
+    potentially_complete_jobs = await sync_to_async(
+        PrefectInitiatedHPCJob.objects.filter
+    )(
+        last_known_state__in=[
+            PrefectInitiatedHPCJob.JobStates.CLUSTER_PENDING,
+            PrefectInitiatedHPCJob.JobStates.CLUSTER_RUNNING,
+        ]
     )
+    async for job in potentially_complete_jobs:
+        # get prefect flow and resume it
+        # resuming it should cause a check of slurm
+        await resume_flow_run(job.prefect_flow_run_id)
+        # additional pause so that loads of flows don't resume at some time,
+        #  all of which will query slurm around the same time...
+        time.sleep(EMG_CONFIG.slurm.wait_seconds_between_slurm_flow_resumptions)
 
-    return job_ids
+    job_space = cluster_can_accept_jobs()
+    # TODO: this isn't perfect because e.g. head nextflow jobs may launch many follow-on jobs
+    # For now will need to set our job limit very conservatively
 
-
-@flow(flow_run_name="Resume {flow_run_id}")
-async def resume_flow_run(
-    flow_run_id: str,
-):
-    """
-    Resume another FlowRun
-    :param flow_run_id: UUID of the FlowRun to resume
-    :return:
-    """
-    logger = get_run_logger()
-    async with get_client() as client:
-        logger.info(f"Will resume flow fun {flow_run_id}")
-        orchestrated_state = await client.resume_flow_run(flow_run_id)
-        logger.debug(orchestrated_state)
-        assert orchestrated_state.status == SetStateStatus.ACCEPT
-
-
-async def check_or_repause(
-    job_ids: List[int], next_expected_time: timedelta = timedelta(seconds=30)
-):
-    logger = get_run_logger()
-    logger.info(f"This is try number {flow_run.run_count}")
-    statuses = [check_cluster_job(job_id) for job_id in job_ids]
-    logger.info(f"Slurm Job statuses: {statuses}")
-
-    if not all(map(slurm_status_is_okay, statuses)):
-        raise ValueError("One or more jobs were in a bad state")
-
-    await create_table_artifact(
-        key="slurm-group-of-jobs-submission",
-        table=[
-            {"Slurm Job ID": job_id, "Status": status}
-            for job_id, status in zip(job_ids, statuses)
-        ],
-        description="Job statuses from Slurm",
-    )
-    if all([s == SlurmStatus.completed for s in statuses]):
-        logger.info(f"All jobs {job_ids} completed.")
-        return True
-    else:
-        await _pause_this_flow(next_expected_time)
-        logger.info("Some jobs not finished yet")
+    next_jobs_to_submit = get_next_jobs_to_submit(job_space)
+    async for job in next_jobs_to_submit:
+        # as above, resume the flow and it should submit the job to slurm now (unless space vanishes in the meantime)
+        await resume_flow_run(job.prefect_flow_run_id)
+        time.sleep(EMG_CONFIG.slurm.wait_seconds_between_slurm_flow_resumptions)

@@ -179,6 +179,9 @@ class Analysis(MGnifyAutomatedModel, TimeStampedModel, VisibilityControlledModel
 
     annotations = models.JSONField(default=default_annotations.__func__)
 
+    class Meta:
+        verbose_name_plural = "Analyses"
+
 
 class AnalysedContig(TimeStampedModel):
     analysis = models.ForeignKey(Analysis, on_delete=models.CASCADE)
