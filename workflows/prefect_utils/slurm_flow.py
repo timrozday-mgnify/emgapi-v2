@@ -8,7 +8,6 @@ from textwrap import dedent as _, indent
 from typing import Union, List, Dict
 
 import django
-from asgiref.sync import sync_to_async
 from django.db.models import QuerySet
 
 django.setup()
@@ -236,7 +235,7 @@ async def _monitor_cluster_job(job: PrefectInitiatedHPCJob) -> PrefectInitiatedH
             job.last_known_state = job.JobStates.CLUSTER_RUNNING
         elif slurm_status == SlurmStatus.pending:
             job.last_known_state = job.JobStates.CLUSTER_PENDING
-        job.save()
+        await job.asave()
 
     if job.last_known_state in [
         job.JobStates.CLUSTER_PENDING,
@@ -275,7 +274,7 @@ async def run_cluster_job(
     :return: Django model instance representing the link between Prefect and Slurm.
     """
     logger = get_run_logger()
-    job, is_new = await sync_to_async(PrefectInitiatedHPCJob.objects.get_or_create)(
+    job, is_new = await PrefectInitiatedHPCJob.objects.aget_or_create(
         prefect_flow_run_id=flow_run.id,
         defaults={
             "command": command,
@@ -295,7 +294,7 @@ async def run_cluster_job(
             )
             job.cluster_job_id = job_id
             job.last_known_state = job.JobStates.CLUSTER_PENDING
-            job.save()
+            await job.asave()
         else:
             logger.info("No space on cluster right now.")
         await suspend_flow_run(timeout=None)
