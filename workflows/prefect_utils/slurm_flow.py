@@ -286,7 +286,7 @@ async def run_cluster_job(
         # Need to submit job to slurm if there is space
         if cluster_can_accept_jobs():
             logger.info("There is space on the cluster for this job.")
-            job_id = await start_cluster_job(
+            job_id = start_cluster_job(
                 name=name,
                 command=command,
                 expected_time=expected_time,
