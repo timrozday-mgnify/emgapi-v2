@@ -87,13 +87,10 @@ async def assembly_analysis_request(request_id: int, accession: str):
         command_pattern=f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/miassembler/main.nf "
         f"-profile codon_slurm "
         f"-resume "
-        f"--assembler metaspades "
-        f"--paired_end true "
-        f"--reference_genome human "
+        f"--assembler metaspades/megahit "
         f"--outdir {{study}}_miassembler "
         f"--study_accession {{study}} "
-        f"--reads_accession SRR25008580 "  # TODO: remove
-        f"--spades_only_assembler true",
+        f"--reads_accession SRR6180434 ",  # TODO: remove
         jobs_args=[{"study": ena_study.accession}],
         expected_time=timedelta(days=1),
         memory="8G",
