@@ -9,6 +9,7 @@ from typing import Union, List, Dict
 
 import django
 from django.db.models import QuerySet
+from prefect.exceptions import NotPausedError
 
 django.setup()
 
@@ -386,13 +387,18 @@ def _make_timely_monitor_name():
     return f"Job state at {time.strftime('%Y-%m-%d-%H:%M:%S')}UTC"
 
 
-@flow(flow_run_name=_make_timely_monitor_name)
+@flow(flow_run_name=_make_timely_monitor_name, log_prints=True)
 async def monitor_cluster():
     potentially_complete_jobs = get_jobs_on_cluster()
     async for job in potentially_complete_jobs:
         # get prefect flow and resume it
         # resuming it should cause a check of slurm
-        await resume_flow_run(job.prefect_flow_run_id)
+        try:
+            await resume_flow_run(job.prefect_flow_run_id)
+        except NotPausedError:
+            print(
+                f"Expected to resume prefect flow {job.prefect_flow_run_id} but it was not actually paused"
+            )
         # additional pause so that loads of flows don't resume at some time,
         #  all of which will query slurm around the same time...
         time.sleep(EMG_CONFIG.slurm.wait_seconds_between_slurm_flow_resumptions)
