@@ -87,7 +87,7 @@ async def assembly_analysis_request(request_id: int, accession: str):
         command_pattern=f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/miassembler/main.nf "
         f"-profile codon_slurm "
         f"-resume "
-        f"--assembler metaspades/megahit "
+        f"--assembler megahit "
         f"--outdir {{study}}_miassembler "
         f"--study_accession {{study}} "
         f"--reads_accession SRR6180434 ",  # TODO: remove
