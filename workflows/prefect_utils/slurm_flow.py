@@ -321,7 +321,6 @@ async def run_cluster_jobs(
     jobs_args: List[Dict],
     expected_time: timedelta,
     memory: Union[int, str],
-    status_checks_limit: int = EMG_CONFIG.slurm.default_job_status_checks_limit,
     **kwargs,
 ):
     """
@@ -332,7 +331,6 @@ async def run_cluster_jobs(
     :param expected_time:  A timedelta after which the job will be killed if not done.
     This affects Prefect's polling interval too. E.g.  `timedelta(minutes=5)`
     :param memory: Maximum memory the job may use. In MB, or with a prefix. E.g. `100` or `10G`.
-    :param status_checks_limit:  How many times to check on the job between submission and the expected finish time.
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription
     :return: List of outputs from each job.
     """

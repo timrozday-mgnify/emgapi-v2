@@ -95,8 +95,7 @@ async def assembly_analysis_request(request_id: int, accession: str):
         f"--reads_accession SRR25008580 "  # TODO: remove
         f"--spades_only_assembler true",
         jobs_args=[{"study": ena_study.accession}],
-        expected_time=timedelta(seconds=10),
-        status_checks_limit=1,
+        expected_time=timedelta(days=1),
         memory="8G",
     )
 
