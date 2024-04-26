@@ -275,7 +275,7 @@ async def run_cluster_job(
     :return: Django model instance representing the link between Prefect and Slurm.
     """
     logger = get_run_logger()
-    job, is_new = PrefectInitiatedHPCJob.objects.get_or_create(
+    job, is_new = await sync_to_async(PrefectInitiatedHPCJob.objects.get_or_create)(
         prefect_flow_run_id=flow_run.id,
         defaults={
             "command": command,
@@ -366,20 +366,22 @@ def get_next_jobs_to_submit(n: int) -> Union[QuerySet, List[PrefectInitiatedHPCJ
     ).order_by("created")[:n]
 
 
+def get_jobs_on_cluster() -> Union[QuerySet, List[PrefectInitiatedHPCJob]]:
+    return PrefectInitiatedHPCJob.objects.filter(
+        last_known_state__in=[
+            PrefectInitiatedHPCJob.JobStates.CLUSTER_PENDING,
+            PrefectInitiatedHPCJob.JobStates.CLUSTER_RUNNING,
+        ]
+    )
+
+
 def _make_timely_monitor_name():
     return f"Job state at {time.strftime('%Y-%m-%d-%H:%M:%S')}UTC"
 
 
 @flow(flow_run_name=_make_timely_monitor_name)
 async def monitor_cluster():
-    potentially_complete_jobs = await sync_to_async(
-        PrefectInitiatedHPCJob.objects.filter
-    )(
-        last_known_state__in=[
-            PrefectInitiatedHPCJob.JobStates.CLUSTER_PENDING,
-            PrefectInitiatedHPCJob.JobStates.CLUSTER_RUNNING,
-        ]
-    )
+    potentially_complete_jobs = get_jobs_on_cluster()
     async for job in potentially_complete_jobs:
         # get prefect flow and resume it
         # resuming it should cause a check of slurm
