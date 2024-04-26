@@ -211,6 +211,14 @@ class ClusterJobFailedException(Exception):
     ...
 
 
+async def suspend_parent_flow():
+    """
+    Suspend the parent flow of this.
+    Note that this imposes a limitation that the slurm job flow can ONLY be used with exactly one parent.
+    """
+    await suspend_flow_run(flow_run_id=flow_run.parent_flow_run_id, timeout=None)
+
+
 @task(
     persist_result=False,
     task_run_name="Monitor slurm: {job.prefect_flow_run_id}",
@@ -244,7 +252,7 @@ async def _monitor_cluster_job(job: PrefectInitiatedHPCJob) -> PrefectInitiatedH
     ]:
         # parent flow should pause again to wait for job
         # this task isn't persisted so will run again with next flow run
-        await suspend_flow_run(timeout=None)
+        await suspend_parent_flow()
 
     if job.last_known_state == job.JobStates.COMPLETED_FAIL:
         # Bubble up failed jobs to flow level failures, to be handled by any parent flow logic
@@ -297,7 +305,7 @@ async def run_cluster_job(
             await job.asave()
         else:
             logger.info("No space on cluster right now.")
-        await suspend_flow_run(timeout=None)
+        await suspend_parent_flow()
     else:
         await _monitor_cluster_job(job)
 

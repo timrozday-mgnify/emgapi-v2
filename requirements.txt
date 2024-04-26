@@ -1,6 +1,6 @@
 django==5.0.4
 django-ninja==1.1.0
-prefect==2.18.0
+prefect==2.18.1
 prefect-shell==0.2.2
 dj-database-url
 psycopg2-binary
