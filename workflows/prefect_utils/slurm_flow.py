@@ -410,5 +410,10 @@ async def monitor_cluster():
     next_jobs_to_submit = get_next_jobs_to_submit(job_space)
     async for job in next_jobs_to_submit:
         # as above, resume the flow and it should submit the job to slurm now (unless space vanishes in the meantime)
-        await resume_flow_run(job.prefect_flow_run_id)
+        try:
+            await resume_flow_run(job.prefect_flow_run_id)
+        except NotPausedError:
+            print(
+                f"Expected to resume prefect flow {job.prefect_flow_run_id} but it was not actually paused"
+            )
         time.sleep(EMG_CONFIG.slurm.wait_seconds_between_slurm_flow_resumptions)
