@@ -5,16 +5,18 @@ from datetime import timedelta
 from enum import Enum
 from pathlib import Path
 from textwrap import dedent as _, indent
-from typing import Union, List, Dict
+from typing import Union, List
 
 import django
 from django.db.models import QuerySet
 from prefect.exceptions import NotPausedError
 
+from workflows.prefect_utils.out_of_process_subflow import await_out_of_process_subflow
+
 django.setup()
 
 from prefect import task, flow, get_run_logger, suspend_flow_run, resume_flow_run
-from prefect.artifacts import create_markdown_artifact, create_table_artifact
+from prefect.artifacts import create_markdown_artifact
 from prefect.runtime import flow_run
 
 from emgapiv2.settings import EMG_CONFIG
@@ -140,7 +142,7 @@ def get_cluster_state_counts() -> dict[SlurmStatus, int]:
 def cluster_can_accept_jobs() -> int:
     """
     Does the cluster have "space" for more pending jobs? And how many?
-    :return: Zero if there is no space. Otherwise positive int of how many jobs can be taken.
+    :return: Zero if there is no space. Otherwise, positive int of how many jobs can be taken.
     """
     current_job_state_counts = get_cluster_state_counts()
     job_load = (
@@ -162,7 +164,7 @@ def start_cluster_job(
     expected_time: timedelta,
     memory: Union[int, str],
     **kwargs,
-):
+) -> str:
     """
     Run a command on the HPC Cluster by submitting it as a Slurm job.
     :param name: Name for the job (both on Slurm and Prefect), e.g. "Run analysis pipeline for x"
@@ -171,7 +173,7 @@ def start_cluster_job(
     This affects Prefect's polling interval too. E.g.  `timedelta(minutes=5)`
     :param memory: Maximum memory the job may use. In MB, or with a prefix. E.g. `100` or `10G`.
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription
-    :return: A promise (Prefect Future) for the submitted job's future state.
+    :return: Job ID of the slurm job.
     """
     logger = get_run_logger()
     script = _(
@@ -212,12 +214,12 @@ class ClusterJobFailedException(Exception):
     ...
 
 
-async def suspend_parent_flow():
-    """
-    Suspend the parent flow of this.
-    Note that this imposes a limitation that the slurm job flow can ONLY be used with exactly one parent.
-    """
-    await suspend_flow_run(flow_run_id=flow_run.parent_flow_run_id, timeout=None)
+# async def suspend_parent_flow():
+#     """
+#     Suspend the parent flow of this.
+#     Note that this imposes a limitation that the slurm job flow can ONLY be used with exactly one parent.
+#     """
+#     await suspend_flow_run(flow_run_id=flow_run.parent_flow_run_id, timeout=None)
 
 
 @task(
@@ -253,7 +255,7 @@ async def _monitor_cluster_job(job: PrefectInitiatedHPCJob) -> PrefectInitiatedH
     ]:
         # parent flow should pause again to wait for job
         # this task isn't persisted so will run again with next flow run
-        await suspend_parent_flow()
+        await suspend_flow_run()
 
     if job.last_known_state == job.JobStates.COMPLETED_FAIL:
         # Bubble up failed jobs to flow level failures, to be handled by any parent flow logic
@@ -274,6 +276,8 @@ async def run_cluster_job(
 ) -> PrefectInitiatedHPCJob:
     """
     Run and wait for a job on the HPC cluster.
+    This flow will usually be paused and resumed many times,
+    because a separate monitor job will occasionally wake up this flow to monitor its HPC job.
 
     :param name: Name for the job on slurm.
     :param command: Shell-level command to run.
@@ -306,7 +310,7 @@ async def run_cluster_job(
             await job.asave()
         else:
             logger.info("No space on cluster right now.")
-        await suspend_parent_flow()
+        await suspend_flow_run()
     else:
         await _monitor_cluster_job(job)
 
@@ -315,55 +319,55 @@ async def run_cluster_job(
     return job
 
 
-async def run_cluster_jobs(
-    name_pattern: str,
-    command_pattern: str,
-    jobs_args: List[Dict],
-    expected_time: timedelta,
-    memory: Union[int, str],
-    **kwargs,
-):
-    """
-    Run multiple similar jobs on the HPC cluster, by submitting a common pattern (with different values interpolated) and waiting for them all to complete.
-    :param name_pattern: Name for each job. Values from each element of `args` will be interpolated.
-    :param command_pattern: Shell-level command to run for each element of `args`. Treated as f-string with `args` interpolated.
-    :param jobs_args: List of dicts. Jobs will be created for each element of list. Dict keys are interpolations for `name_pattern` and `command_pattern`.
-    :param expected_time:  A timedelta after which the job will be killed if not done.
-    This affects Prefect's polling interval too. E.g.  `timedelta(minutes=5)`
-    :param memory: Maximum memory the job may use. In MB, or with a prefix. E.g. `100` or `10G`.
-    :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription
-    :return: List of outputs from each job.
-    """
-    logger = get_run_logger()
-
-    jobs = [
-        await run_cluster_job(
-            name=name_pattern.format(**job_args),
-            command=command_pattern.format(**job_args),
-            expected_time=expected_time,
-            memory=memory,
-            **kwargs,
-        )
-        for job_args in jobs_args
-    ]
-    logger.info(f"{len(jobs)} jobs (potentially) submitted to cluster")
-
-    await create_table_artifact(
-        key="slurm-group-of-jobs-submission",
-        table=[
-            {
-                "Name": name_pattern.format(**job_args),
-                "Command": command_pattern.format(**job_args),
-                "Slurm Job ID": job.cluster_job_id,
-                "Prefect Subflow ID": job.prefect_flow_run_id,
-                "Initial state": job.last_known_state,
-            }
-            for job_args, job in zip(jobs_args, jobs)
-        ],
-        description="Jobs submitted to Slurm",
-    )
-
-    return jobs
+# async def run_cluster_jobs(
+#     name_pattern: str,
+#     command_pattern: str,
+#     jobs_args: List[Dict],
+#     expected_time: timedelta,
+#     memory: Union[int, str],
+#     **kwargs,
+# ):
+#     """
+#     Run multiple similar jobs on the HPC cluster, by submitting a common pattern (with different values interpolated) and waiting for them all to complete.
+#     :param name_pattern: Name for each job. Values from each element of `args` will be interpolated.
+#     :param command_pattern: Shell-level command to run for each element of `args`. Treated as f-string with `args` interpolated.
+#     :param jobs_args: List of dicts. Jobs will be created for each element of list. Dict keys are interpolations for `name_pattern` and `command_pattern`.
+#     :param expected_time:  A timedelta after which the job will be killed if not done.
+#     This affects Prefect's polling interval too. E.g.  `timedelta(minutes=5)`
+#     :param memory: Maximum memory the job may use. In MB, or with a prefix. E.g. `100` or `10G`.
+#     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription
+#     :return: List of outputs from each job.
+#     """
+#     logger = get_run_logger()
+#
+#     jobs = [
+#         await run_cluster_job(
+#             name=name_pattern.format(**job_args),
+#             command=command_pattern.format(**job_args),
+#             expected_time=expected_time,
+#             memory=memory,
+#             **kwargs,
+#         )
+#         for job_args in jobs_args
+#     ]
+#     logger.info(f"{len(jobs)} jobs (potentially) submitted to cluster")
+#
+#     await create_table_artifact(
+#         key="slurm-group-of-jobs-submission",
+#         table=[
+#             {
+#                 "Name": name_pattern.format(**job_args),
+#                 "Command": command_pattern.format(**job_args),
+#                 "Slurm Job ID": job.cluster_job_id,
+#                 "Prefect Subflow ID": job.prefect_flow_run_id,
+#                 "Initial state": job.last_known_state,
+#             }
+#             for job_args, job in zip(jobs_args, jobs)
+#         ],
+#         description="Jobs submitted to Slurm",
+#     )
+#
+#     return jobs
 
 
 def get_next_jobs_to_submit(n: int) -> Union[QuerySet, List[PrefectInitiatedHPCJob]]:
@@ -407,7 +411,7 @@ async def monitor_cluster():
 
     next_jobs_to_submit = get_next_jobs_to_submit(job_space)
     async for job in next_jobs_to_submit:
-        # as above, resume the flow and it should submit the job to slurm now (unless space vanishes in the meantime)
+        # as above, resume the flow - and it should submit the job to slurm now (unless space vanishes in the meantime)
         try:
             await resume_flow_run(job.prefect_flow_run_id)
         except NotPausedError:
@@ -415,3 +419,39 @@ async def monitor_cluster():
                 f"Expected to resume prefect flow {job.prefect_flow_run_id} but it was not actually paused"
             )
         time.sleep(EMG_CONFIG.slurm.wait_seconds_between_slurm_flow_resumptions)
+
+
+def await_cluster_job(
+    name: str,
+    command: str,
+    expected_time: timedelta,
+    memory: Union[int, str],
+    **kwargs,
+):
+    """
+    Convenience function for a Prefect flow to wait for an out-of-process command on the HPC cluster.
+
+    This orchestrates a few flows necessary to monitor the HPC job, its wrapper Prefect flow, and coordinate a
+    return to the execution of the calling flow when the job is done.
+
+    An instance of PrefectInitiatedHPCJob Django model will also be created.
+
+    The calling Prefect flow will be suspended when this job is launched.
+
+    :param name: Name for the job on slurm.
+    :param command: Shell-level command to run.
+    :param expected_time: A timedelta after which the job will be killed if unfinished.
+    :param memory: Max memory the job may use. In MB, or with a suffix. E.g. `100` or `10G`.
+    :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
+    :return: Subflow-run ID of the Prefect flow which is managing the slurm job.
+    """
+    return await_out_of_process_subflow(
+        subflow_deployment_name="run-cluster-job/run-cluster-job-deployment",
+        parameters={
+            "name": name,
+            "command": command,
+            "expected_time": expected_time,
+            "memory": memory,
+            **kwargs,
+        },
+    )

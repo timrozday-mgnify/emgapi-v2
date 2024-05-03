@@ -1,11 +1,12 @@
 from datetime import timedelta
 
 import django
-from asgiref.sync import sync_to_async
 from django.conf import settings
+from prefect.input import RunInput
+from prefect.task_runners import SequentialTaskRunner
 
 from workflows.prefect_utils.slurm_flow import (
-    run_cluster_jobs,
+    await_cluster_job,
     after_cluster_jobs,
 )
 
@@ -15,7 +16,7 @@ import httpx
 
 import ena.models
 import analyses.models
-from prefect import flow, task
+from prefect import flow, task, suspend_flow_run
 
 
 @task(
@@ -56,17 +57,28 @@ def get_mgnify_study(ena_accession: str) -> analyses.models.Study:
 
 
 @task(persist_result=True, log_prints=True)
-def update_assembly_status(request: analyses.models.AssemblyAnalysisRequest):
+def mark_assembly_as_completed(request: analyses.models.AssemblyAnalysisRequest):
     print(f"Analysis Request {request} is now assembled")
     request.status[request.AssemblyAnalysisStates.ASSEMBLY_COMPLETED] = True
+
+
+@task(persist_result=True, log_prints=True)
+def mark_assembly_as_started(request: analyses.models.AssemblyAnalysisRequest):
+    request.status[request.AssemblyAnalysisStates.ASSEMBLY_STARTED] = True
+    request.save()
+
+
+class ReadsAccessioninput(RunInput):
+    reads_accession: str
 
 
 @flow(
     name="Assemble and analyse a study",
     log_prints=True,
     flow_run_name="Assemble and analyse: {accession}",
+    task_runner=SequentialTaskRunner,
 )
-async def assembly_analysis_request(request_id: int, accession: str):
+def assembly_analysis_request(request_id: int, accession: str):
     """
     Get a study from ENA, and input it to MGnify.
     Kick off assembly pipeline.
@@ -74,27 +86,27 @@ async def assembly_analysis_request(request_id: int, accession: str):
     :param accession: Study accession e.g. PRJxxxxxx
     :param request_id: ID of the request in EMG DB.
     """
-    request = await sync_to_async(analyses.models.AssemblyAnalysisRequest.objects.get)(
-        id=request_id
-    )
+    request = analyses.models.AssemblyAnalysisRequest.objects.get(id=request_id)
     ena_study = get_study_from_ena(request.requested_study)
     print(f"ENA Study is {ena_study.accession}: {ena_study.title}")
     mgnify_study = get_mgnify_study(request.requested_study)
 
-    request.status[request.AssemblyAnalysisStates.ASSEMBLY_STARTED] = True
-    await run_cluster_jobs(
-        name_pattern="Assemble study {study}",
-        command_pattern=f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/miassembler/main.nf "
+    mark_assembly_as_started()
+
+    reads_accession_input = suspend_flow_run(wait_for_input=ReadsAccessioninput)
+
+    await_cluster_job(
+        name="Assemble study {study}",
+        command=f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/miassembler/main.nf "
         f"-profile codon_slurm "
         f"-resume "
         f"--assembler megahit "
-        f"--outdir {{study}}_miassembler "
-        f"--study_accession {{study}} "
-        f"--reads_accession SRR6180434 ",  # TODO: remove
-        jobs_args=[{"study": ena_study.accession}],
+        f"--outdir {ena_study.accession}_miassembler "
+        f"--study_accession {ena_study.accession} "
+        f"--reads_accession {reads_accession_input} ",  # TODO: automate for all
         expected_time=timedelta(days=1),
         memory="8G",
     )
 
     after_cluster_jobs()
-    update_assembly_status()
+    mark_assembly_as_completed()

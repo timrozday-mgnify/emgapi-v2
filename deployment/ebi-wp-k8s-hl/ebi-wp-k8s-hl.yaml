@@ -86,7 +86,7 @@ items:
       namespace: emgapiv2-hl-exp
     data:
       DJANGO_SETTINGS_MODULE: "emgapiv2.settings"
-      PREFECT_API_URL: "http://prefect-dev.mgnify.org/api"
+      PREFECT_API_URL: "http://prefect-server.emgapiv2-hl-exp.svc.cluster.local:4200/api"
       PREFECT_HOME: "/app/data/prefect"
       # PREFECT_LOCAL_STORAGE_PATH: "/app/data/prefect/storage"
 
