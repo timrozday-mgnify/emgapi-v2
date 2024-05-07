@@ -421,7 +421,7 @@ async def monitor_cluster():
         time.sleep(EMG_CONFIG.slurm.wait_seconds_between_slurm_flow_resumptions)
 
 
-def await_cluster_job(
+async def await_cluster_job(
     name: str,
     command: str,
     expected_time: timedelta,

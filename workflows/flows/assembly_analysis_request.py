@@ -77,7 +77,7 @@ class ReadsAccessioninput(RunInput):
     flow_run_name="Assemble and analyse: {accession}",
     task_runner=SequentialTaskRunner,
 )
-def assembly_analysis_request(request_id: int, accession: str):
+async def assembly_analysis_request(request_id: int, accession: str):
     """
     Get a study from ENA, and input it to MGnify.
     Kick off assembly pipeline.
@@ -85,16 +85,16 @@ def assembly_analysis_request(request_id: int, accession: str):
     :param accession: Study accession e.g. PRJxxxxxx
     :param request_id: ID of the request in EMG DB.
     """
-    request = analyses.models.AssemblyAnalysisRequest.objects.get(id=request_id)
+    request = await analyses.models.AssemblyAnalysisRequest.objects.aget(id=request_id)
     ena_study = get_study_from_ena(request.requested_study)
     print(f"ENA Study is {ena_study.accession}: {ena_study.title}")
     mgnify_study = get_mgnify_study(request.requested_study)
 
     mark_assembly_as_started(request)
 
-    reads_accession_input = suspend_flow_run(wait_for_input=ReadsAccessioninput)
+    reads_accession_input = await suspend_flow_run(wait_for_input=ReadsAccessioninput)
 
-    await_cluster_job(
+    await await_cluster_job(
         name="Assemble study {study}",
         command=f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/miassembler/main.nf "
         f"-profile codon_slurm "
