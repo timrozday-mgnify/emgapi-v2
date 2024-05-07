@@ -25,7 +25,6 @@ tasks:
     desc: "Deploys util workflows for prefect – ones that are used by many others"
     cmds:
       - kubectl --context=emgapiv2-hl-exp exec -it $(task get-api-pod-name) -- python manage.py prefectcli deployment build workflows/prefect_utils/slurm_flow.py:monitor_cluster --path /nfs/production/rdf/metagenomics/jenkins-slurm/dev-prefect-agent/ --name monitor_slurm_cluster_deployment --output /app/data/prefect/workflows/deployments/monitor_slurm_cluster_deployment.yaml -p slurm --apply --interval 60
-      - kubectl --context=emgapiv2-hl-exp exec -it $(task get-api-pod-name) -- python manage.py prefectcli deployment build workflows/prefect_utils/out_of_process_subflow.py:out_of_process_subflow_monitor --path /nfs/production/rdf/metagenomics/jenkins-slurm/dev-prefect-agent/ --name out_of_process_subflow_monitor_deployment --output /app/data/prefect/workflows/deployments/out_of_process_subflow_monitor_deployment.yaml -p slurm --apply --interval 60
       - kubectl --context=emgapiv2-hl-exp exec -it $(task get-api-pod-name) -- python manage.py prefectcli deployment build workflows/prefect_utils/slurm_flow.py:run_cluster_job --path /nfs/production/rdf/metagenomics/jenkins-slurm/dev-prefect-agent/ --name run_cluster_job_deployment --output /app/data/prefect/workflows/deployments/run_cluster_job_deployment.yaml -p slurm --apply
 
   deploy-flow:

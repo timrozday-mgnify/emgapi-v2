@@ -59,13 +59,12 @@ def get_mgnify_study(ena_accession: str) -> analyses.models.Study:
 @task(persist_result=True, log_prints=True)
 def mark_assembly_as_completed(request: analyses.models.AssemblyAnalysisRequest):
     print(f"Analysis Request {request} is now assembled")
-    request.status[request.AssemblyAnalysisStates.ASSEMBLY_COMPLETED] = True
+    request.mark_status(request.AssemblyAnalysisStates.ASSEMBLY_COMPLETED)
 
 
 @task(persist_result=True, log_prints=True)
 def mark_assembly_as_started(request: analyses.models.AssemblyAnalysisRequest):
-    request.status[request.AssemblyAnalysisStates.ASSEMBLY_STARTED] = True
-    request.save()
+    request.mark_status(request.AssemblyAnalysisStates.ASSEMBLY_STARTED)
 
 
 class ReadsAccessioninput(RunInput):
@@ -91,7 +90,7 @@ def assembly_analysis_request(request_id: int, accession: str):
     print(f"ENA Study is {ena_study.accession}: {ena_study.title}")
     mgnify_study = get_mgnify_study(request.requested_study)
 
-    mark_assembly_as_started()
+    mark_assembly_as_started(request)
 
     reads_accession_input = suspend_flow_run(wait_for_input=ReadsAccessioninput)
 
@@ -109,4 +108,4 @@ def assembly_analysis_request(request_id: int, accession: str):
     )
 
     after_cluster_jobs()
-    mark_assembly_as_completed()
+    mark_assembly_as_completed(request)
