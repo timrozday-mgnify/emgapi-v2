@@ -91,20 +91,22 @@ async def assembly_analysis_request(request_id: int, accession: str):
     mgnify_study = get_mgnify_study(request.requested_study)
     print(f"MGnify study is {mgnify_study.accession}: {mgnify_study.title}")
 
-    reads_accession_input = await suspend_flow_run(wait_for_input=ReadsAccessionInput)
+    reads_accession_input: ReadsAccessionInput = await suspend_flow_run(
+        wait_for_input=ReadsAccessionInput
+    )
     print(f"Will assemble only reads {reads_accession_input}")
 
     mark_assembly_as_started(request)
 
     await await_cluster_job(
-        name="Assemble study {study}",
+        name=f"Assemble study {ena_study.accession}",
         command=f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/miassembler/main.nf "
         f"-profile codon_slurm "
         f"-resume "
         f"--assembler megahit "
         f"--outdir {ena_study.accession}_miassembler "
         f"--study_accession {ena_study.accession} "
-        f"--reads_accession {reads_accession_input} ",  # TODO: automate for all
+        f"--reads_accession {reads_accession_input.reads_accession} ",  # TODO: automate for all
         expected_time=timedelta(days=1),
         memory="8G",
     )
