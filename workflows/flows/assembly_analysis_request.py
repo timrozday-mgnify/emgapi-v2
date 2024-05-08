@@ -67,7 +67,7 @@ def mark_assembly_as_started(request: analyses.models.AssemblyAnalysisRequest):
     request.mark_status(request.AssemblyAnalysisStates.ASSEMBLY_STARTED)
 
 
-class ReadsAccessioninput(RunInput):
+class ReadsAccessionInput(RunInput):
     reads_accession: str
 
 
@@ -89,10 +89,12 @@ async def assembly_analysis_request(request_id: int, accession: str):
     ena_study = get_study_from_ena(request.requested_study)
     print(f"ENA Study is {ena_study.accession}: {ena_study.title}")
     mgnify_study = get_mgnify_study(request.requested_study)
+    print(f"MGnify study is {mgnify_study.accession}: {mgnify_study.title}")
+
+    reads_accession_input = await suspend_flow_run(wait_for_input=ReadsAccessionInput)
+    print(f"Will assemble only reads {reads_accession_input}")
 
     mark_assembly_as_started(request)
-
-    reads_accession_input = await suspend_flow_run(wait_for_input=ReadsAccessioninput)
 
     await await_cluster_job(
         name="Assemble study {study}",

@@ -21,10 +21,10 @@ async def _launch_out_of_process_subflow(
 ) -> Union[UUID, str]:
     if make_globally_idempotent:
         idempotency_key = (
-            f"{deployment_name}-shared-subflow-{hash(json.dumps(parameters))}"
+            f"{deployment_name}-shared-subflow-{hash(json.dumps(str(parameters)))}"
         )
     else:
-        idempotency_key = f"{deployment_name}-subflow-of-{parent_flow_run_id}-{hash(json.dumps(parameters))}"
+        idempotency_key = f"{deployment_name}-subflow-of-{parent_flow_run_id}-{hash(json.dumps(str(parameters)))}"
 
     subflow_run: FlowRun = await run_deployment(
         name=deployment_name,
@@ -145,7 +145,7 @@ async def await_out_of_process_subflow(
 
     # Launch the monitor as a deployment
     monitor_run_id = await run_deployment(
-        name="out-of-process-subflow-monitor/out-of-process-subflow-monitor-deployment",
+        name="out-of-process-subflow-monitor/out_of_process_subflow_monitor_deployment",
         as_subflow=False,
         idempotency_key=flow_run.id,
         parameters={

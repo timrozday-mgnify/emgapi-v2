@@ -262,6 +262,8 @@ class AssemblyAnalysisRequest(TimeStampedModel):
     def __str__(self):
         return f"AssemblyAnalysisRequest {self.pk}: {self.requested_study}"
 
-    def mark_status(self, status: AssemblyAnalysisStates, set_status_as: bool = True):
+    async def mark_status(
+        self, status: AssemblyAnalysisStates, set_status_as: bool = True
+    ):
         self.status[status] = set_status_as
-        self.save()
+        return self.asave()

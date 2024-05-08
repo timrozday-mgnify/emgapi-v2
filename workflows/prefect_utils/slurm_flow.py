@@ -445,8 +445,8 @@ async def await_cluster_job(
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
     :return: Subflow-run ID of the Prefect flow which is managing the slurm job.
     """
-    return await_out_of_process_subflow(
-        subflow_deployment_name="run-cluster-job/run-cluster-job-deployment",
+    return await await_out_of_process_subflow(
+        subflow_deployment_name="run-cluster-job/run_cluster_job_deployment",
         parameters={
             "name": name,
             "command": command,
