@@ -44,7 +44,10 @@ async def _resume_parent_flow_if_paused(parent_flow_run_id: Union[UUID, str]):
             await resume_flow_run(parent_flow_run_id)
 
 
-@flow(task_runner=SequentialTaskRunner)
+@flow(
+    task_runner=SequentialTaskRunner,
+    flow_run_name="OOP Flow monitor for {subflow_run_id} (subflow of {parent_flow_run_id})",
+)
 async def out_of_process_subflow_monitor(
     subflow_run_id: Union[UUID, str],
     parent_flow_run_id: Union[UUID, str],
