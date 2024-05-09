@@ -97,7 +97,11 @@ async def out_of_process_subflow_monitor(
     await _resume_parent_flow_if_paused(parent_flow_run_id)
 
 
-@flow(persist_result=True, log_prints=True, task_runner=SequentialTaskRunner)
+@flow(
+    persist_result=True,
+    log_prints=True,
+    task_runner=SequentialTaskRunner,
+)
 async def await_out_of_process_subflow(
     subflow_deployment_name: str,
     parameters: Optional[dict] = None,
@@ -144,19 +148,20 @@ async def await_out_of_process_subflow(
     )
 
     # Launch the monitor as a deployment
-    monitor_run_id = await run_deployment(
+    monitor_run = await run_deployment(
         name="out-of-process-subflow-monitor/out_of_process_subflow_monitor_deployment",
         as_subflow=False,
         idempotency_key=flow_run.id,
+        timeout=0,
         parameters={
             "subflow_run_id": subflow_run_id,
             "parent_flow_run_id": flow_run.parent_flow_run_id,
         },
     )
-    print(f"Will be monitored by monitor flow run {monitor_run_id}")
+    print(f"Will be monitored by monitor flow run {monitor_run.id}")
 
     # Pause the parent flow of this
-    await suspend_flow_run(flow_run.parent_flow_run_id)
+    await suspend_flow_run(flow_run_id=flow_run.parent_flow_run_id, timeout=None)
     print(f"Suspended parent flow run {flow_run.parent_flow_run_id}")
 
     # Return the subflow run, so we are API compatible with having run prefect-native
@@ -169,9 +174,9 @@ async def await_out_of_process_subflow(
         table=[
             {
                 "subflow_deployment_name": subflow_deployment_name,
-                "subflow_run_id": subflow_run_id,
-                "monitor_run_id": monitor_run_id,
-                "parent_flow_run_id": flow_run.parent_flow_run_id,
+                "subflow_run_id": str(subflow_run_id),
+                "monitor_run_id": str(monitor_run.id),
+                "parent_flow_run_id": str(flow_run.parent_flow_run_id),
             }
         ],
         description="# Out of process subflow orchestration details",
