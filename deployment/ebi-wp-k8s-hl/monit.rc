@@ -15,8 +15,8 @@ set httpd port 8001
 
 check process dev-mi-slurm-worker-mitmproxy with pidfile /nfs/production/rdf/metagenomics/jenkins-slurm/processes/dev-mi-slurm-worker-mitmproxy.pid
   start program = "/nfs/production/rdf/metagenomics/jenkins-slurm/dev-prefect-agent/deployment/ebi-wp-k8s-hl/start_mitm_with_monit.sh"
-  stop program  = "/bin/sh -c 'kill -s SIGTERM $(cat /nfs/production/rdf/metagenomics/jenkins-slurm/processes/dev-mi-slurm-worker-mitmproxy.pid)'"
+  stop program  = "/bin/sh -c 'kill -s SIGKILL $(cat /nfs/production/rdf/metagenomics/jenkins-slurm/processes/dev-mi-slurm-worker-mitmproxy.pid)'"
 
 check process dev-mi-slurm-worker-prefect-worker with pidfile /nfs/production/rdf/metagenomics/jenkins-slurm/processes/dev-mi-slurm-worker-prefect-worker.pid
   start program = "/nfs/production/rdf/metagenomics/jenkins-slurm/dev-prefect-agent/deployment/ebi-wp-k8s-hl/start_worker_with_monit.sh"
-  stop program  = "/bin/sh -c 'kill -s SIGTERM $(cat /nfs/production/rdf/metagenomics/jenkins-slurm/processes/dev-mi-slurm-worker-prefect-worker.pid)'"
+  stop program  = "/bin/sh -c 'kill -s SIGKILL $(cat /nfs/production/rdf/metagenomics/jenkins-slurm/processes/dev-mi-slurm-worker-prefect-worker.pid)'"
