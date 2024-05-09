@@ -255,7 +255,7 @@ async def _monitor_cluster_job(job: PrefectInitiatedHPCJob) -> PrefectInitiatedH
     ]:
         # parent flow should pause again to wait for job
         # this task isn't persisted so will run again with next flow run
-        await suspend_flow_run()
+        await suspend_flow_run(flow_run_id=flow_run.id)
 
     if job.last_known_state == job.JobStates.COMPLETED_FAIL:
         # Bubble up failed jobs to flow level failures, to be handled by any parent flow logic
@@ -421,6 +421,7 @@ async def monitor_cluster():
         time.sleep(EMG_CONFIG.slurm.wait_seconds_between_slurm_flow_resumptions)
 
 
+@task(persist_result=True)
 async def await_cluster_job(
     name: str,
     command: str,
