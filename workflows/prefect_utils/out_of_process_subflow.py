@@ -31,6 +31,7 @@ async def _launch_out_of_process_subflow(
         as_subflow=False,
         idempotency_key=slugify(idempotency_key),
         parameters=parameters,
+        timeout=0,
     )
     return subflow_run.id
 
