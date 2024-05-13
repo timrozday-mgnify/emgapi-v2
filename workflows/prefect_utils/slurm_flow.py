@@ -4,23 +4,15 @@ from collections import Counter
 from datetime import timedelta
 from enum import Enum
 from pathlib import Path
-from textwrap import dedent as _, indent
-from typing import Union, List
-
-import django
-from django.db.models import QuerySet
-from prefect.exceptions import NotPausedError
+from textwrap import dedent as _
+from typing import Union
 
 from workflows.prefect_utils.out_of_process_subflow import await_out_of_process_subflow
 
-django.setup()
-
-from prefect import task, flow, get_run_logger, suspend_flow_run, resume_flow_run
+from prefect import task, flow, get_run_logger
 from prefect.artifacts import create_markdown_artifact
-from prefect.runtime import flow_run
 
 from emgapiv2.settings import EMG_CONFIG
-from workflows.models import PrefectInitiatedHPCJob
 
 try:
     import pyslurm
@@ -51,7 +43,7 @@ class SlurmStatus(str, Enum):
     unknown = "UNKNOWN"
 
 
-def slurm_status_is_okay(state: SlurmStatus):
+def slurm_status_is_okay(state: Union[SlurmStatus, str]):
     return state in [
         SlurmStatus.pending,
         SlurmStatus.running,
@@ -60,11 +52,11 @@ def slurm_status_is_okay(state: SlurmStatus):
     ]
 
 
-def slurm_status_is_finished_successfully(state: SlurmStatus):
+def slurm_status_is_finished_successfully(state: Union[SlurmStatus, str]):
     return state in [SlurmStatus.completed]
 
 
-def slurm_status_is_finished_unsuccessfully(state: SlurmStatus):
+def slurm_status_is_finished_unsuccessfully(state: Union[SlurmStatus, str]):
     return state in [
         SlurmStatus.failed,
         SlurmStatus.stopped,
@@ -74,7 +66,7 @@ def slurm_status_is_finished_unsuccessfully(state: SlurmStatus):
     ]
 
 
-def slurm_status_is_running(state: SlurmStatus):
+def slurm_status_is_running(state: Union[SlurmStatus, str]):
     return state in [SlurmStatus.running, SlurmStatus.completing]
 
 
@@ -98,8 +90,13 @@ def after_cluster_jobs():
 
 
 def check_cluster_job(
-    job_id: int,
-):
+    job_id: Union[int, str],
+) -> str:
+    """
+    Retrieve the state (e.g. RUNNING) of a cluster job on slurm.
+    :param job_id: Slurm job ID e.g. 10101 or 10101_1
+    :return: state of the job, as one of the string values of SlurmStatus.
+    """
     logger = get_run_logger()
     try:
         job = pyslurm.db.Job(job_id).load(job_id)
@@ -110,16 +107,17 @@ def check_cluster_job(
     job_log_path = Path(EMG_CONFIG.slurm.default_workdir) / Path(f"slurm-{job_id}.out")
     if job_log_path.exists():
         with open(job_log_path, "r") as job_log:
-            log = "\n".join(job_log.readlines())
+            full_log = job_log.readlines()
+            log = "\n".join(full_log[-EMG_CONFIG.slurm.job_log_tail_lines :])
             logger.info(
                 _(
                     f"""\
-                    Slurm Job Stdout Log:
+                    Slurm Job Stdout Log (last {EMG_CONFIG.slurm.job_log_tail_lines} lines of {len(full_log)}):
                     ----------
-                    {indent(log, ' ' * 20)}
+                    <<LOG>>
                     ----------
                     """
-                )
+                ).replace("<<LOG>>", log)
             )
     else:
         logger.info(f"No Slurm Job Stdout available at {job_log_path}")
@@ -201,12 +199,13 @@ def start_cluster_job(
             # Slurm job {job_id}
             Submitted a script to Slurm cluster:
             ~~~
-            {indent(script, ' ' * 12)}
+            <<SCRIPT>>
             ~~~
             It will be terminated by Slurm if not done in {slurm_timedelta(expected_time)}.
             """
-        ),
+        ).replace("<<SCRIPT>>", script),
     )
+
     return job_id
 
 
@@ -214,66 +213,37 @@ class ClusterJobFailedException(Exception):
     ...
 
 
-# async def suspend_parent_flow():
-#     """
-#     Suspend the parent flow of this.
-#     Note that this imposes a limitation that the slurm job flow can ONLY be used with exactly one parent.
-#     """
-#     await suspend_flow_run(flow_run_id=flow_run.parent_flow_run_id, timeout=None)
+class ClusterPendingJobsLimitReachedException(Exception):
+    ...
 
 
 @task(
-    persist_result=False,
-    task_run_name="Monitor slurm: {job.prefect_flow_run_id}",
-    log_prints=True,
+    persist_result=True,
+    retries=EMG_CONFIG.slurm.default_submission_attempts_limit,
+    retry_delay_seconds=EMG_CONFIG.slurm.default_seconds_between_submission_attempts,
 )
-async def _monitor_cluster_job(job: PrefectInitiatedHPCJob) -> PrefectInitiatedHPCJob:
-    if job.last_known_state == job.JobStates.COMPLETED_SUCCESS:
-        # Already finished.
-        pass
-
-    if (
-        job.cluster_job_id is not None
-        and job.last_known_state is not job.JobStates.COMPLETED_SUCCESS
-    ):
-        # On slurm already so check if now finished
-        slurm_status = check_cluster_job(job.cluster_job_id)
-        if slurm_status_is_finished_successfully(slurm_status):
-            job.last_known_state = job.JobStates.COMPLETED_SUCCESS
-        elif slurm_status_is_finished_unsuccessfully(slurm_status):
-            job.last_known_state = job.JobStates.COMPLETED_FAIL
-        elif slurm_status_is_running(slurm_status):
-            job.last_known_state = job.JobStates.CLUSTER_RUNNING
-        elif slurm_status == SlurmStatus.pending:
-            job.last_known_state = job.JobStates.CLUSTER_PENDING
-        await job.asave()
-
-    if job.last_known_state in [
-        job.JobStates.CLUSTER_PENDING,
-        job.JobStates.CLUSTER_RUNNING,
-        job.JobStates.PRE_CLUSTER_PENDING,
-    ]:
-        # parent flow should pause again to wait for job
-        # this task isn't persisted so will run again with next flow run
-        await suspend_flow_run(flow_run_id=flow_run.id)
-
-    if job.last_known_state == job.JobStates.COMPLETED_FAIL:
-        # Bubble up failed jobs to flow level failures, to be handled by any parent flow logic
-        raise ClusterJobFailedException(
-            f"Job {job.cluster_job_id} failed on the cluster"
-        )
-
-    return job
+def _delay_until_cluster_has_space() -> int:
+    """
+    Run once (by persisting the result of this flow) at the start of a cluster job,
+    to potentially wait until the slurm cluster queue is sufficiently small for us to submit
+    a new job.
+    TODO: add "pressure" based on creation time of this flow, to enable prioritisation
+    TODO:   or use concurrency limit on this
+    :return: Free space (as number of jobs) below our limit. Will fail if above limit.
+    """
+    if not (space_on_cluster := cluster_can_accept_jobs()):
+        raise ClusterPendingJobsLimitReachedException
+    return space_on_cluster
 
 
-@flow(flow_run_name="Cluster job: {name}")
+@flow(flow_run_name="Cluster job: {name}", persist_result=True, retries=10)
 async def run_cluster_job(
     name: str,
     command: str,
     expected_time: timedelta,
     memory: Union[int, str],
     **kwargs,
-) -> PrefectInitiatedHPCJob:
+):
     """
     Run and wait for a job on the HPC cluster.
     This flow will usually be paused and resumed many times,
@@ -287,36 +257,41 @@ async def run_cluster_job(
     :return: Django model instance representing the link between Prefect and Slurm.
     """
     logger = get_run_logger()
-    job, is_new = await PrefectInitiatedHPCJob.objects.aget_or_create(
-        prefect_flow_run_id=flow_run.id,
-        defaults={
-            "command": command,
-        },
+
+    # Potentially wait some time if our cluster queue is very full
+    space_on_cluster = _delay_until_cluster_has_space()
+
+    # Submit the job to cluster.
+    # This is a persisted result, so if this flow is retried, a new job will *not* be submitted.
+    # Rather, the original job_id will be returned.
+    job_id = start_cluster_job(
+        name=name,
+        command=command,
+        expected_time=expected_time,
+        memory=memory,
+        wait_for=space_on_cluster,
+        **kwargs,
     )
 
-    if is_new or job.last_known_state == job.JobStates.PRE_CLUSTER_PENDING:
-        # Need to submit job to slurm if there is space
-        if cluster_can_accept_jobs():
-            logger.info("There is space on the cluster for this job.")
-            job_id = start_cluster_job(
-                name=name,
-                command=command,
-                expected_time=expected_time,
-                memory=memory,
-                **kwargs,
-            )
-            job.cluster_job_id = job_id
-            job.last_known_state = job.JobStates.CLUSTER_PENDING
-            await job.asave()
+    # Wait for job completion
+    is_job_in_terminal_state = False
+    while not is_job_in_terminal_state:
+        job_state = check_cluster_job(job_id)
+        if slurm_status_is_finished_successfully(job_state):
+            logger.info(f"Job {job_id} finished successfully.")
+            is_job_in_terminal_state = True
+
+        if slurm_status_is_finished_unsuccessfully(job_state):
+            raise ClusterJobFailedException()
+
         else:
-            logger.info("No space on cluster right now.")
-        await suspend_flow_run()
-    else:
-        await _monitor_cluster_job(job)
+            logger.debug(
+                f"Job {job_id} is still running. "
+                f"Sleeping for {EMG_CONFIG.slurm.default_seconds_between_submission_attempts} seconds."
+            )
+            time.sleep(EMG_CONFIG.slurm.default_seconds_between_job_checks)
 
-    after_cluster_jobs()
-
-    return job
+    return job_id
 
 
 # async def run_cluster_jobs(
@@ -368,57 +343,6 @@ async def run_cluster_job(
 #     )
 #
 #     return jobs
-
-
-def get_next_jobs_to_submit(n: int) -> Union[QuerySet, List[PrefectInitiatedHPCJob]]:
-    return PrefectInitiatedHPCJob.objects.filter(
-        last_known_state=PrefectInitiatedHPCJob.JobStates.PRE_CLUSTER_PENDING
-    ).order_by("created")[:n]
-
-
-def get_jobs_on_cluster() -> Union[QuerySet, List[PrefectInitiatedHPCJob]]:
-    return PrefectInitiatedHPCJob.objects.filter(
-        last_known_state__in=[
-            PrefectInitiatedHPCJob.JobStates.CLUSTER_PENDING,
-            PrefectInitiatedHPCJob.JobStates.CLUSTER_RUNNING,
-        ]
-    )
-
-
-def _make_timely_monitor_name():
-    return f"Job state at {time.strftime('%Y-%m-%d-%H:%M:%S')}UTC"
-
-
-@flow(flow_run_name=_make_timely_monitor_name, log_prints=True)
-async def monitor_cluster():
-    potentially_complete_jobs = get_jobs_on_cluster()
-    async for job in potentially_complete_jobs:
-        # get prefect flow and resume it
-        # resuming it should cause a check of slurm
-        try:
-            await resume_flow_run(job.prefect_flow_run_id)
-        except NotPausedError:
-            print(
-                f"Expected to resume prefect flow {job.prefect_flow_run_id} but it was not actually paused"
-            )
-        # additional pause so that loads of flows don't resume at some time,
-        #  all of which will query slurm around the same time...
-        time.sleep(EMG_CONFIG.slurm.wait_seconds_between_slurm_flow_resumptions)
-
-    job_space = cluster_can_accept_jobs()
-    # TODO: this isn't perfect because e.g. head nextflow jobs may launch many follow-on jobs
-    # For now will need to set our job limit very conservatively
-
-    next_jobs_to_submit = get_next_jobs_to_submit(job_space)
-    async for job in next_jobs_to_submit:
-        # as above, resume the flow - and it should submit the job to slurm now (unless space vanishes in the meantime)
-        try:
-            await resume_flow_run(job.prefect_flow_run_id)
-        except NotPausedError:
-            print(
-                f"Expected to resume prefect flow {job.prefect_flow_run_id} but it was not actually paused"
-            )
-        time.sleep(EMG_CONFIG.slurm.wait_seconds_between_slurm_flow_resumptions)
 
 
 @task(persist_result=True)
