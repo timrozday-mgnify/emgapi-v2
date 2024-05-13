@@ -5,10 +5,7 @@ from django.conf import settings
 from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 
-from workflows.prefect_utils.slurm_flow import (
-    await_cluster_job,
-    after_cluster_jobs,
-)
+from workflows.prefect_utils.slurm_flow import run_cluster_job
 
 django.setup()
 
@@ -98,7 +95,7 @@ async def assembly_analysis_request(request_id: int, accession: str):
 
     mark_assembly_as_started(request)
 
-    await await_cluster_job(
+    assembler_job = await run_cluster_job(
         name=f"Assemble study {ena_study.accession}",
         command=f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/miassembler/main.nf "
         f"-profile codon_slurm "
@@ -111,5 +108,4 @@ async def assembly_analysis_request(request_id: int, accession: str):
         memory="8G",
     )
 
-    after_cluster_jobs()
-    mark_assembly_as_completed(request)
+    mark_assembly_as_completed(request, wait_for=assembler_job)

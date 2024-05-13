@@ -5,12 +5,10 @@ from datetime import timedelta
 from enum import Enum
 from pathlib import Path
 from textwrap import dedent as _
-from typing import Union
-
-from workflows.prefect_utils.out_of_process_subflow import await_out_of_process_subflow
+from typing import Union, List, Dict
 
 from prefect import task, flow, get_run_logger
-from prefect.artifacts import create_markdown_artifact
+from prefect.artifacts import create_markdown_artifact, create_table_artifact
 
 from emgapiv2.settings import EMG_CONFIG
 
@@ -243,18 +241,16 @@ async def run_cluster_job(
     expected_time: timedelta,
     memory: Union[int, str],
     **kwargs,
-):
+) -> str:
     """
     Run and wait for a job on the HPC cluster.
-    This flow will usually be paused and resumed many times,
-    because a separate monitor job will occasionally wake up this flow to monitor its HPC job.
 
     :param name: Name for the job on slurm.
     :param command: Shell-level command to run.
     :param expected_time: A timedelta after which the job will be killed if unfinished.
     :param memory: Max memory the job may use. In MB, or with a suffix. E.g. `100` or `10G`.
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
-    :return: Django model instance representing the link between Prefect and Slurm.
+    :return: Slurm job ID once finished.
     """
     logger = get_run_logger()
 
@@ -294,89 +290,115 @@ async def run_cluster_job(
     return job_id
 
 
-# async def run_cluster_jobs(
-#     name_pattern: str,
-#     command_pattern: str,
-#     jobs_args: List[Dict],
-#     expected_time: timedelta,
-#     memory: Union[int, str],
-#     **kwargs,
-# ):
-#     """
-#     Run multiple similar jobs on the HPC cluster, by submitting a common pattern (with different values interpolated) and waiting for them all to complete.
-#     :param name_pattern: Name for each job. Values from each element of `args` will be interpolated.
-#     :param command_pattern: Shell-level command to run for each element of `args`. Treated as f-string with `args` interpolated.
-#     :param jobs_args: List of dicts. Jobs will be created for each element of list. Dict keys are interpolations for `name_pattern` and `command_pattern`.
-#     :param expected_time:  A timedelta after which the job will be killed if not done.
-#     This affects Prefect's polling interval too. E.g.  `timedelta(minutes=5)`
-#     :param memory: Maximum memory the job may use. In MB, or with a prefix. E.g. `100` or `10G`.
-#     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription
-#     :return: List of outputs from each job.
-#     """
-#     logger = get_run_logger()
-#
-#     jobs = [
-#         await run_cluster_job(
-#             name=name_pattern.format(**job_args),
-#             command=command_pattern.format(**job_args),
-#             expected_time=expected_time,
-#             memory=memory,
-#             **kwargs,
-#         )
-#         for job_args in jobs_args
-#     ]
-#     logger.info(f"{len(jobs)} jobs (potentially) submitted to cluster")
-#
-#     await create_table_artifact(
-#         key="slurm-group-of-jobs-submission",
-#         table=[
-#             {
-#                 "Name": name_pattern.format(**job_args),
-#                 "Command": command_pattern.format(**job_args),
-#                 "Slurm Job ID": job.cluster_job_id,
-#                 "Prefect Subflow ID": job.prefect_flow_run_id,
-#                 "Initial state": job.last_known_state,
-#             }
-#             for job_args, job in zip(jobs_args, jobs)
-#         ],
-#         description="Jobs submitted to Slurm",
-#     )
-#
-#     return jobs
-
-
-@task(persist_result=True)
-async def await_cluster_job(
-    name: str,
-    command: str,
+@flow(flow_run_name="Cluster jobs: {name}", persist_result=True, retries=10)
+async def run_cluster_jobs(
+    name_pattern: str,
+    command_pattern: str,
+    jobs_args: List[Dict],
     expected_time: timedelta,
     memory: Union[int, str],
+    raise_on_job_failure: bool = True,
     **kwargs,
-):
+) -> list[dict[str, str]]:
     """
-    Convenience function for a Prefect flow to wait for an out-of-process command on the HPC cluster.
-
-    This orchestrates a few flows necessary to monitor the HPC job, its wrapper Prefect flow, and coordinate a
-    return to the execution of the calling flow when the job is done.
-
-    An instance of PrefectInitiatedHPCJob Django model will also be created.
-
-    The calling Prefect flow will be suspended when this job is launched.
-
-    :param name: Name for the job on slurm.
-    :param command: Shell-level command to run.
+    Run and wait for a set of jobs on the HPC cluster.
+    :param name_pattern: Name for each job. Values from each element of `args` will be interpolated.
+    :param command_pattern: Shell-level command to run for each element of `args`.
+        Treated as f-string with `args` interpolated.
+    :param jobs_args: List of dicts. Jobs will be created for each element of list.
+        Dict keys are interpolations for `name_pattern` and `command_pattern`.
     :param expected_time: A timedelta after which the job will be killed if unfinished.
     :param memory: Max memory the job may use. In MB, or with a suffix. E.g. `100` or `10G`.
+    :param raise_on_job_failure: Whether to fail this flow if ANY slurm job fails.
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
-    :return: Subflow-run ID of the Prefect flow which is managing the slurm job.
+    :return: List of jobs (same order as jobs_args), with a dict of final info. Included "Final Slurm state" key.
     """
-    return await await_out_of_process_subflow(
-        subflow_deployment_name="run-cluster-job/run_cluster_job_deployment",
-        parameters={
-            "name": name,
-            "command": command,
-            "expected_time": expected_time,
-            "memory": memory,
+    logger = get_run_logger()
+
+    # Potentially wait some time if our cluster queue is very full
+    space_on_cluster = _delay_until_cluster_has_space()
+    # TODO: probably should wait for additional space for multi jobs...
+
+    # Submit the jobs to cluster.
+    # These are persisted result, so if this flow is retried, new jobs will *not* be submitted.
+    # Rather, the original job_ids will be returned.
+    job_ids = [
+        start_cluster_job(
+            name=name_pattern.format(**job_args),
+            command=command_pattern.format(**job_args),
+            expected_time=expected_time,
+            memory=memory,
+            wait_for=space_on_cluster,
             **kwargs,
-        },
+        )
+        for job_args in jobs_args
+    ]
+
+    logger.info(f"{len(job_ids)} jobs submitted to cluster")
+
+    await create_table_artifact(
+        key="slurm-group-of-jobs-submission",
+        table=[
+            {
+                "Name": name_pattern.format(**job_args),
+                "Command": command_pattern.format(**job_args),
+                "Slurm Job ID": job_id,
+            }
+            for job_args, job_id in zip(jobs_args, job_ids)
+        ],
+        description="Jobs submitted to Slurm",
     )
+
+    jobs_are_terminal = {job_id: False for job_id in job_ids}
+
+    # Wait for all jobs to complete
+    while not all(jobs_are_terminal.values()):
+        job_states = {job_id: check_cluster_job(job_id) for job_id in job_ids}
+
+        for job_id, job_state in job_states.items():
+            # job is newly finished
+            if (
+                slurm_status_is_finished_successfully(job_state)
+                and not jobs_are_terminal[job_id]
+            ):
+                logger.info(f"Job {job_id} finished successfully.")
+                jobs_are_terminal[job_id] = True
+
+            elif (
+                slurm_status_is_finished_unsuccessfully(job_state)
+                and not jobs_are_terminal[job_id]
+            ):
+                logger.info(f"Job {job_id} finished unsuccessfully.")
+                if raise_on_job_failure:
+                    raise ClusterJobFailedException()
+                else:
+                    logger.warning(
+                        f"Job {job_id} failed unsuccessfully, but this is being allowed."
+                    )
+
+            else:
+                logger.debug(f"Job {job_id} is still running.")
+        if not all(jobs_are_terminal.values()):
+            logger.debug(
+                f"Some jobs are still running. "
+                f"Sleeping for {EMG_CONFIG.slurm.default_seconds_between_job_checks} seconds."
+            )
+            time.sleep(EMG_CONFIG.slurm.default_seconds_between_job_checks)
+
+    results_table = [
+        {
+            "Name": name_pattern.format(**job_args),
+            "Command": command_pattern.format(**job_args),
+            "Slurm Job ID": job_id,
+            "Final Slurm state": check_cluster_job(job_id),
+        }
+        for job_args, job_id in zip(jobs_args, job_ids)
+    ]
+
+    await create_table_artifact(
+        key="slurm-group-of-jobs-results",
+        table=results_table,
+        description="Jobs results from Slurm",
+    )
+
+    return results_table
