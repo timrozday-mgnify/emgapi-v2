@@ -1,9 +1,8 @@
 import os
-from enum import Enum
 
 from django.db import models
 from django.db.models import F, Value, CharField, JSONField, AutoField
-from django.db.models.functions import Concat, LPad, Cast
+from django.db.models.functions import LPad, Cast
 
 import ena.models
 
@@ -212,6 +211,51 @@ class AnalysedContig(TimeStampedModel):
 
 class Assembly(TimeStampedModel, ENADerivedModel):
     dir = models.CharField(max_length=200)
+
+
+class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
+    class CommonMetadataKeys:
+        INSTRUMENT_PLATFORM = "instrument_platform"
+        INSTRUMENT_MODEL = "instrument_model"
+
+    class ExperimentTypes(models.TextChoices):
+        METATRANSCRIPTOMIC = "METAT", "Metatranscriptomic"
+        METAGENOMIC = "METAG", "Metagenomics"
+        AMPLICON = "AMPLI", "Amplicon"
+        ASSEMBLY = "ASSEM", "Assembly"
+        HYBRID_ASSEMBLY = "HYASS", "Hybrid assembly"
+        LONG_READ_ASSEMBLY = "LRASS", "Long-read assembly"
+
+        # legacy
+        METABARCODING = "METAB", "Metabarcoding"
+        UNKNOWN = "UNKNO", "Unknown"
+
+    experiment_type = models.CharField(
+        choices=ExperimentTypes, max_length=5, default=ExperimentTypes.UNKNOWN
+    )
+    metadata = models.JSONField(default=dict)
+    study = models.ForeignKey(Study, on_delete=models.CASCADE, related_name="runs")
+
+    class RunStates:
+        ASSEMBLY_STARTED = "assembly_started"
+        ASSEMBLY_COMPLETED = "assembly_completed"
+        ANALYSIS_STARTED = "analysis_started"
+        ANALYSIS_COMPLETED = "analysis_completed"
+
+        @classmethod
+        def default_status(cls):
+            return {
+                cls.ASSEMBLY_STARTED: False,
+                cls.ASSEMBLY_COMPLETED: False,
+                cls.ANALYSIS_STARTED: False,
+                cls.ANALYSIS_COMPLETED: False,
+            }
+
+    status = models.JSONField(default=RunStates.default_status, null=True, blank=True)
+
+    async def mark_status(self, status: RunStates, set_status_as: bool = True):
+        self.status[status] = set_status_as
+        return self.asave()
 
 
 class AssemblyAnalysisRequest(TimeStampedModel):

@@ -20,6 +20,7 @@ except:
 
 
 CLUSTER_WORKPOOL = "slurm"
+FINAL_SLURM_STATE = "Final Slurm state"
 
 
 class SlurmStatus(str, Enum):
@@ -390,7 +391,7 @@ async def run_cluster_jobs(
             "Name": name_pattern.format(**job_args),
             "Command": command_pattern.format(**job_args),
             "Slurm Job ID": job_id,
-            "Final Slurm state": check_cluster_job(job_id),
+            FINAL_SLURM_STATE: check_cluster_job(job_id),
         }
         for job_args, job_id in zip(jobs_args, job_ids)
     ]
@@ -402,3 +403,58 @@ async def run_cluster_jobs(
     )
 
     return results_table
+
+
+@flow(flow_run_name="Cluster jobs (chunked): {name}", persist_result=True, retries=10)
+def run_cluster_jobs_in_chunks(
+    name_pattern: str,
+    command_pattern: str,
+    jobs_args: List[dict],
+    jobs_per_chunk: int,
+    expected_time: timedelta,
+    memory: str,
+    raise_on_job_failure: bool,
+    **kwargs,
+):
+    """
+    Convenience flow to run many cluster jobs, chunked into multiple flows with jobs_per_chunks in each.
+    This is useful if you want to run e.g. 100 jobs, but only want to run 10 at a time to avoid using too much
+    disk, or to avoid blocking other cluster work.
+
+    :param name_pattern: Name for each job. Values from each element of `args` will be interpolated.
+    :param command_pattern: Shell-level command to run for each element of `args`.
+        Treated as f-string with `args` interpolated.
+    :param jobs_args: List of dicts. Jobs will be created for each element of list.
+        Dict keys are interpolations for `name_pattern` and `command_pattern`.
+    :param jobs_per_chunk: How many jobs (i.e. items of jobs_args) will be included in each flow.
+    :param expected_time: A timedelta after which the job will be killed if unfinished.
+    :param memory: Max memory the job may use. In MB, or with a suffix. E.g. `100` or `10G`.
+    :param raise_on_job_failure: Whether to fail this flow if ANY slurm job fails.
+    :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
+    :return: List of jobs (same order as jobs_args), with a dict of final info. Included "Final Slurm state" key.
+    :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
+    :return:
+    """
+    logger = get_run_logger()
+
+    chunked_jobs_args = [
+        jobs_args[j : j + jobs_per_chunk]
+        for j in range(0, len(jobs_args), jobs_per_chunk)
+    ]
+    logger.info(f"Will split jobs into {len(chunked_jobs_args)} chunks")
+
+    chunked_results = []
+    for c, chunk in enumerate(chunked_jobs_args):
+        logger.info(f"Running cluster jobs for chunk {c+1} of {len(chunked_jobs_args)}")
+        chunk_jobs = run_cluster_jobs(
+            name_pattern=name_pattern,
+            command_pattern=command_pattern,
+            jobs_args=chunk,
+            expected_time=expected_time,
+            memory=memory,
+            raise_on_job_failure=raise_on_job_failure,
+            **kwargs,
+        )
+        chunked_results.append(chunk_jobs)
+
+    return chunked_results
