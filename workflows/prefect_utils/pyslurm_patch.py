@@ -1,7 +1,7 @@
 import logging
 import random
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 
 
 @dataclass
@@ -24,10 +24,33 @@ class Job:
             "No PySlurm available, this is a non-functional implementation."
         )
 
+    def cancel(self):
+        logging.warning(
+            f"Loading slurm job {self.job_id}, but there is no functioning PySlurm implementation."
+        )
+        self.state = "CANCELLED"
+        self.state_reason = "None"
+        return
+
 
 @dataclass
-class db(Job):
-    ...
+class JobFilter:
+    names: [str]
+    users: [str]
+
+
+@dataclass
+class Jobs:
+    @staticmethod
+    def load(db_filter: JobFilter) -> List[Job]:
+        return []
+
+
+@dataclass
+class db:
+    Job = Job
+    JobFilter = JobFilter
+    Jobs = Jobs
 
 
 @dataclass

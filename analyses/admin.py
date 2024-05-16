@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Study, Sample, Analysis, AssemblyAnalysisRequest, Run
+from .models import Study, Sample, Analysis, AssemblyAnalysisRequest, Run, Assembly
 
 from unfold.admin import ModelAdmin
 
@@ -17,6 +17,11 @@ class SampleAdmin(ModelAdmin):
 
 @admin.register(Run)
 class RunAdmin(ModelAdmin):
+    pass
+
+
+@admin.register(Assembly)
+class AssemblyAdmin(ModelAdmin):
     pass
 
 

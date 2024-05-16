@@ -24,6 +24,8 @@ class SlurmConfig(BaseModel):
     job_log_tail_lines: int = 10
     # how many lines of slurm log to send to prefect each time we check it
 
+    use_nextflow_tower: bool = True
+
 
 class EMGConfig(BaseSettings):
     slurm: SlurmConfig = SlurmConfig()

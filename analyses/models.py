@@ -94,6 +94,12 @@ class ENADerivedModel(VisibilityControlledModel):
     ena_accessions = JSONField(default=list, db_index=True)
     is_suppressed = models.BooleanField(default=False)
 
+    @property
+    def first_accession(self):
+        if len(self.ena_accessions):
+            return self.ena_accessions[0]
+        return None
+
     class Meta:
         abstract = True
 
@@ -209,10 +215,6 @@ class AnalysedContig(TimeStampedModel):
     annotations = models.JSONField(default=default_annotations.__func__)
 
 
-class Assembly(TimeStampedModel, ENADerivedModel):
-    dir = models.CharField(max_length=200)
-
-
 class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
     class CommonMetadataKeys:
         INSTRUMENT_PLATFORM = "instrument_platform"
@@ -237,7 +239,32 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
     study = models.ForeignKey(Study, on_delete=models.CASCADE, related_name="runs")
 
     class RunStates:
+        ANALYSIS_STARTED = "analysis_started"
+        ANALYSIS_COMPLETED = "analysis_completed"
+
+        @classmethod
+        def default_status(cls):
+            return {
+                cls.ANALYSIS_STARTED: False,
+                cls.ANALYSIS_COMPLETED: False,
+            }
+
+    status = models.JSONField(default=RunStates.default_status, null=True, blank=True)
+
+    async def mark_status(self, status: RunStates, set_status_as: bool = True):
+        self.status[status] = set_status_as
+        return self.asave()
+
+
+class Assembly(TimeStampedModel, ENADerivedModel):
+    dir = models.CharField(max_length=200, null=True, blank=True)
+    run = models.ForeignKey(
+        Run, on_delete=models.CASCADE, related_name="assemblies", null=True, blank=True
+    )
+
+    class AssemblyStates:
         ASSEMBLY_STARTED = "assembly_started"
+        ASSEMBLY_FAILED = "assembly_failed"
         ASSEMBLY_COMPLETED = "assembly_completed"
         ANALYSIS_STARTED = "analysis_started"
         ANALYSIS_COMPLETED = "analysis_completed"
@@ -246,14 +273,17 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
         def default_status(cls):
             return {
                 cls.ASSEMBLY_STARTED: False,
+                cls.ASSEMBLY_FAILED: False,
                 cls.ASSEMBLY_COMPLETED: False,
                 cls.ANALYSIS_STARTED: False,
                 cls.ANALYSIS_COMPLETED: False,
             }
 
-    status = models.JSONField(default=RunStates.default_status, null=True, blank=True)
+    status = models.JSONField(
+        default=AssemblyStates.default_status, null=True, blank=True
+    )
 
-    async def mark_status(self, status: RunStates, set_status_as: bool = True):
+    async def mark_status(self, status: AssemblyStates, set_status_as: bool = True):
         self.status[status] = set_status_as
         return self.asave()
 

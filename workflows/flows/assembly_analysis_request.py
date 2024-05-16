@@ -25,6 +25,7 @@ from prefect import flow, task, suspend_flow_run
 @task(
     retries=2,
     persist_result=True,
+    result_storage_key="assembly_analysis_request__get_study_from_ena__{accession}",
     task_run_name="Get study from ENA: {accession}",
     log_prints=True,
 )
@@ -47,6 +48,7 @@ def get_study_from_ena(accession: str) -> ena.models.Study:
 @task(
     retries=2,
     persist_result=True,
+    result_storage_key="assembly_analysis_request__get_mgnify_study__{ena_accession}",
     task_run_name="Set up MGnify Study: {ena_accession}",
     log_prints=True,
 )
@@ -59,7 +61,7 @@ def get_mgnify_study(ena_accession: str) -> analyses.models.Study:
     return study
 
 
-@task(persist_result=True, log_prints=True)
+@task(log_prints=True)
 def mark_assembly_request_as_completed(
     request: analyses.models.AssemblyAnalysisRequest,
 ):
@@ -67,20 +69,20 @@ def mark_assembly_request_as_completed(
     request.mark_status(request.AssemblyAnalysisStates.ASSEMBLY_COMPLETED)
 
 
-@task(persist_result=True, log_prints=True)
+@task(log_prints=True)
 def mark_assembly_request_as_started(request: analyses.models.AssemblyAnalysisRequest):
     request.mark_status(request.AssemblyAnalysisStates.ASSEMBLY_STARTED)
 
 
-@task(persist_result=True, log_prints=True)
-def mark_assembly_of_run_as_completed(run: analyses.models.Run):
-    print(f"Run {run} is now assembled")
-    run.mark_status(run.RunStates.ASSEMBLY_COMPLETED)
+@task(log_prints=True)
+def mark_assembly_as_completed(assembly: analyses.models.Assembly):
+    print(f"Assembly {assembly} (run {assembly.run}) is now assembled")
+    assembly.mark_status(assembly.AssemblyStates.ASSEMBLY_COMPLETED)
 
 
-@task(persist_result=True, log_prints=True)
-def mark_assembly_of_run_as_started(run: analyses.models.Run):
-    run.mark_status(run.RunStates.ASSEMBLY_STARTED)
+@task(log_prints=True)
+def mark_assembly_as_started(assembly: analyses.models.Assembly):
+    assembly.mark_status(assembly.AssemblyStates.ASSEMBLY_STARTED)
 
 
 class AssemblerChoices(str, Enum):
@@ -98,6 +100,7 @@ class AssemblerInput(RunInput):
 @task(
     retries=2,
     persist_result=True,
+    result_storage_key="assembly_analysis_request__get_study_readruns_from_ena__{accession}__{limit}",
     task_run_name="Get study readruns from ENA: {accession}",
     log_prints=True,
 )
@@ -110,11 +113,33 @@ def get_study_readruns_from_ena(accession: str, limit: int = 20) -> List[str]:
     if portal.status_code == httpx.codes.OK:
         for read_run in portal.json():
             analyses.models.Run.objects.get_or_create(
-                accession=read_run["run_accession"], study=mgys_study
+                ena_accessions=[read_run["run_accession"]],
+                study=mgys_study,
+                ena_study=mgys_study.ena_study,
             )
 
     mgys_study.refresh_from_db()
-    return [run.accession for run in mgys_study.runs.all()]
+    return [run.ena_accessions[0] for run in mgys_study.runs.all()]
+
+
+@task(
+    retries=2,
+    task_run_name="Create/get assembly objects for read_runs in study: {study_accession}",
+    log_prints=True,
+)
+def get_or_create_assemblies_for_runs(
+    study: ena.models.Study, read_runs: List[str]
+) -> List[str]:
+    assembly_ids = []
+    for read_run in read_runs:
+        run = analyses.models.Run.objects.get(ena_accessions__contains=read_run)
+        assembly, created = analyses.models.Assembly.objects.get_or_create(
+            run=run, ena_study=study
+        )
+        if created:
+            print(f"Created assembly {assembly}")
+        assembly_ids.append(assembly.id)
+    return assembly_ids
 
 
 @flow(
@@ -162,40 +187,57 @@ Also select how much RAM (in GB) to allocate for each assembly.
         else ""
     )
 
+    assemblies = get_or_create_assemblies_for_runs(ena_study, read_runs)
+
     mark_assembly_request_as_started(request)
 
-    # work on chunks of 10 readruns at a time
-    chunk_size = 10
-    chunked_read_runs = [
-        read_runs[j : j + chunk_size] for j in range(0, len(read_runs), chunk_size)
+    # work on chunks of 2 readruns at a time
+    chunk_size = 2
+    chunked_assemblies = [
+        assemblies[j : j + chunk_size] for j in range(0, len(assemblies), chunk_size)
     ]
-    for read_runs_chunk in chunked_read_runs:
+    for assembly_chunk in chunked_assemblies:
         # launch jobs for all runs in this chunk in a single flow
-        for run_accession in read_runs_chunk:
-            run = await analyses.models.Run.objects.aget(accession=run_accession)
-            mark_assembly_of_run_as_started(run)
+        for assembly_id in assembly_chunk:
+            assembly = await analyses.models.Assembly.objects.aget(id=assembly_id)
+            mark_assembly_as_started(assembly)
+
+        read_runs_chunk = [
+            await analyses.models.Run.objects.aget(assemblies__id=assem)
+            for assem in assembly_chunk
+        ]
 
         chunk_jobs = await run_cluster_jobs(
-            name_pattern=f"Assemble read_run {{run_accession}} for study {ena_study.accession}",
-            command_pattern=f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/miassembler/main.nf "
-            f"-profile codon_slurm "
-            f"-resume "
-            f"--outdir {ena_study.accession}_{{run_accession}}_miassembler "
-            f"--study_accession {ena_study.accession} "
-            f"--reads_accession {{run_accession}} "
-            f"{assembler_command_arg} ",
-            jobs_args=[{"run_accession": run} for run in read_runs_chunk],
+            names=[
+                f"Assemble read_run {run.first_accession} for study {ena_study.accession}"
+                for run in read_runs_chunk
+            ],
+            commands=[
+                f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/miassembler/main.nf "
+                f"-profile codon_slurm "
+                f"-resume "
+                f"--outdir {ena_study.accession}_{run.first_accession}_miassembler "
+                f"--study_accession {ena_study.accession} "
+                f"--reads_accession {run.first_accession} "
+                f"{assembler_command_arg} "
+                f"{'-with-tower' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''}"
+                for run in read_runs_chunk
+            ],
             expected_time=timedelta(days=1),
             memory=f"{assembler_input.memory_gb}G",
+            keys=[
+                f"mi-assembler-{run.first_accession}-for-{ena_study.accession}"
+                for run in read_runs_chunk
+            ],
             raise_on_job_failure=False,
         )
 
-        for run_accession, run_job in zip(read_runs_chunk, chunk_jobs):
-            if slurm_status_is_finished_successfully(run_job[FINAL_SLURM_STATE]):
-                run = await analyses.models.Run.objects.aget(accession=run_accession)
-                mark_assembly_of_run_as_completed(run)
+        for assembly_id, assembly_job in zip(assembly_chunk, chunk_jobs):
+            if slurm_status_is_finished_successfully(assembly_job[FINAL_SLURM_STATE]):
+                assembly = await analyses.models.Assembly.objects.aget(id=assembly_id)
+                mark_assembly_as_completed(assembly)
             else:
-                # TODO!
-                ...
+                assembly = await analyses.models.Assembly.objects.aget(id=assembly_id)
+                assembly.mark_status(assembly.AssemblyStates.ASSEMBLY_FAILED)
 
     mark_assembly_request_as_completed(request)

@@ -1,14 +1,18 @@
 import logging
 import time
+import uuid
 from collections import Counter
-from datetime import timedelta
+from datetime import timedelta, datetime
 from enum import Enum
 from pathlib import Path
 from textwrap import dedent as _
-from typing import Union, List, Dict
+from typing import Union, List, Optional, Callable
 
-from prefect import task, flow, get_run_logger
+from django.utils.text import slugify
+from prefect import task, flow, get_run_logger, Flow, State
 from prefect.artifacts import create_markdown_artifact, create_table_artifact
+from prefect.client.schemas import FlowRun
+from prefect.runtime import flow_run
 
 from emgapiv2.settings import EMG_CONFIG
 
@@ -37,6 +41,7 @@ class SlurmStatus(str, Enum):
     suspended = "SUSPENDED"
     stopped = "STOPPED"
     timeout = "TIMEOUT"
+    cancelled = "CANCELLED"
 
     # Custom responses
     unknown = "UNKNOWN"
@@ -62,6 +67,7 @@ def slurm_status_is_finished_unsuccessfully(state: Union[SlurmStatus, str]):
         SlurmStatus.timeout,
         SlurmStatus.suspended,
         SlurmStatus.terminated,
+        SlurmStatus.cancelled,
     ]
 
 
@@ -103,7 +109,7 @@ def check_cluster_job(
         logger.warning(f"Error talking to slurm for job {job_id}")
         return SlurmStatus.unknown.value
     logger.info(f"SLURM status of {job_id = } is {job.state}")
-    job_log_path = Path(EMG_CONFIG.slurm.default_workdir) / Path(f"slurm-{job_id}.out")
+    job_log_path = Path(job.working_directory) / Path(f"slurm-{job_id}.out")
     if job_log_path.exists():
         with open(job_log_path, "r") as job_log:
             full_log = job_log.readlines()
@@ -154,28 +160,42 @@ def cluster_can_accept_jobs() -> int:
     task_run_name="Job submission: {name}",
     log_prints=True,
     persist_result=True,
+    result_storage_key="cluster-job-{key}",
 )
 def start_cluster_job(
     name: str,
     command: str,
+    key: str,
     expected_time: timedelta,
     memory: Union[int, str],
+    workdir: Optional[Union[Path, str]] = None,
     **kwargs,
 ) -> str:
     """
     Run a command on the HPC Cluster by submitting it as a Slurm job.
     :param name: Name for the job (both on Slurm and Prefect), e.g. "Run analysis pipeline for x"
     :param command: Shell-level command to run, e.g. "nextflow run my-pipeline.nf --sample x"
+    :param key: Globally unique key for this job.
     :param expected_time: A timedelta after which the job will be killed if not done.
     This affects Prefect's polling interval too. E.g.  `timedelta(minutes=5)`
     :param memory: Maximum memory the job may use. In MB, or with a prefix. E.g. `100` or `10G`.
+    :param workdir: Work dir for the job (pathlib.Path, or str). Otherwise, a default will be used based on the key.
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription
     :return: Job ID of the slurm job.
     """
     logger = get_run_logger()
+
+    job_workdir = workdir
+    if not job_workdir:
+        unique_job_folder = slugify(
+            f"{key}-{datetime.now().isoformat()}-{str(uuid.uuid4()).split('-')[-1]}"
+        ).upper()
+        job_workdir = Path(EMG_CONFIG.slurm.default_workdir) / Path(unique_job_folder)
+
     script = _(
         f"""\
         #!/bin/bash
+        mkdir -p {job_workdir}
         {command}
         """
     )
@@ -185,7 +205,7 @@ def start_cluster_job(
         time_limit=slurm_timedelta(expected_time),
         memory_per_node=memory,
         script=script,
-        working_directory=EMG_CONFIG.slurm.default_workdir,
+        working_directory=str(job_workdir),
         **kwargs,
     )
     job_id = desc.submit()
@@ -201,11 +221,42 @@ def start_cluster_job(
             <<SCRIPT>>
             ~~~
             It will be terminated by Slurm if not done in {slurm_timedelta(expected_time)}.
+            Slurm working dir is {job_workdir}.
             """
         ).replace("<<SCRIPT>>", script),
     )
 
     return job_id
+
+
+def cancel_cluster_job(name: str):
+    """
+    Finds a job running slurm (by name) and cancels it provided there is exactly one match.
+    :param name: The job name as submitted.
+    :return:
+    """
+    jobs = pyslurm.db.Jobs.load(
+        db_filter=pyslurm.db.JobFilter(names=[name], users=[EMG_CONFIG.slurm.user])
+    )
+    jobs_to_cancel = [
+        job.job_id for job in jobs.values() if job.state == SlurmStatus.running
+    ]
+
+    if len(jobs_to_cancel) == 1:
+        try:
+            job_id = int(jobs_to_cancel[0])
+        except ValueError:
+            raise ValueError(
+                "Cannot cancel job array jobs - job id must be integer like"
+            )
+
+        print(f"Found one running job to cancel: {job_id}")
+        pyslurm.Job(job_id).load(job_id).cancel()
+
+    else:
+        raise Exception(
+            f"Found {len(jobs_to_cancel)} matching jobs to cancel for name {name}. Not cancelling."
+        )
 
 
 class ClusterJobFailedException(Exception):
@@ -220,14 +271,16 @@ class ClusterPendingJobsLimitReachedException(Exception):
     persist_result=True,
     retries=EMG_CONFIG.slurm.default_submission_attempts_limit,
     retry_delay_seconds=EMG_CONFIG.slurm.default_seconds_between_submission_attempts,
+    result_storage_key="cluster-delay-marker-{delay_key}",
 )
-def _delay_until_cluster_has_space() -> int:
+def _delay_until_cluster_has_space(delay_key: str) -> int:
     """
     Run once (by persisting the result of this flow) at the start of a cluster job,
     to potentially wait until the slurm cluster queue is sufficiently small for us to submit
     a new job.
     TODO: add "pressure" based on creation time of this flow, to enable prioritisation
     TODO:   or use concurrency limit on this
+    :param delay_key: a string key to prevent another delay occurring once one already has.
     :return: Free space (as number of jobs) below our limit. Will fail if above limit.
     """
     if not (space_on_cluster := cluster_can_accept_jobs()):
@@ -235,10 +288,33 @@ def _delay_until_cluster_has_space() -> int:
     return space_on_cluster
 
 
-@flow(flow_run_name="Cluster job: {name}", persist_result=True, retries=10)
+def cancel_cluster_jobs_if_flow_cancelled(
+    the_flow: Flow, the_flow_run: FlowRun, state: State
+):
+    if "name" in the_flow_run.parameters:
+        job_names = [the_flow_run.parameters.get("name")]
+    elif "names" in the_flow_run.parameters:
+        job_names = [the_flow_run.parameters.get("names")]
+    else:
+        raise UserWarning(
+            f"Flow run {the_flow_run.id} had no params called 'name' or 'names' so don't know what jobs to cancel"
+        )
+
+    print(f"Will try to cancel jobs matching the job names {job_names}")
+    for job_name in job_names:
+        cancel_cluster_job(job_name)
+
+
+@flow(
+    flow_run_name="Cluster job: {name}",
+    persist_result=True,
+    retries=10,
+    on_cancellation=[cancel_cluster_jobs_if_flow_cancelled],
+)
 async def run_cluster_job(
     name: str,
     command: str,
+    key: str,
     expected_time: timedelta,
     memory: Union[int, str],
     **kwargs,
@@ -246,9 +322,10 @@ async def run_cluster_job(
     """
     Run and wait for a job on the HPC cluster.
 
-    :param name: Name for the job on slurm.
-    :param command: Shell-level command to run.
-    :param expected_time: A timedelta after which the job will be killed if unfinished.
+    :param name: Name for the job on slurm, e.g. "job 1"
+    :param command: Shell-level command to run, e.g. "touch 1.txt"
+    :param key: a unique key for this job, e.g. "project-a-sample-1-touch"
+    :param expected_time: A timedelta after which the job will be killed if unfinished, e.g. timedelta(days=1)
     :param memory: Max memory the job may use. In MB, or with a suffix. E.g. `100` or `10G`.
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
     :return: Slurm job ID once finished.
@@ -256,7 +333,7 @@ async def run_cluster_job(
     logger = get_run_logger()
 
     # Potentially wait some time if our cluster queue is very full
-    space_on_cluster = _delay_until_cluster_has_space()
+    space_on_cluster = _delay_until_cluster_has_space(delay_key=flow_run.id)
 
     # Submit the job to cluster.
     # This is a persisted result, so if this flow is retried, a new job will *not* be submitted.
@@ -264,6 +341,7 @@ async def run_cluster_job(
     job_id = start_cluster_job(
         name=name,
         command=command,
+        key=key,
         expected_time=expected_time,
         memory=memory,
         wait_for=space_on_cluster,
@@ -291,48 +369,60 @@ async def run_cluster_job(
     return job_id
 
 
-@flow(flow_run_name="Cluster jobs: {name}", persist_result=True, retries=10)
+def _default_keyifier(name, command):
+    return slugify(f"{name}-{command}")
+
+
+@flow(
+    flow_run_name="Cluster jobs",
+    persist_result=True,
+    retries=10,
+    on_cancellation=[cancel_cluster_jobs_if_flow_cancelled],
+)
 async def run_cluster_jobs(
-    name_pattern: str,
-    command_pattern: str,
-    jobs_args: List[Dict],
+    names: List[str],
+    commands: List[str],
     expected_time: timedelta,
     memory: Union[int, str],
+    keys: Union[List[str], Callable[[str, str], str]] = _default_keyifier,
     raise_on_job_failure: bool = True,
     **kwargs,
 ) -> list[dict[str, str]]:
     """
     Run and wait for a set of jobs on the HPC cluster.
-    :param name_pattern: Name for each job. Values from each element of `args` will be interpolated.
-    :param command_pattern: Shell-level command to run for each element of `args`.
-        Treated as f-string with `args` interpolated.
-    :param jobs_args: List of dicts. Jobs will be created for each element of list.
-        Dict keys are interpolations for `name_pattern` and `command_pattern`.
-    :param expected_time: A timedelta after which the job will be killed if unfinished.
-    :param memory: Max memory the job may use. In MB, or with a suffix. E.g. `100` or `10G`.
+    :param names: Names for each job, e.g. ["job 1", "job 2"...]
+    :param commands: Shell-level command to run for each job, e.g. ["touch 1.txt", "touch 2.txt", ...]
+    :param expected_time: A timedelta after which the jobs will be killed if unfinished.
+    :param memory: Max memory the jobs may use. In MB, or with a suffix. E.g. `100` or `10G`.
+    :param keys: Unique keys for each job. Can either be a list like ["job1", "job2", ...],
+        or a function that turn each *name* and *command* pair into a key, e.g. lambda nm, cmd: f"{nm}-{cmd}" (default).
     :param raise_on_job_failure: Whether to fail this flow if ANY slurm job fails.
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
     :return: List of jobs (same order as jobs_args), with a dict of final info. Included "Final Slurm state" key.
     """
     logger = get_run_logger()
 
+    assert len(names) == len(commands)
+
     # Potentially wait some time if our cluster queue is very full
-    space_on_cluster = _delay_until_cluster_has_space()
+    space_on_cluster = _delay_until_cluster_has_space(delay_key=flow_run.id)
     # TODO: probably should wait for additional space for multi jobs...
 
     # Submit the jobs to cluster.
     # These are persisted result, so if this flow is retried, new jobs will *not* be submitted.
     # Rather, the original job_ids will be returned.
+    keys = keys if type(keys) is list else [keys(n, c) for n, c in zip(names, commands)]
     job_ids = [
         start_cluster_job(
-            name=name_pattern.format(**job_args),
-            command=command_pattern.format(**job_args),
+            name=name,
+            command=command,
+            key=key,
             expected_time=expected_time,
             memory=memory,
             wait_for=space_on_cluster,
             **kwargs,
         )
-        for job_args in jobs_args
+        for name, command, key in zip(names, commands, keys)
     ]
 
     logger.info(f"{len(job_ids)} jobs submitted to cluster")
@@ -341,11 +431,12 @@ async def run_cluster_jobs(
         key="slurm-group-of-jobs-submission",
         table=[
             {
-                "Name": name_pattern.format(**job_args),
-                "Command": command_pattern.format(**job_args),
+                "Name": name,
+                "Command": command,
                 "Slurm Job ID": job_id,
+                "Result storage key": f"cluster-job-{key}",
             }
-            for job_args, job_id in zip(jobs_args, job_ids)
+            for name, command, job_id, key in zip(names, commands, job_ids, keys)
         ],
         description="Jobs submitted to Slurm",
     )
@@ -388,12 +479,12 @@ async def run_cluster_jobs(
 
     results_table = [
         {
-            "Name": name_pattern.format(**job_args),
-            "Command": command_pattern.format(**job_args),
+            "Name": name,
+            "Command": command,
             "Slurm Job ID": job_id,
             FINAL_SLURM_STATE: check_cluster_job(job_id),
         }
-        for job_args, job_id in zip(jobs_args, job_ids)
+        for name, command, job_id in zip(names, commands, job_ids)
     ]
 
     await create_table_artifact(
@@ -405,56 +496,56 @@ async def run_cluster_jobs(
     return results_table
 
 
-@flow(flow_run_name="Cluster jobs (chunked): {name}", persist_result=True, retries=10)
-def run_cluster_jobs_in_chunks(
-    name_pattern: str,
-    command_pattern: str,
-    jobs_args: List[dict],
-    jobs_per_chunk: int,
-    expected_time: timedelta,
-    memory: str,
-    raise_on_job_failure: bool,
-    **kwargs,
-):
-    """
-    Convenience flow to run many cluster jobs, chunked into multiple flows with jobs_per_chunks in each.
-    This is useful if you want to run e.g. 100 jobs, but only want to run 10 at a time to avoid using too much
-    disk, or to avoid blocking other cluster work.
-
-    :param name_pattern: Name for each job. Values from each element of `args` will be interpolated.
-    :param command_pattern: Shell-level command to run for each element of `args`.
-        Treated as f-string with `args` interpolated.
-    :param jobs_args: List of dicts. Jobs will be created for each element of list.
-        Dict keys are interpolations for `name_pattern` and `command_pattern`.
-    :param jobs_per_chunk: How many jobs (i.e. items of jobs_args) will be included in each flow.
-    :param expected_time: A timedelta after which the job will be killed if unfinished.
-    :param memory: Max memory the job may use. In MB, or with a suffix. E.g. `100` or `10G`.
-    :param raise_on_job_failure: Whether to fail this flow if ANY slurm job fails.
-    :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
-    :return: List of jobs (same order as jobs_args), with a dict of final info. Included "Final Slurm state" key.
-    :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
-    :return:
-    """
-    logger = get_run_logger()
-
-    chunked_jobs_args = [
-        jobs_args[j : j + jobs_per_chunk]
-        for j in range(0, len(jobs_args), jobs_per_chunk)
-    ]
-    logger.info(f"Will split jobs into {len(chunked_jobs_args)} chunks")
-
-    chunked_results = []
-    for c, chunk in enumerate(chunked_jobs_args):
-        logger.info(f"Running cluster jobs for chunk {c+1} of {len(chunked_jobs_args)}")
-        chunk_jobs = run_cluster_jobs(
-            name_pattern=name_pattern,
-            command_pattern=command_pattern,
-            jobs_args=chunk,
-            expected_time=expected_time,
-            memory=memory,
-            raise_on_job_failure=raise_on_job_failure,
-            **kwargs,
-        )
-        chunked_results.append(chunk_jobs)
-
-    return chunked_results
+# @flow(flow_run_name="Cluster jobs (chunked): {name}", persist_result=True, retries=10)
+# def run_cluster_jobs_in_chunks(
+#     name_pattern: str,
+#     command_pattern: str,
+#     jobs_args: List[dict],
+#     jobs_per_chunk: int,
+#     expected_time: timedelta,
+#     memory: str,
+#     raise_on_job_failure: bool,
+#     **kwargs,
+# ):
+#     """
+#     Convenience flow to run many cluster jobs, chunked into multiple flows with jobs_per_chunks in each.
+#     This is useful if you want to run e.g. 100 jobs, but only want to run 10 at a time to avoid using too much
+#     disk, or to avoid blocking other cluster work.
+#
+#     :param name_pattern: Name for each job. Values from each element of `args` will be interpolated.
+#     :param command_pattern: Shell-level command to run for each element of `args`.
+#         Treated as f-string with `args` interpolated.
+#     :param jobs_args: List of dicts. Jobs will be created for each element of list.
+#         Dict keys are interpolations for `name_pattern` and `command_pattern`.
+#     :param jobs_per_chunk: How many jobs (i.e. items of jobs_args) will be included in each flow.
+#     :param expected_time: A timedelta after which the job will be killed if unfinished.
+#     :param memory: Max memory the job may use. In MB, or with a suffix. E.g. `100` or `10G`.
+#     :param raise_on_job_failure: Whether to fail this flow if ANY slurm job fails.
+#     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
+#     :return: List of jobs (same order as jobs_args), with a dict of final info. Included "Final Slurm state" key.
+#     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
+#     :return:
+#     """
+#     logger = get_run_logger()
+#
+#     chunked_jobs_args = [
+#         jobs_args[j : j + jobs_per_chunk]
+#         for j in range(0, len(jobs_args), jobs_per_chunk)
+#     ]
+#     logger.info(f"Will split jobs into {len(chunked_jobs_args)} chunks")
+#
+#     chunked_results = []
+#     for c, chunk in enumerate(chunked_jobs_args):
+#         logger.info(f"Running cluster jobs for chunk {c+1} of {len(chunked_jobs_args)}")
+#         chunk_jobs = run_cluster_jobs(
+#             name_pattern=name_pattern,
+#             command_pattern=command_pattern,
+#             jobs_args=chunk,
+#             expected_time=expected_time,
+#             memory=memory,
+#             raise_on_job_failure=raise_on_job_failure,
+#             **kwargs,
+#         )
+#         chunked_results.append(chunk_jobs)
+#
+#     return chunked_results
