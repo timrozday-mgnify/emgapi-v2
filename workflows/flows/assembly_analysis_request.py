@@ -25,7 +25,7 @@ from prefect import flow, task, suspend_flow_run
 @task(
     retries=2,
     persist_result=True,
-    result_storage_key="assembly_analysis_request__get_study_from_ena__{accession}",
+    result_storage_key="assembly_analysis_request__get_study_from_ena__{parameters[accession]}",
     task_run_name="Get study from ENA: {accession}",
     log_prints=True,
 )
@@ -48,7 +48,7 @@ def get_study_from_ena(accession: str) -> ena.models.Study:
 @task(
     retries=2,
     persist_result=True,
-    result_storage_key="assembly_analysis_request__get_mgnify_study__{ena_accession}",
+    result_storage_key="assembly_analysis_request__{flow_run.flow_name}__get_mgnify_study__{parameters[ena_accession]}",
     task_run_name="Set up MGnify Study: {ena_accession}",
     log_prints=True,
 )
@@ -100,7 +100,7 @@ class AssemblerInput(RunInput):
 @task(
     retries=2,
     persist_result=True,
-    result_storage_key="assembly_analysis_request__get_study_readruns_from_ena__{accession}__{limit}",
+    result_storage_key="assembly_analysis_request__{flow_run.flow_name}__get_study_readruns_from_ena__{parameters[accession]}__{parameters[limit]}",
     task_run_name="Get study readruns from ENA: {accession}",
     log_prints=True,
 )
@@ -124,7 +124,7 @@ def get_study_readruns_from_ena(accession: str, limit: int = 20) -> List[str]:
 
 @task(
     retries=2,
-    task_run_name="Create/get assembly objects for read_runs in study: {study_accession}",
+    task_run_name="Create/get assembly objects for read_runs in study: {study.accession}",
     log_prints=True,
 )
 def get_or_create_assemblies_for_runs(
@@ -225,6 +225,7 @@ Also select how much RAM (in GB) to allocate for each assembly.
             ],
             expected_time=timedelta(days=1),
             memory=f"{assembler_input.memory_gb}G",
+            environment="ALL,TOWER_ACCESS_TOKEN",  # will copy this env from the prefect worker to the jobs
             keys=[
                 f"mi-assembler-{run.first_accession}-for-{ena_study.accession}"
                 for run in read_runs_chunk

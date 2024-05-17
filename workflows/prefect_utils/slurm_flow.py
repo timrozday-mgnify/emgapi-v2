@@ -160,7 +160,7 @@ def cluster_can_accept_jobs() -> int:
     task_run_name="Job submission: {name}",
     log_prints=True,
     persist_result=True,
-    result_storage_key="cluster-job-{key}",
+    result_storage_key="cluster-job-{parameters[key]}",
 )
 def start_cluster_job(
     name: str,
@@ -271,9 +271,9 @@ class ClusterPendingJobsLimitReachedException(Exception):
     persist_result=True,
     retries=EMG_CONFIG.slurm.default_submission_attempts_limit,
     retry_delay_seconds=EMG_CONFIG.slurm.default_seconds_between_submission_attempts,
-    result_storage_key="cluster-delay-marker-{delay_key}",
+    result_storage_key="cluster-delay-marker-{flow_run.id}",
 )
-def _delay_until_cluster_has_space(delay_key: str) -> int:
+def _delay_until_cluster_has_space() -> int:
     """
     Run once (by persisting the result of this flow) at the start of a cluster job,
     to potentially wait until the slurm cluster queue is sufficiently small for us to submit
@@ -317,6 +317,7 @@ async def run_cluster_job(
     key: str,
     expected_time: timedelta,
     memory: Union[int, str],
+    environment: Union[dict, str],
     **kwargs,
 ) -> str:
     """
@@ -327,13 +328,15 @@ async def run_cluster_job(
     :param key: a unique key for this job, e.g. "project-a-sample-1-touch"
     :param expected_time: A timedelta after which the job will be killed if unfinished, e.g. timedelta(days=1)
     :param memory: Max memory the job may use. In MB, or with a suffix. E.g. `100` or `10G`.
+    :param environment: Dictionary of environment variables to pass to job, or string in format of sbatch --export
+        (see https://slurm.schedmd.com/sbatch.html). E.g. `TOWER_ACCESSION_TOKEN`
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
     :return: Slurm job ID once finished.
     """
     logger = get_run_logger()
 
     # Potentially wait some time if our cluster queue is very full
-    space_on_cluster = _delay_until_cluster_has_space(delay_key=flow_run.id)
+    space_on_cluster = _delay_until_cluster_has_space()
 
     # Submit the job to cluster.
     # This is a persisted result, so if this flow is retried, a new job will *not* be submitted.
@@ -345,6 +348,7 @@ async def run_cluster_job(
         expected_time=expected_time,
         memory=memory,
         wait_for=space_on_cluster,
+        environment=environment,
         **kwargs,
     )
 
@@ -384,6 +388,7 @@ async def run_cluster_jobs(
     commands: List[str],
     expected_time: timedelta,
     memory: Union[int, str],
+    environment: Union[dict, str],
     keys: Union[List[str], Callable[[str, str], str]] = _default_keyifier,
     raise_on_job_failure: bool = True,
     **kwargs,
@@ -394,6 +399,8 @@ async def run_cluster_jobs(
     :param commands: Shell-level command to run for each job, e.g. ["touch 1.txt", "touch 2.txt", ...]
     :param expected_time: A timedelta after which the jobs will be killed if unfinished.
     :param memory: Max memory the jobs may use. In MB, or with a suffix. E.g. `100` or `10G`.
+    :param environment: Dictionary of environment variables to pass to job, or string in format of sbatch --export
+        (see https://slurm.schedmd.com/sbatch.html). E.g. `TOWER_ACCESSION_TOKEN`
     :param keys: Unique keys for each job. Can either be a list like ["job1", "job2", ...],
         or a function that turn each *name* and *command* pair into a key, e.g. lambda nm, cmd: f"{nm}-{cmd}" (default).
     :param raise_on_job_failure: Whether to fail this flow if ANY slurm job fails.
@@ -405,7 +412,7 @@ async def run_cluster_jobs(
     assert len(names) == len(commands)
 
     # Potentially wait some time if our cluster queue is very full
-    space_on_cluster = _delay_until_cluster_has_space(delay_key=flow_run.id)
+    space_on_cluster = _delay_until_cluster_has_space()
     # TODO: probably should wait for additional space for multi jobs...
 
     # Submit the jobs to cluster.
@@ -419,6 +426,7 @@ async def run_cluster_jobs(
             key=key,
             expected_time=expected_time,
             memory=memory,
+            environment=environment,
             wait_for=space_on_cluster,
             **kwargs,
         )
@@ -461,6 +469,7 @@ async def run_cluster_jobs(
                 and not jobs_are_terminal[job_id]
             ):
                 logger.info(f"Job {job_id} finished unsuccessfully.")
+                jobs_are_terminal[job_id] = True
                 if raise_on_job_failure:
                     raise ClusterJobFailedException()
                 else:
@@ -470,6 +479,7 @@ async def run_cluster_jobs(
 
             else:
                 logger.debug(f"Job {job_id} is still running.")
+
         if not all(jobs_are_terminal.values()):
             logger.debug(
                 f"Some jobs are still running. "
