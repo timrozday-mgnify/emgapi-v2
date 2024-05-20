@@ -12,7 +12,8 @@ from django.utils.text import slugify
 from prefect import task, flow, get_run_logger, Flow, State
 from prefect.artifacts import create_markdown_artifact, create_table_artifact
 from prefect.client.schemas import FlowRun
-from prefect.runtime import flow_run
+from pydantic import AnyUrl
+from pydantic_core import Url
 
 from emgapiv2.settings import EMG_CONFIG
 
@@ -156,6 +157,26 @@ def cluster_can_accept_jobs() -> int:
     return max(space, 0)
 
 
+def maybe_get_nextflow_tower_browse_url(command: str) -> Optional[AnyUrl]:
+    """
+    If the command looks like a nextflow run with tower enabled and an explicitly defined name,
+    return the Nextflow Tower URL for it (to be browsed).
+    :param command: A command-line instruction e.g. nextflow run....
+    :return: A Nextflow Tower / Seqera Platform URL, or None
+    """
+    if "nextflow run" in command and "-tower" in command and "-name" in command:
+        try:
+            wf_name = command.split("-name")[1].strip().split(" ")[0]
+        except KeyError:
+            logging.warning(
+                f"Could not determine nextflow workflow run name from {command}"
+            )
+            return
+        return Url(
+            f"https://cloud.seqera.io/orgs/{EMG_CONFIG.slurm.nextflow_tower_org}/workspaces/{EMG_CONFIG.slurm.nextflow_tower_workspace}/watch?search={wf_name}"
+        )
+
+
 @task(
     task_run_name="Job submission: {name}",
     log_prints=True,
@@ -211,6 +232,9 @@ def start_cluster_job(
     job_id = desc.submit()
     logger.info(f"Submitted as slurm job {job_id}")
 
+    nf_link = maybe_get_nextflow_tower_browse_url(command)
+    nf_link_markdown = f"[Watch Nextflow Workflow]({nf_link})" if nf_link else ""
+
     create_markdown_artifact(
         key="slurm-job-submission",
         markdown=_(
@@ -222,6 +246,7 @@ def start_cluster_job(
             ~~~
             It will be terminated by Slurm if not done in {slurm_timedelta(expected_time)}.
             Slurm working dir is {job_workdir}.
+            {nf_link_markdown}
             """
         ).replace("<<SCRIPT>>", script),
     )
@@ -443,6 +468,7 @@ async def run_cluster_jobs(
                 "Command": command,
                 "Slurm Job ID": job_id,
                 "Result storage key": f"cluster-job-{key}",
+                "Observe URL": maybe_get_nextflow_tower_browse_url(command),
             }
             for name, command, job_id, key in zip(names, commands, job_ids, keys)
         ],

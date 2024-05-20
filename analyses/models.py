@@ -251,9 +251,9 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
 
     status = models.JSONField(default=RunStates.default_status, null=True, blank=True)
 
-    async def mark_status(self, status: RunStates, set_status_as: bool = True):
+    def mark_status(self, status: RunStates, set_status_as: bool = True):
         self.status[status] = set_status_as
-        return self.asave()
+        return self.save()
 
 
 class Assembly(TimeStampedModel, ENADerivedModel):
@@ -283,7 +283,7 @@ class Assembly(TimeStampedModel, ENADerivedModel):
         default=AssemblyStates.default_status, null=True, blank=True
     )
 
-    async def mark_status(self, status: AssemblyStates, set_status_as: bool = True):
+    def mark_status(self, status: AssemblyStates, set_status_as: bool = True):
         self.status[status] = set_status_as
         return self.asave()
 
@@ -336,8 +336,6 @@ class AssemblyAnalysisRequest(TimeStampedModel):
     def __str__(self):
         return f"AssemblyAnalysisRequest {self.pk}: {self.requested_study}"
 
-    async def mark_status(
-        self, status: AssemblyAnalysisStates, set_status_as: bool = True
-    ):
+    def mark_status(self, status: AssemblyAnalysisStates, set_status_as: bool = True):
         self.status[status] = set_status_as
-        return self.asave()
+        return self.save()

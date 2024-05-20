@@ -220,12 +220,13 @@ Also select how much RAM (in GB) to allocate for each assembly.
                 f"--study_accession {ena_study.accession} "
                 f"--reads_accession {run.first_accession} "
                 f"{assembler_command_arg} "
-                f"{'-with-tower' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''}"
+                f"{'-with-tower' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''} "
+                f"-name mi-assembler-{run.first_accession}-for-{ena_study.accession} "
                 for run in read_runs_chunk
             ],
             expected_time=timedelta(days=1),
             memory=f"{assembler_input.memory_gb}G",
-            environment="ALL,TOWER_ACCESS_TOKEN",  # will copy this env from the prefect worker to the jobs
+            environment="ALL,TOWER_ACCESS_TOKEN,TOWER_WORKSPACE_ID",  # will copy this env from the prefect worker to the jobs
             keys=[
                 f"mi-assembler-{run.first_accession}-for-{ena_study.accession}"
                 for run in read_runs_chunk
