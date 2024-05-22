@@ -468,7 +468,7 @@ async def run_cluster_jobs(
                 "Command": command,
                 "Slurm Job ID": job_id,
                 "Result storage key": f"cluster-job-{key}",
-                "Observe URL": maybe_get_nextflow_tower_browse_url(command),
+                "Observe URL": str(maybe_get_nextflow_tower_browse_url(command)),
             }
             for name, command, job_id, key in zip(names, commands, job_ids, keys)
         ],
