@@ -12,6 +12,8 @@ from django.utils.text import slugify
 from prefect import task, flow, get_run_logger, Flow, State
 from prefect.artifacts import create_markdown_artifact, create_table_artifact
 from prefect.client.schemas import FlowRun
+from prefect.context import TaskRunContext
+from prefect.tasks import task_input_hash
 from pydantic import AnyUrl
 from pydantic_core import Url
 
@@ -181,12 +183,11 @@ def maybe_get_nextflow_tower_browse_url(command: str) -> Optional[AnyUrl]:
     task_run_name="Job submission: {name}",
     log_prints=True,
     persist_result=True,
-    result_storage_key="cluster-job-{parameters[key]}",
+    cache_key_fn=task_input_hash,
 )
 def start_cluster_job(
     name: str,
     command: str,
-    key: str,
     expected_time: timedelta,
     memory: Union[int, str],
     workdir: Optional[Union[Path, str]] = None,
@@ -196,11 +197,10 @@ def start_cluster_job(
     Run a command on the HPC Cluster by submitting it as a Slurm job.
     :param name: Name for the job (both on Slurm and Prefect), e.g. "Run analysis pipeline for x"
     :param command: Shell-level command to run, e.g. "nextflow run my-pipeline.nf --sample x"
-    :param key: Globally unique key for this job.
     :param expected_time: A timedelta after which the job will be killed if not done.
     This affects Prefect's polling interval too. E.g.  `timedelta(minutes=5)`
     :param memory: Maximum memory the job may use. In MB, or with a prefix. E.g. `100` or `10G`.
-    :param workdir: Work dir for the job (pathlib.Path, or str). Otherwise, a default will be used based on the key.
+    :param workdir: Work dir for the job (pathlib.Path, or str). Otherwise, a default will be used based on the name.
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription
     :return: Job ID of the slurm job.
     """
@@ -209,7 +209,7 @@ def start_cluster_job(
     job_workdir = workdir
     if not job_workdir:
         unique_job_folder = slugify(
-            f"{key}-{datetime.now().isoformat()}-{str(uuid.uuid4()).split('-')[-1]}"
+            f"{name}-{datetime.now().isoformat()}-{str(uuid.uuid4()).split('-')[-1]}"
         ).upper()
         job_workdir = Path(EMG_CONFIG.slurm.default_workdir) / Path(unique_job_folder)
 
@@ -292,15 +292,22 @@ class ClusterPendingJobsLimitReachedException(Exception):
     ...
 
 
+def _cluster_delay_key(context: TaskRunContext, parameters: dict) -> str:
+    """
+    Creates a cache key that prevents the cluster delay task from running again for the same flow.
+    I.e., will not be impactful on a re-run of the parent flow.
+    """
+    return f"cluster-delay-marker-{context.task_run.flow_run_id}"
+
+
 @task(
-    persist_result=True,
     retries=EMG_CONFIG.slurm.default_submission_attempts_limit,
     retry_delay_seconds=EMG_CONFIG.slurm.default_seconds_between_submission_attempts,
-    result_storage_key="cluster-delay-marker-{flow_run.id}",
+    cache_key_fn=_cluster_delay_key,
 )
 def _delay_until_cluster_has_space() -> int:
     """
-    Run once (by persisting the result of this flow) at the start of a cluster job,
+    Run once (by caching the result of this task) at the start of a cluster job,
     to potentially wait until the slurm cluster queue is sufficiently small for us to submit
     a new job.
     TODO: add "pressure" based on creation time of this flow, to enable prioritisation
@@ -339,7 +346,6 @@ def cancel_cluster_jobs_if_flow_cancelled(
 async def run_cluster_job(
     name: str,
     command: str,
-    key: str,
     expected_time: timedelta,
     memory: Union[int, str],
     environment: Union[dict, str],
@@ -350,7 +356,6 @@ async def run_cluster_job(
 
     :param name: Name for the job on slurm, e.g. "job 1"
     :param command: Shell-level command to run, e.g. "touch 1.txt"
-    :param key: a unique key for this job, e.g. "project-a-sample-1-touch"
     :param expected_time: A timedelta after which the job will be killed if unfinished, e.g. timedelta(days=1)
     :param memory: Max memory the job may use. In MB, or with a suffix. E.g. `100` or `10G`.
     :param environment: Dictionary of environment variables to pass to job, or string in format of sbatch --export
@@ -364,12 +369,11 @@ async def run_cluster_job(
     space_on_cluster = _delay_until_cluster_has_space()
 
     # Submit the job to cluster.
-    # This is a persisted result, so if this flow is retried, a new job will *not* be submitted.
+    # This is a cached result, so if this flow is retried, a new job will *not* be submitted.
     # Rather, the original job_id will be returned.
     job_id = start_cluster_job(
         name=name,
         command=command,
-        key=key,
         expected_time=expected_time,
         memory=memory,
         wait_for=space_on_cluster,
@@ -378,6 +382,9 @@ async def run_cluster_job(
     )
 
     # Wait for job completion
+    # Resumability: if this flow was re-run / restarted for some reason, or the exact same cluster job was sent later,
+    #  we should have gotten  back an existing slurm job_id of a previous run of it. And therefore the first status
+    #  check will just tell us the job finished immediately / it'll wait for the EXISTING job to finish.
     is_job_in_terminal_state = False
     while not is_job_in_terminal_state:
         job_state = check_cluster_job(job_id)
@@ -398,8 +405,8 @@ async def run_cluster_job(
     return job_id
 
 
-def _default_keyifier(name, command):
-    return slugify(f"{name}-{command}")
+def _default_dirname(name, command):
+    return slugify(name).upper()
 
 
 @flow(
@@ -414,7 +421,7 @@ async def run_cluster_jobs(
     expected_time: timedelta,
     memory: Union[int, str],
     environment: Union[dict, str],
-    keys: Union[List[str], Callable[[str, str], str]] = _default_keyifier,
+    workdirs: Union[List[str], Callable[[str, str], str]] = _default_dirname,
     raise_on_job_failure: bool = True,
     **kwargs,
 ) -> list[dict[str, str]]:
@@ -426,8 +433,8 @@ async def run_cluster_jobs(
     :param memory: Max memory the jobs may use. In MB, or with a suffix. E.g. `100` or `10G`.
     :param environment: Dictionary of environment variables to pass to job, or string in format of sbatch --export
         (see https://slurm.schedmd.com/sbatch.html). E.g. `TOWER_ACCESSION_TOKEN`
-    :param keys: Unique keys for each job. Can either be a list like ["job1", "job2", ...],
-        or a function that turn each *name* and *command* pair into a key, e.g. lambda nm, cmd: f"{nm}-{cmd}" (default).
+    :param workdits: Unique work directory for each job. Can either be a list like ["job-1", "job-2", ...],
+        or a function that turn each *name* and *command* pair into a key, e.g. lambda nm, cmd: nm" (which is the default).
     :param raise_on_job_failure: Whether to fail this flow if ANY slurm job fails.
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
     :return: List of jobs (same order as jobs_args), with a dict of final info. Included "Final Slurm state" key.
@@ -443,19 +450,23 @@ async def run_cluster_jobs(
     # Submit the jobs to cluster.
     # These are persisted result, so if this flow is retried, new jobs will *not* be submitted.
     # Rather, the original job_ids will be returned.
-    keys = keys if type(keys) is list else [keys(n, c) for n, c in zip(names, commands)]
+    _workdirs = (
+        workdirs
+        if type(workdirs) is list
+        else [workdirs(n, c) for n, c in zip(names, commands)]
+    )
     job_ids = [
         start_cluster_job(
             name=name,
             command=command,
-            key=key,
             expected_time=expected_time,
             memory=memory,
+            workdir=workdir,
             environment=environment,
             wait_for=space_on_cluster,
             **kwargs,
         )
-        for name, command, key in zip(names, commands, keys)
+        for name, command, workdir in zip(names, commands, _workdirs)
     ]
 
     logger.info(f"{len(job_ids)} jobs submitted to cluster")
@@ -467,17 +478,23 @@ async def run_cluster_jobs(
                 "Name": name,
                 "Command": command,
                 "Slurm Job ID": job_id,
-                "Result storage key": f"cluster-job-{key}",
+                "Working directory": workdir,
                 "Observe URL": str(maybe_get_nextflow_tower_browse_url(command)),
             }
-            for name, command, job_id, key in zip(names, commands, job_ids, keys)
+            for name, command, job_id, workdir in zip(
+                names, commands, job_ids, _workdirs
+            )
         ],
         description="Jobs submitted to Slurm",
     )
 
     jobs_are_terminal = {job_id: False for job_id in job_ids}
 
-    # Wait for all jobs to complete
+    # Wait for all jobs to complete.
+    # If we are here in a retry or even a later duplicate run (trying to run IDENTICAL jobs),
+    #  we will have been given back cached job_ids above.
+    #  Therefore, these status check loops will return the state of PREVIOUSLY launched jobs.
+    #  This is usually desirable for resumability / efficiency.
     while not all(jobs_are_terminal.values()):
         job_states = {job_id: check_cluster_job(job_id) for job_id in job_ids}
 
