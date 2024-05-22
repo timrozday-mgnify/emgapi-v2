@@ -179,6 +179,14 @@ def maybe_get_nextflow_tower_browse_url(command: str) -> Optional[AnyUrl]:
         )
 
 
+def _ensure_absolute_workdir(workdir):
+    path = Path(workdir)
+    if not path.is_absolute():
+        base_path = Path(EMG_CONFIG.slurm.default_workdir)
+        return base_path / path
+    return path
+
+
 @task(
     task_run_name="Job submission: {name}",
     log_prints=True,
@@ -207,11 +215,16 @@ def start_cluster_job(
     logger = get_run_logger()
 
     job_workdir = workdir
+
     if not job_workdir:
+        # Make a unique workdir in the default location
         unique_job_folder = slugify(
             f"{name}-{datetime.now().isoformat()}-{str(uuid.uuid4()).split('-')[-1]}"
         ).upper()
         job_workdir = Path(EMG_CONFIG.slurm.default_workdir) / Path(unique_job_folder)
+
+    # If workdir was given as relative, make it absolute using default workdir as basepath
+    job_workdir = _ensure_absolute_workdir(job_workdir)
 
     script = _(
         f"""\
