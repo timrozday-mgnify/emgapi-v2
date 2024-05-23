@@ -87,7 +87,6 @@ Run e.g. `task ebi-wp-k8s-hl:update-api` to build/push/restart the EMG API servi
 
 ## TODO
 * DB Schema for merged EMG + Backlog DB
-* Slurm-job cancellation on flow failure (using Prefect state change hooks)
 * Job cleanup flows
 * Flow test
 * Meta-queue
