@@ -27,10 +27,10 @@ This creates a tiny slurm cluster called `donco` (not `codon`).
 This is in the `slurm` directory: see [slurm/README.md](slurm/README.md) for more.
 
 ### Set up docker-compose
-E.g. following [the docker docs](https://docs.docker.com/compose/install/) or using Podman, as you prefer.
+E.g. following [the docker docs](https://docs.docker.com/compose/install/) or using Podman or Colima, as you prefer. In theory all should work.
 
 ### The taskfile
-The project has a taskfile to simplify some common activities.
+The project has a taskfile to simplify some common activities. So, [install Task](https://taskfile.dev/installation/).
 
 ### Make the Django DB
 ```shell
@@ -43,10 +43,16 @@ This will have created a Django-managed DB on a dockerized Postgres host.
 task deploy-utils
 task run
 ```
-(Be aware this runs 9 containers using ~2GB of RAM. Configure your Podman Machine / Docker Desktop setup accordingly.)
-You'll see logs from all the containers.
+> #### Details
+> Be aware this runs 7 containers using ~2GB of RAM. Configure your Podman Machine / Docker Desktop / Colima setup accordingly.
+>
+> You'll see logs from all the containers.
+>
+> Depending on your containerisation setup, you may need to tweak the `CPUs=4` line of `slurm/configs/slurm_single_node.conf:45`, e.g. setting it to 1.
+> This is related to the number of CPUs on your host machine or on the container VM you're using: e.g. what you set in Docker Desktop.
+
 You can then go to http://127.0.0.1:4200 to see the Prefect dashboard (workflows to be run).
-You can also go to http://127.0.0.1:8000 to see the Django app.
+You can also go to http://localhost:8000/api/v2/docs to see the Django app.
 
 ### Register the Prefect flows (new shell)
 ```shell

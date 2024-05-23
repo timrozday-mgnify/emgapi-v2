@@ -36,7 +36,7 @@ tasks:
     desc: "Build and deploy the Prefect/Slurm util flows."
     cmds:
       - docker compose --profile prefect up -d
-      - docker compose run app prefectcli deployment build workflows/prefect_utils/slurm_flow.py:monitor_cluster --name monitor_slurm_cluster_deployment --output workflows/deployments/monitor_slurm_cluster_deployment.yaml -p slurm --apply --interval 60
+      - docker compose run app prefectcli deployment build workflows/prefect_utils/slurm_flow.py:run_cluster_job --name run_cluster_job_deployment --output workflows/deployments/run_cluster_job_deployment.yaml -p slurm --apply
       - docker compose --profile prefect --profile app down
 
   run:

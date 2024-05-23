@@ -1,4 +1,4 @@
-FROM ubuntu:latest as base
+FROM ubuntu:jammy as base
 LABEL authors="mgnify team"
 
 RUN apt -y update && apt -y upgrade
