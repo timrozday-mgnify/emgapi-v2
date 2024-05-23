@@ -6,6 +6,7 @@ RUN apt -y install libpq-dev python3-pip python-is-python3
 
 WORKDIR /app
 COPY . .
+ENV PIP_BREAK_SYSTEM_PACKAGES 1
 RUN pip install -r requirements.txt
 
 FROM base as django
