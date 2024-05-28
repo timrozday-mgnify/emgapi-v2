@@ -54,6 +54,17 @@ task run
 You can then go to http://127.0.0.1:4200 to see the Prefect dashboard (workflows to be run).
 You can also go to http://localhost:8000/api/v2/docs to see the Django app.
 
+### Run a basic Prefect flow
+Prefect flows are just Python. There is a hello-world like example in `workflows/flows/simple_example.py`.
+It can be run using Python, e.g. inside the `app` container:
+```shell
+ docker-compose exec app python workflows/flows/simple_example.py
+```
+You'll see that the flow and task decorators break the workflow up into individually executable bits of work.
+You can use this kind of approach to debug things.
+Meaningful flows, however, are run on separate infrastructure – and that is what the slurm and prefect agent dev environments are for.
+
+
 ### Register the Prefect flows (new shell)
 ```shell
 FLOW=ena_fetch_study_flow task deploy-flow

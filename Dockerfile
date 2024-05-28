@@ -2,7 +2,8 @@ FROM ubuntu:jammy as base
 LABEL authors="sandyr"
 
 RUN apt -y update && apt -y upgrade
-RUN apt -y install libpq-dev python3-pip python-is-python3
+ENV DEBIAN_FRONTEND="noninteractive" TZ="Etc/UTC"
+RUN apt -y install libpq-dev python3-pip python-is-python3 tzdata
 
 WORKDIR /app
 COPY requirements.txt .
@@ -35,4 +36,5 @@ ENV SLURM_LIB_DIR=/slurm/lib
 ENV SLURM_INCLUDE_DIR=/usr/include
 RUN pip install https://github.com/PySlurm/pyslurm/archive/refs/tags/v21.8.1.tar.gz
 COPY . .
+ENV TZ="Etc/UTC"
 ENTRYPOINT ["/usr/local/bin/submitter-entrypoint.sh", "python3", "manage.py"]
