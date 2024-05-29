@@ -18,6 +18,9 @@ This doesn't usually matter, since in a standard Prefect setup the only time a f
 
 However, when mixed with long-running HPC jobs (e.g. multi-day nextflow pipelines), our implementation of Prefect will regularly re-run flows.
 
+The key is to make sure that expensive work, that should only be done once, is an at @task with a cache key that means it can be reused.
+See the "realistic example" flow for how to achieve this.
+
 ## Long-running pipelines
 Prefect assumes it will control a pipeline throughout execution; i.e. there is a process running on a prefect agent at all times a flow is running.
 
@@ -30,57 +33,19 @@ Consider a typical MGnify flow, though:
 * submit a datamove job
 * insert some other things into a database
 
-There are steps here where Prefect needs to cede control, because the prefect agent would be idle, occupying a zombie process for days on end and blocking other processing.
+There are steps here where Prefect may crash but we would like work to continue – because Prefect is only monitoring work that is really being orchestrated by nextflow and slurm
 
-For this reason, we need to make use of the Prefect Scheduler (a database of flow runs and intended start times), so that flows can be "happening" (not strictly running) out-of-process.
+For this reason, we need to make sure that Prefect flows can be resumed and re-attach themselves to the pipeline runs.
 
 We do this by:
 1. submitting jobs to the Slurm cluster;
 2. checking the state of the Slurm jobs;
-3. pausing the prefect flow out of process if the Slurm jobs are not complete;
-4. having a job management (cluster monitoring) flow which runs on a cron timer, and every few minutes tells prefect flows to unpause and check on their slurm jobs.
-   5. this manager also drip feeds new jobs into slurm, again by unpausing their flows, if slurm was saturated when the cluster job was initially demanded.
-
-Steps 2. — 5. are repeated until the Slurm jobs are finished (or perhaps all in terminal states like completed and failed).
+3. making sure that identical job submissions do not start new slurm jobs, but rather return the previously started ones;
+4. also having a "pre-cluster delay" to make sure we don't flood the HPC cluster with jobs.
 
 There are helpers for this process in `prefect_utils/slurm_flow.py`.
 
-Essentially:
-
-```python
-from datetime import timedelta
-
-from prefect import flow
-from django.conf import settings
-import django
-from asgiref.sync import sync_to_async
-
-from workflows.prefect_utils.slurm_flow import run_cluster_jobs, after_cluster_jobs
-
-from some_django_app.models import Study
-
-django.setup()
-
-
-@flow
-async def my_long_flow(study: str):
-    samples = sync_to_async(Study.get)(id=study).samples.all()
-
-    await run_cluster_jobs(
-        name_pattern="Get read runs for {sample}",
-        command_pattern=f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/do_something_slow_with_a_sample.nf --sample={{sample}}",
-        jobs_args=[{'sample': sample.id} for sample in samples],
-        expected_time=timedelta(seconds=10),
-        status_checks_limit=1,
-        memory="100M",
-    )
-
-    after_cluster_jobs()  # unless a @task follows pause/resumes, prefect won't bother resuming
-```
-
-Note the helpers for submitting a single command with several different parameters, using the `pattern`s.
-
-`sync_to_async()` is also needed around the Django functions, since we're in an `async` context.
+Essentially, look at `flows/realistic_example.py` for the details.
 
 
 ## Triggering flows from models

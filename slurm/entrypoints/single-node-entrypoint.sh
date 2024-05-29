@@ -28,7 +28,7 @@ while ! nc -z localhost 6817; do
 done
 
 echo "ℹ️ Start slurm worker daemon"
-slurmd -vvv
+slurmd
 
 tail -f /var/log/slurm/slurmdbd.log /var/log/slurm/slurmd.log /var/log/slurm/slurmctld.log
 

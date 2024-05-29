@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 import uuid
 from collections import Counter
@@ -13,11 +14,11 @@ from prefect import task, flow, get_run_logger, Flow, State
 from prefect.artifacts import create_markdown_artifact, create_table_artifact
 from prefect.client.schemas import FlowRun
 from prefect.context import TaskRunContext
-from prefect.tasks import task_input_hash
 from pydantic import AnyUrl
 from pydantic_core import Url
 
 from emgapiv2.settings import EMG_CONFIG
+from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 
 try:
     import pyslurm
@@ -27,6 +28,7 @@ except:
 
 
 CLUSTER_WORKPOOL = "slurm"
+SLURM_JOB_ID = "Slurm Job ID"
 FINAL_SLURM_STATE = "Final Slurm state"
 
 
@@ -191,7 +193,7 @@ def _ensure_absolute_workdir(workdir):
     task_run_name="Job submission: {name}",
     log_prints=True,
     persist_result=True,
-    cache_key_fn=task_input_hash,
+    cache_key_fn=context_agnostic_task_input_hash,
 )
 def start_cluster_job(
     name: str,
@@ -199,6 +201,7 @@ def start_cluster_job(
     expected_time: timedelta,
     memory: Union[int, str],
     workdir: Optional[Union[Path, str]] = None,
+    make_workdir_first: bool = True,
     **kwargs,
 ) -> str:
     """
@@ -209,6 +212,8 @@ def start_cluster_job(
     This affects Prefect's polling interval too. E.g.  `timedelta(minutes=5)`
     :param memory: Maximum memory the job may use. In MB, or with a prefix. E.g. `100` or `10G`.
     :param workdir: Work dir for the job (pathlib.Path, or str). Otherwise, a default will be used based on the name.
+    :param make_workdir_first: Make the work dir first, on the SUBMITTER machine.
+    Usually this is desirable, except in cases where you're launching a job to a slurm node which has diff. fs mounts.
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription
     :return: Job ID of the slurm job.
     """
@@ -225,11 +230,12 @@ def start_cluster_job(
 
     # If workdir was given as relative, make it absolute using default workdir as basepath
     job_workdir = _ensure_absolute_workdir(job_workdir)
+    if make_workdir_first and not job_workdir.exists():
+        os.mkdir(job_workdir)
 
     script = _(
         f"""\
         #!/bin/bash
-        mkdir -p {job_workdir}
         {command}
         """
     )
@@ -446,7 +452,7 @@ async def run_cluster_jobs(
     :param memory: Max memory the jobs may use. In MB, or with a suffix. E.g. `100` or `10G`.
     :param environment: Dictionary of environment variables to pass to job, or string in format of sbatch --export
         (see https://slurm.schedmd.com/sbatch.html). E.g. `TOWER_ACCESSION_TOKEN`
-    :param workdits: Unique work directory for each job. Can either be a list like ["job-1", "job-2", ...],
+    :param workdirs: Unique work directory for each job. Can either be a list like ["job-1", "job-2", ...],
         or a function that turn each *name* and *command* pair into a key, e.g. lambda nm, cmd: nm" (which is the default).
     :param raise_on_job_failure: Whether to fail this flow if ANY slurm job fails.
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
@@ -530,7 +536,7 @@ async def run_cluster_jobs(
                     raise ClusterJobFailedException()
                 else:
                     logger.warning(
-                        f"Job {job_id} failed unsuccessfully, but this is being allowed."
+                        f"Job {job_id} finished unsuccessfully, but this is being allowed."
                     )
 
             else:
@@ -547,7 +553,7 @@ async def run_cluster_jobs(
         {
             "Name": name,
             "Command": command,
-            "Slurm Job ID": job_id,
+            SLURM_JOB_ID: job_id,
             FINAL_SLURM_STATE: check_cluster_job(job_id),
         }
         for name, command, job_id in zip(names, commands, job_ids)

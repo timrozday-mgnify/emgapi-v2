@@ -6,8 +6,8 @@ import django
 from django.conf import settings
 from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
-from prefect.tasks import task_input_hash
 
+from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 from workflows.prefect_utils.slurm_flow import (
     run_cluster_jobs,
     slurm_status_is_finished_successfully,
@@ -25,7 +25,7 @@ from prefect import flow, task, suspend_flow_run
 
 @task(
     retries=2,
-    cache_key_fn=task_input_hash,
+    cache_key_fn=context_agnostic_task_input_hash,
     task_run_name="Get study from ENA: {accession}",
     log_prints=True,
 )
@@ -47,7 +47,7 @@ def get_study_from_ena(accession: str) -> ena.models.Study:
 
 @task(
     retries=2,
-    cache_key_fn=task_input_hash,
+    cache_key_fn=context_agnostic_task_input_hash,
     cache_expiration=timedelta(minutes=10),
     task_run_name="Set up MGnify Study: {ena_accession}",
     log_prints=True,
@@ -99,7 +99,7 @@ class AssemblerInput(RunInput):
 
 @task(
     retries=2,
-    cache_key_fn=task_input_hash,
+    cache_key_fn=context_agnostic_task_input_hash,
     task_run_name="Get study readruns from ENA: {accession}",
     log_prints=True,
 )

@@ -65,24 +65,30 @@ You can use this kind of approach to debug things.
 Meaningful flows, however, are run on separate infrastructure – and that is what the slurm and prefect agent dev environments are for.
 
 
-### Register the Prefect flows (new shell)
+### Register a Prefect flow (new shell)
 ```shell
-FLOW=ena_fetch_study_flow task deploy-flow
+ FLOW=realistic_example task deploy-flow
 ```
-This "builds" a prefect flow (from the `workflows/flows/` directory, in a file of name `ena_fetch_study_flow` with an `@flow`-decorated method also called `ena_fetch_study_flow`).
+This "builds" a prefect flow (from the `workflows/flows/` directory, in a file of name `realstic_example` with an `@flow`-decorated method also called `realistic_example`).
+(Have a look at the Taskfile if you want to remove this same-named constraint.)
 It also "applies" the "flow deployment", which means the Prefect server knows how to execute it.
 It will register it as requiring an "hpc" worker agent to run it.
 The Prefect agent in the docker compose setup is labelled as being this "hpc" agent, so will pick it up.
 This "hpc" agent simulates a worker node on an HPC cluster, e.g. it can submit `nextflow` pipeline executions.
-In a real world these nextflow pipelines might have a config to use an HPC scheduler like Slurm.
+In a real world these nextflow pipelines might also have a config to use an HPC scheduler themselves, like launching child Slurm jobs.
 
 ### Run a flow
 Either: open the [Prefect dashboard](http://localhost:4200), or use a POST request on the [MGnify API](http://localhost:8000/api/v2/), or use the prefect CLI via docker compose.
-E.g. kick off the "ENA fetch studies and samples" flow with a PRJxxxxx accession.
-This example flow will call the ENA API to list samples for the project, create entities in the DB for them, and then launch a nextflow pipeline to fetch read-run FASTQ files for each sample.
+
+E.g., use the Prefect dashboard to do a "quick run" of the [Realistic Example flow you just deployed](http://localhost:4200/deployments?deployments.nameLike=realistic&page=1) with accession `PRJNA521078`.
+This example will:
+- make an ENA Study in the database
+- suspend itself and wait to be "resumed" in the Prefect dashboard, because it needs to know a "sample limit" from the admin user
+- get a list of samples from the ENA API, in an @task
+- run a nextflow pipeline for each sample, on slurm, that downloads the read runs
 
 ### Interacting with Slurm
-See [the slurm/README.md](slurm/README.md) for details. In short: `task slurm`.
+See [the slurm/README.md](slurm/README.md) for details. In short: `task slurm` and you're on a slurm node.
 
 
 ## Writing flows
