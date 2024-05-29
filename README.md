@@ -87,6 +87,13 @@ This example will:
 - get a list of samples from the ENA API, in an @task
 - run a nextflow pipeline for each sample, on slurm, that downloads the read runs
 
+You could also run this newly deployed flow from the command line, using the Prefect CLI. e.g.:
+```shell
+task prefect -- deployment run "Download a study read-runs/realistic_example_deployment" --param accession=PRJNA521078
+```
+
+(Note that you can't run this one in the same way as `simple_example.py`, because `realistic_example.py` does not have a `__main__`).
+
 ### Interacting with Slurm
 See [the slurm/README.md](slurm/README.md) for details. In short: `task slurm` and you're on a slurm node.
 
