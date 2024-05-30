@@ -44,6 +44,8 @@ RUN DEBIAN_FRONTEND=noninteractive \
 RUN wget -qO- https://get.nextflow.io | bash
 RUN chmod +x nextflow
 RUN mv nextflow /usr/bin/
+COPY configs/slurm_prolog.sh /usr/local/bin/slurm_prolog.sh
+COPY configs/slurm_epilog.sh /usr/local/bin/slurm_epilog.sh
 ENTRYPOINT ["/usr/local/bin/worker-entrypoint.sh"]
 
 FROM worker as single_node

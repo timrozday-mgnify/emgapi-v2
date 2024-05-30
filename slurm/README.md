@@ -28,16 +28,22 @@ This is used by the parent docker-compose setup, to submit Slurm jobs from Prefe
 
 `slurm*.conf` are configs made using [the configurator](https://slurm.schedmd.com/configurator.html) for this docker compose setup only.
 
+`slurm_prolog.sh` and `slurm_epilog.sh` are scripts that execute before and after a job, respectively.
+We are using them to pretend that `/nfs/public` is only available to jobs running in the `datamover` partition.
+This is to help with writing jobs for EBI Codon Slurm infrastructure, which looks a bit like this.
+
 ## Using it
 ### Interactively on the nodes
 The Slurm cluster is called `donco` (not `codon` :-] ).
 You can dispatch Slurm commands on one of the nodes, e.g. the `slurm_node` (single node setup) or `slurm_worker` or `_controller` in the full setup.
 
 ```shell
-user@host:/# docker exec -it slurm_node bash
+user@host:/# task slurm
 root@slurm_node:/# sinfo
 # PARTITION AVAIL  TIMELIMIT  NODES  STATE NODELIST
-# debug*       up   infinite      1  alloc slurm_node
+# debug*       up   infinite      1   idle slurm_node
+# datamover    up   infinite      1   idle slurm_node
+
 root@slurm_node:/# sbatch --wait -t 00:00:30 --mem 10M --wrap="ls" -o listing.txt
 # Submitted batch job 54
 root@slurm_node:/# sacct -j 54
@@ -45,12 +51,16 @@ root@slurm_node:/# sacct -j 54
 # ------------ ---------- ---------- ---------- ---------- ---------- --------
 # 54                 wrap      debug       root          1  COMPLETED      0:0
 # 54.batch          batch                  root          1  COMPLETED      0:0
+root@slurm_node:/# srun -t 1:00:00 --mem=100M --partition=datamover --pty bash -l
+root@slurm_node:/# cd /nfs/public
+root@slurm_node:/nfs/public#
+# Note that this extra /nfs/public mount is available because we are on the datamover parition
 ```
 
 ### Via Taskfile convenience wrapper
 From the parent dir, where there is a Taskfile:
-`task slurm` will open a shell on the slurm controller node, where you can run things like `sinfo`, `squeue`, `srun`, `sbatch` etc.
+`task slurm` will open a shell on the slurm controller node, where you can run things like `sinfo`, `squeue`, `srun`, `sbatch` etc. (as bove)
 
 `task sbatch -- --wait -t 00:00:30 --mem 10M --wrap="ls" -o listing.txt` will dispatch a job directly.
 
-Use e.g. `docker logs slurm_worker -f` to see the job execute.
+Use e.g. `docker logs slurm_node -f` to see the job execute.

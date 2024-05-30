@@ -44,6 +44,11 @@ tasks:
     cmds:
       - docker compose --profile all up
 
+  stop:
+    desc: "Stop everything"
+    cmds:
+      - docker compose --profile all down
+
   manage:
     desc: "Run a management command. E.g. task manage -- migrate"
     cmds:
