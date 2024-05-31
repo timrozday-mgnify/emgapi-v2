@@ -132,7 +132,7 @@ Please pick how many samples (the max limit) to download for the study {study.ac
 
     for sample, job_result in zip(sample_accessions, slurm_job_results):
         if slurm_status_is_finished_successfully(job_result[FINAL_SLURM_STATE]):
-            print(f"Successfuly ran nextflow pipeline for {sample}")
+            print(f"Successfully ran nextflow pipeline for {sample}")
         else:
             print(
                 f"Something went wrong running nextflow pipeline for {sample} in job {job_result[SLURM_JOB_ID]}"

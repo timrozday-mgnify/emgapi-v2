@@ -28,6 +28,8 @@ class SlurmConfig(BaseModel):
     nextflow_tower_org: str = "EMBL"
     nextflow_tower_workspace: str = "ebi-spws-dev-microbiome-info"
 
+    datamover_paritition: str = "datamover"
+
 
 class EMGConfig(BaseSettings):
     slurm: SlurmConfig = SlurmConfig()

@@ -1,3 +1,10 @@
-from django.test import TestCase
+import pytest
+from .models import Study
+from ena.models import Study as ENAStudy
 
-# Create your tests here.
+
+@pytest.mark.django_db
+def test_study():
+    ena_study = ENAStudy.objects.create(accession="PRJ1", title="Project 1")
+    study = Study.objects.create(ena_study=ena_study, title="Project 1")
+    assert study.accession == "MGYS00000001"
