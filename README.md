@@ -1,3 +1,7 @@
+[![Testing](https://github.com/EBI-Metagenomics/emgapi-v2/actions/workflows/test.yml/badge.svg)](https://github.com/EBI-Metagenomics/emgapi-v2/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/EBI-Metagenomics/emgapi-v2/branch/main/graph/badge.svg?token=27IVW899W8)](https://codecov.io/gh/EBI-Metagenomics/emgapi-v2)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 # Prototype EMG backlog/API, using Prefect
 
 There are two real Django apps here:
