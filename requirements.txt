@@ -15,7 +15,3 @@ pandas==2.1.4
 whitenoise==6.6.0
 gunicorn==22.0.0
 django-debug-toolbar==4.3.0
-
-pytest
-pytest-django
-pytest-cov

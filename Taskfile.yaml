@@ -65,3 +65,8 @@ tasks:
     cmds:
       - docker exec -it slurm_node bash
     interactive: true
+
+  test:
+    desc: "Run pytest tests. E.g. `task test` or `task test -- -k study`"
+    cmds:
+      - docker compose run --entrypoint /bin/bash app -c "pytest {{.CLI_ARGS}}"

@@ -101,6 +101,18 @@ See [the slurm/README.md](slurm/README.md) for details. In short: `task slurm` a
 ## Writing flows
 See [the workflows/README.md](workflows/README.md) for details. In short: add Python/Prefect code to a file in `workflows/flows/` and then `FLOW=my_flow task deploy-flow`.
 
+## Testing
+The project uses the [pytest](https://docs.pytest.org) framework.
+[Prefect has some helpers](https://docs.prefect.io/latest/guides/testing/) for testing.
+We also use [Pytest-django](https://pytest-django.readthedocs.io/en/latest/) to help with Django testing.
+
+Testing libraries are in `requirements-dev.txt`. These are installed in the docker compose `app` container. So:
+
+```shell
+task test
+# ...will run everything. Or for a subset, use pytest arguments after -- e.g.:
+task test -- -k study
+```
 
 ## Deployment
 The `deployment/` folder has deployment configs for different environments.

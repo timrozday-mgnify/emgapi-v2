@@ -34,6 +34,7 @@ class SlurmConfig(BaseModel):
 class EMGConfig(BaseSettings):
     slurm: SlurmConfig = SlurmConfig()
 
-    class Config:
-        env_prefix = "emg_"
-        env_nested_delimiter = "__"
+    model_config = {
+        "env_prefix": "emg_",
+        "env_nested_delimiter": "__",
+    }

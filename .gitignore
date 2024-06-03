@@ -15,3 +15,8 @@ secret*.env
 secret*.htaccess
 deployment/**/*job*.yaml
 deployment/**/auth
+/htmlcov/
+.coverage
+/.nextflow/
+/work/
+coverage.xml

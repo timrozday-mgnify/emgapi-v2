@@ -96,16 +96,6 @@ services:
       - jobdir:/opt/jobs
       - ./prefectserver:/root/.prefect
 
-  debug:
-    # Just used to give pycharm a python interpreter built accordingly
-    container_name: debug
-    build:
-      context: .
-      target: slurm
-    profiles: ["debug"]
-    volumes:
-      - ".:/app"
-
   app:
     build:
       context: .

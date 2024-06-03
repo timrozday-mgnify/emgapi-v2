@@ -8,12 +8,16 @@ def get_stars(repo: str):
     url = f"https://api.github.com/repos/{repo}"
     count = httpx.get(url).json()["stargazers_count"]
     print(f"{repo} has {count} stars!")
+    return count
 
 
 @flow(name="GitHub Stars")
 def github_stars(repos: List[str]):
+    counts = []
     for repo in repos:
-        get_stars(repo)
+        stars = get_stars(repo)
+        counts.append(stars)
+    return counts
 
 
 # run the flow!
