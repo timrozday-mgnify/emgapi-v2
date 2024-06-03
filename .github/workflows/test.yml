@@ -15,7 +15,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build --target app -t app:latest .
+          docker build --target django -t app:latest .
 
       - name: Run tests
         run: |
