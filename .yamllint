@@ -3,7 +3,7 @@ extends: default
 
 rules:
   line-length:
-    max: 100
+    max: 160
     ignore: |
       Taskfile.yaml
       docker-compose.yaml
