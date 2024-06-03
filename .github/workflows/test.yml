@@ -19,7 +19,7 @@ jobs:
 
       - name: Run tests
         run: |
-          docker run --rm app:latest pytest
+          docker run --entrypoint bash --rm app:latest -c pytest
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
