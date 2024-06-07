@@ -30,11 +30,25 @@ class SlurmConfig(BaseModel):
 
     datamover_paritition: str = "datamover"
 
+    assembly_uploader_root_dir: str = ""
+    webin_cli_executor: str = ""
+
+
+class WebinConfig(BaseModel):
+    # TODO add to secrets
+    emg_webin_account: str = None
+    emg_webin_password: str = None
+
+
+class ENAConfig(BaseModel):
+    primary_study_accession_re: str = "(PRJ[EDN][A-Z][0-9]+)"
+
 
 class EMGConfig(BaseSettings):
     slurm: SlurmConfig = SlurmConfig()
     environment: str = "development"
-
+    webin: WebinConfig = WebinConfig()
+    ena: ENAConfig = ENAConfig()
     model_config = {
         "env_prefix": "emg_",
         "env_nested_delimiter": "__",

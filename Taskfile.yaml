@@ -31,6 +31,16 @@ tasks:
     requires:
       vars: [FLOW]
 
+  run-flow:
+    desc: "Run flow when prefect is already running"
+    cmds:
+      - docker compose --profile prefect up -d
+      - docker compose exec app workflows/flows/{{.FLOW}}.py:{{.FLOW}} --name {{.FLOW}}_deployment --output workflows/deployments/{{.FLOW}}_deployment.yaml -p {{.POOL}} --apply
+    vars:
+      POOL: "slurm"
+    requires:
+      vars: [ FLOW ]
+
   deploy-utils:
     desc: "Build and deploy the Prefect/Slurm util flows."
     cmds:
