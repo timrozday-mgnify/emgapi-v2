@@ -17,7 +17,13 @@ class ENAModel(models.Model):
 class Study(ENAModel):
     title = models.TextField()
 
+    class Meta:
+        verbose_name_plural = "studies"
+
 
 class Sample(ENAModel):
     metadata = models.JSONField(default=dict)
     study = models.ForeignKey(Study, on_delete=models.CASCADE, related_name="samples")
+
+    def __str__(self):
+        return self.accession

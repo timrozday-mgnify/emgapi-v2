@@ -19,3 +19,4 @@ deployment/**/auth
 /.nextflow/
 /work/
 /coverage
+/staticfiles

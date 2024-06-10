@@ -91,7 +91,7 @@ class VisibilityControlledModel(models.Model):
 
 
 class ENADerivedModel(VisibilityControlledModel):
-    ena_accessions = JSONField(default=list, db_index=True)
+    ena_accessions = JSONField(default=list, db_index=True, blank=True)
     is_suppressed = models.BooleanField(default=False)
 
     @property
@@ -125,9 +125,18 @@ class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
 
     title = models.CharField(max_length=255)
 
+    def __str__(self):
+        return self.accession
+
+    class Meta:
+        verbose_name_plural = "studies"
+
 
 class Sample(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
     ena_sample = models.ForeignKey(ena.models.Sample, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f"Sample {self.id}: {self.ena_sample}"
 
 
 class AnalysisManagerDeferringAnnotations(models.Manager):
@@ -222,7 +231,7 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
 
     class ExperimentTypes(models.TextChoices):
         METATRANSCRIPTOMIC = "METAT", "Metatranscriptomic"
-        METAGENOMIC = "METAG", "Metagenomics"
+        METAGENOMIC = "METAG", "Metagenomic"
         AMPLICON = "AMPLI", "Amplicon"
         ASSEMBLY = "ASSEM", "Assembly"
         HYBRID_ASSEMBLY = "HYASS", "Hybrid assembly"
@@ -237,6 +246,7 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
     )
     metadata = models.JSONField(default=dict)
     study = models.ForeignKey(Study, on_delete=models.CASCADE, related_name="runs")
+    sample = models.ForeignKey(Sample, on_delete=models.CASCADE, related_name="runs")
 
     class RunStates:
         ANALYSIS_STARTED = "analysis_started"
@@ -255,17 +265,24 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
         self.status[status] = set_status_as
         return self.save()
 
+    def __str__(self):
+        return f"Run {self.id}: {self.first_accession}"
+
 
 class Assembly(TimeStampedModel, ENADerivedModel):
     dir = models.CharField(max_length=200, null=True, blank=True)
     run = models.ForeignKey(
         Run, on_delete=models.CASCADE, related_name="assemblies", null=True, blank=True
     )
+    study = models.ForeignKey(
+        Study, on_delete=models.CASCADE, related_name="assemblies"
+    )
 
     class AssemblyStates:
         ASSEMBLY_STARTED = "assembly_started"
         ASSEMBLY_FAILED = "assembly_failed"
         ASSEMBLY_COMPLETED = "assembly_completed"
+        ASSEMBLY_BLOCKED = "assembly_blocked"
         ANALYSIS_STARTED = "analysis_started"
         ANALYSIS_COMPLETED = "analysis_completed"
 
@@ -275,6 +292,7 @@ class Assembly(TimeStampedModel, ENADerivedModel):
                 cls.ASSEMBLY_STARTED: False,
                 cls.ASSEMBLY_FAILED: False,
                 cls.ASSEMBLY_COMPLETED: False,
+                cls.ASSEMBLY_BLOCKED: False,
                 cls.ANALYSIS_STARTED: False,
                 cls.ANALYSIS_COMPLETED: False,
             }
@@ -286,6 +304,12 @@ class Assembly(TimeStampedModel, ENADerivedModel):
     def mark_status(self, status: AssemblyStates, set_status_as: bool = True):
         self.status[status] = set_status_as
         return self.asave()
+
+    class Meta:
+        verbose_name_plural = "Assemblies"
+
+    def __str__(self):
+        return f"Assembly {self.id}  (Run {self.run.first_accession})"
 
 
 class AssemblyAnalysisRequest(TimeStampedModel):

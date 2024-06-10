@@ -26,7 +26,6 @@ tasks:
     cmds:
       - docker compose --profile prefect up -d
       - docker compose run app prefectcli deployment build workflows/flows/{{.FLOW}}.py:{{.FLOW}} --name {{.FLOW}}_deployment --output workflows/deployments/{{.FLOW}}_deployment.yaml -p {{.POOL}} --apply
-      - docker compose --profile prefect --profile app down
     vars:
       POOL: "slurm"
     requires:
@@ -35,9 +34,7 @@ tasks:
   deploy-utils:
     desc: "Build and deploy the Prefect/Slurm util flows."
     cmds:
-      - docker compose --profile prefect up -d
       - docker compose run app prefectcli deployment build workflows/prefect_utils/slurm_flow.py:run_cluster_job --name run_cluster_job_deployment --output workflows/deployments/run_cluster_job_deployment.yaml -p slurm --apply
-      - docker compose --profile prefect --profile app down
 
   run:
     desc: "Run everything"
@@ -57,7 +54,6 @@ tasks:
   sbatch:
     desc: "Dispatch a slurm job to the mini slurm cluster. E.g. task sbatch -- --wait -t 0:00:30 --mem=10M --wrap=\"echo 'hello world'\" -o hello-world.out"
     cmds:
-
       - docker exec slurm_node "sbatch {{.CLI_ARGS}}"
 
   slurm:
@@ -70,3 +66,11 @@ tasks:
     desc: "Run pytest tests. E.g. `task test` or `task test -- -k study`"
     cmds:
       - docker compose run --entrypoint /bin/bash app -c "pytest {{.CLI_ARGS}}"
+
+  make-dev-data:
+    desc: "Populate the app database with some demo data for development purposes"
+    prompt: "This will delete all data in the database! Are you sure?"
+    cmds:
+      - docker compose run app flush
+      - docker compose run app make_dev_data
+      - docker compose run app createsuperuser --username emgdev --email emg@example.org

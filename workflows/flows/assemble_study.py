@@ -4,6 +4,7 @@ from typing import List
 
 import django
 from django.conf import settings
+from django.db.models import Q
 from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 
@@ -34,13 +35,17 @@ def get_study_from_ena(accession: str) -> ena.models.Study:
         return ena.models.Study.objects.get(accession=accession)
     print(f"Will fetch from ENA Portal API Study {accession}")
     portal = httpx.get(
-        f"https://www.ebi.ac.uk/ena/portal/api/search?result=study&query=study_accession%3D{accession}%20OR%20secondary_study_accession%3D{accession}&limit=10&format=json&fields=study_title"
+        f"https://www.ebi.ac.uk/ena/portal/api/search?result=study&query=study_accession%3D{accession}%20OR%20secondary_study_accession%3D{accession}&limit=10&format=json&fields=study_title,secondary_study_accession"
     )
     if portal.status_code == httpx.codes.OK:
+        s = portal.json()[0]
+        primary_accession: str = s["study_accession"]
+        secondary_accession: str = s["secondary_study_accession"]
         study, created = ena.models.Study.objects.get_or_create(
-            accession=accession,
+            accession=primary_accession,
             defaults={
-                "title": portal.json()[0]["study_title"]
+                "title": portal.json()[0]["study_title"],
+                "additional_accessions": [secondary_accession],
                 # TODO: more metadata
             },
         )
@@ -58,7 +63,9 @@ def get_study_from_ena(accession: str) -> ena.models.Study:
 )
 def get_mgnify_study(ena_accession: str) -> analyses.models.Study:
     print(f"Will get/create MGnify study for {ena_accession}")
-    ena_study = ena.models.Study.objects.get(accession=ena_accession)
+    ena_study = ena.models.Study.objects.filter(
+        Q(accession=ena_accession) | Q(additional_accessions__contains=ena_accession)
+    ).first()
     study, _ = analyses.models.Study.objects.get_or_create(
         ena_study=ena_study, title=ena_study.title
     )
@@ -119,18 +126,83 @@ def get_study_readruns_from_ena(accession: str, limit: int = 20) -> List[str]:
     log_prints=True,
 )
 def get_or_create_assemblies_for_runs(
-    study: ena.models.Study, read_runs: List[str]
+    study: analyses.models.Study, read_runs: List[str]
 ) -> List[str]:
     assembly_ids = []
     for read_run in read_runs:
         run = analyses.models.Run.objects.get(ena_accessions__contains=read_run)
         assembly, created = analyses.models.Assembly.objects.get_or_create(
-            run=run, ena_study=study
+            run=run, ena_study=study.ena_study, study=study
         )
         if created:
             print(f"Created assembly {assembly}")
         assembly_ids.append(assembly.id)
     return assembly_ids
+
+
+@task(
+    log_prints=True,
+)
+def get_assemblies_to_attempt(study: analyses.models.Study) -> List[str]:
+    """
+    Determine the list of assemblies worth trying currently for this study.
+    :param study:
+    :return:
+    """
+    study.refresh_from_db()
+    assemblies_worth_trying = study.assemblies.filter(
+        **{
+            f"status__{analyses.models.Assembly.AssemblyStates.ASSEMBLY_COMPLETED}": False,
+            f"status__{analyses.models.Assembly.AssemblyStates.ASSEMBLY_BLOCKED}": False,
+        }
+    )
+    return assemblies_worth_trying
+
+
+@flow
+async def perform_assemblies_in_parallel(
+    assembly_ids: List[str],
+    miassembler_profile: str,
+    assembler_command_arg: str,
+    memory_gb: int,
+):
+    assemblies = [
+        await analyses.models.Assembly.objects.aget(id=id) for id in assembly_ids
+    ]
+    for assembly in assemblies:
+        mark_assembly_as_started(assembly)
+
+    ena_study = assemblies[0].ena_study
+
+    chunk_jobs = await run_cluster_jobs(
+        names=[
+            f"Assemble read_run {assembly.run.first_accession}"
+            for assembly in assemblies
+        ],
+        commands=[
+            f"nextflow run ebi-metagenomics/miassembler "
+            f"-profile {miassembler_profile} "
+            f"-resume "
+            f"--outdir {ena_study.accession}_{assembly.run.first_accession}_miassembler "
+            f"--study_accession {ena_study.accession} "
+            f"--reads_accession {assembly.run.first_accession} "
+            f"{assembler_command_arg} "
+            f"{'-with-tower' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''} "
+            f"-name mi-assembler-{assembly.run.first_accession}-for-{ena_study.accession} "
+            for assembly in assemblies
+        ],
+        expected_time=timedelta(days=5),
+        memory=f"{memory_gb}G",
+        environment="ALL,TOWER_ACCESS_TOKEN,TOWER_WORKSPACE_ID",
+        # will copy this env from the prefect worker to the jobs
+        raise_on_job_failure=False,
+    )
+
+    for assembly, assembly_job in zip(assemblies, chunk_jobs):
+        if slurm_status_is_finished_successfully(assembly_job[FINAL_SLURM_STATE]):
+            mark_assembly_as_completed(assembly)
+        else:
+            assembly.mark_status(assembly.AssemblyStates.ASSEMBLY_FAILED)
 
 
 @flow(
@@ -139,21 +211,23 @@ def get_or_create_assemblies_for_runs(
     flow_run_name="Assemble: {accession}",
     task_runner=SequentialTaskRunner,
 )
-async def assemble_study(accession: str):
+async def assemble_study(accession: str, miassembler_profile: str = "codon_slurm"):
     """
     Get a study from ENA, and input it to MGnify.
     Kick off assembly pipeline.
     :param accession: Study accession e.g. PRJxxxxxx
+    :param miassembler_profile: Name of the nextflow profile to use for MI Assembler.
     """
 
     # Create (or get) an ENA Study object, populating with metadata from ENA
     # Refresh from DB in case we get an old cached version.
-    ena_study = get_study_from_ena(accession).refresh_from_db()
-
+    ena_study = get_study_from_ena(accession)
+    await ena_study.arefresh_from_db()
     print(f"ENA Study is {ena_study.accession}: {ena_study.title}")
 
     # Get a MGnify Study object for this ENA Study
-    mgnify_study = get_mgnify_study(accession).refresh_from_db()
+    mgnify_study = get_mgnify_study(accession)
+    await mgnify_study.arefresh_from_db()
     print(f"MGnify study is {mgnify_study.accession}: {mgnify_study.title}")
 
     read_runs = get_study_readruns_from_ena(ena_study.accession, limit=5000)
@@ -181,52 +255,22 @@ Also select how much RAM (in GB) to allocate for each assembly.
         else ""
     )
 
-    assemblies = get_or_create_assemblies_for_runs(ena_study, read_runs)
+    get_or_create_assemblies_for_runs(mgnify_study, read_runs)
+
+    assemblies_to_attempt = get_assemblies_to_attempt(mgnify_study)
 
     # Work on chunks of 20 readruns at a time
     # Doing so means we don't use our entire cluster allocation for this study
     chunk_size = 20
     chunked_assemblies = [
-        assemblies[j : j + chunk_size] for j in range(0, len(assemblies), chunk_size)
+        assemblies_to_attempt[j : j + chunk_size]
+        for j in range(0, len(assemblies_to_attempt), chunk_size)
     ]
     for assembly_chunk in chunked_assemblies:
         # launch jobs for all runs in this chunk in a single flow
-        for assembly_id in assembly_chunk:
-            assembly = await analyses.models.Assembly.objects.aget(id=assembly_id)
-            mark_assembly_as_started(assembly)
-
-        read_runs_chunk = [
-            await analyses.models.Run.objects.aget(assemblies__id=assem)
-            for assem in assembly_chunk
-        ]
-
-        chunk_jobs = await run_cluster_jobs(
-            names=[
-                f"Assemble read_run {run.first_accession} for study {ena_study.accession}"
-                for run in read_runs_chunk
-            ],
-            commands=[
-                f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/miassembler/main.nf "
-                f"-profile codon_slurm "
-                f"-resume "
-                f"--outdir {ena_study.accession}_{run.first_accession}_miassembler "
-                f"--study_accession {ena_study.accession} "
-                f"--reads_accession {run.first_accession} "
-                f"{assembler_command_arg} "
-                f"{'-with-tower' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''} "
-                f"-name mi-assembler-{run.first_accession}-for-{ena_study.accession} "
-                for run in read_runs_chunk
-            ],
-            expected_time=timedelta(days=5),
-            memory=f"{assembler_input.memory_gb}G",
-            environment="ALL,TOWER_ACCESS_TOKEN,TOWER_WORKSPACE_ID",  # will copy this env from the prefect worker to the jobs
-            raise_on_job_failure=False,
+        await perform_assemblies_in_parallel(
+            assembly_chunk,
+            miassembler_profile,
+            assembler_command_arg,
+            assembler_input.memory_gb,
         )
-
-        for assembly_id, assembly_job in zip(assembly_chunk, chunk_jobs):
-            if slurm_status_is_finished_successfully(assembly_job[FINAL_SLURM_STATE]):
-                assembly = await analyses.models.Assembly.objects.aget(id=assembly_id)
-                mark_assembly_as_completed(assembly)
-            else:
-                assembly = await analyses.models.Assembly.objects.aget(id=assembly_id)
-                assembly.mark_status(assembly.AssemblyStates.ASSEMBLY_FAILED)

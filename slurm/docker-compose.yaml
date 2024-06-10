@@ -41,9 +41,9 @@ services:
       - "./configs/slurm_prolog.sh:/usr/local/bin/slurm_prolog.sh"
       - "./configs/slurm_epilog.sh:/usr/local/bin/slurm_epilog.sh"
       - "./entrypoints/single-node-entrypoint.sh:/usr/local/bin/worker-entrypoint.sh"
-      - nfs:/nfs
-      - hps:/hps
-      - publicnfs:/publicnfs
+      - "./fs/nfs/production:/nfs/production"
+      - "./fs/hps:/hps"
+      - "./fs/nfs/public:/publicnfs"
     expose:
       - "6818"
     profiles: ["slurm", "all"]
@@ -109,9 +109,9 @@ services:
       - logs:/var/log/slurm
       - jobdir:/opt/jobs
       - "..:/app"
-      - nfs:/nfs
-      - hps:/hps
-      - publicnfs:/publicnfs
+      - "./fs/nfs/production:/nfs/production"
+      - "./fs/hps:/hps"
+      - "./fs/nfs/public:/publicnfs"
     expose:
       - "6818"
     depends_on:
@@ -125,9 +125,6 @@ volumes:
   munge:
   logs:
   jobdir:
-  nfs:
-  hps:
-  publicnfs:
 
 networks:
   slurm:

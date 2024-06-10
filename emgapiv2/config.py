@@ -33,6 +33,7 @@ class SlurmConfig(BaseModel):
 
 class EMGConfig(BaseSettings):
     slurm: SlurmConfig = SlurmConfig()
+    environment: str = "development"
 
     model_config = {
         "env_prefix": "emg_",
