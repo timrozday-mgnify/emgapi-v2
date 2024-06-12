@@ -35,7 +35,6 @@ class SlurmConfig(BaseModel):
 
 
 class WebinConfig(BaseModel):
-    # TODO add to secrets
     emg_webin_account: str = None
     emg_webin_password: str = None
 

@@ -49,7 +49,7 @@ tasks:
   run:
     desc: "Run everything"
     cmds:
-      - docker compose --profile all up
+      - docker compose --profile all up {{.CLI_ARGS}}
 
   stop:
     desc: "Stop everything"

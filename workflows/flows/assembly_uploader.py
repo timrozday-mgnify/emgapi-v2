@@ -2,6 +2,8 @@ from datetime import timedelta
 import os
 import gzip
 import re
+import random
+import shutil
 from Bio import SeqIO
 
 from prefect import flow, task
@@ -28,9 +30,6 @@ OPTIONAL_SPADES_FILES = [
     ".scaffolds.fa.gz"
 ]
 SPADES_PARAMS = "params.txt"
-
-# TODO add values to config
-PATH_TO_WEBIN_CLI = "webincli/webin-cli-7.2.1.jar"
 
 @task(
     retries=2,
@@ -76,8 +75,8 @@ def check_assembly(accession, assembly_path, assembler):
     task_run_name="run shell command {command}",
     log_prints=True,
 )
-async def run_small_shell_command(command, env=None):
-    cmd = ShellOperation(commands=[command], env=env, return_all=True)
+async def run_small_shell_command(command, env=None, workdir=None):
+    cmd = ShellOperation(commands=[command], env=env, return_all=True, workdir=workdir)
     result = await cmd.run()
     # ShellOperation returns a list of outputs
     if result:
@@ -98,6 +97,8 @@ async def run_small_shell_command(command, env=None):
     log_prints=True,
 )
 async def create_study_xml(study_accession, library, output_dir):
+    # if assembly_uploader_root_dir set in config - use script from assembly_uploader installation
+    # otherwise means installation was done into env and can be launched with study_xmls command
     if EMG_CONFIG.slurm.assembly_uploader_root_dir:
         # take from root_dir installation
         launcher = f"python3 {os.path.join(EMG_CONFIG.slurm.assembly_uploader_root_dir, 'assembly_uploader', 'study_xmls.py')}"
@@ -112,14 +113,16 @@ async def create_study_xml(study_accession, library, output_dir):
         f"--center EMG "
     try:
          await run_small_shell_command(command,
-                                      env={
+                                       env={
                                           "ENA_WEBIN": EMG_CONFIG.webin.emg_webin_account,
                                           "ENA_WEBIN_PASSWORD": EMG_CONFIG.webin.emg_webin_password
-                                      })
+                                       },
+                                       workdir=output_dir)
     except Exception as e:
         print(f"Command failed with error: {e}")
     # check was upload folder created or not
     upload_folder = os.path.join(output_dir, study_accession + '_upload')
+    print(f'Upload folder: {os.path.abspath(upload_folder)}')
     if os.path.exists(upload_folder):
         if len([i for i in os.listdir(upload_folder) if i.endswith('.xml')]) == 2:
             return upload_folder
@@ -133,6 +136,8 @@ async def create_study_xml(study_accession, library, output_dir):
     log_prints=True,
 )
 async def submit_study_xml(study_accession, upload_dir, dry_run):
+    # if assembly_uploader_root_dir set in config - use script from assembly_uploader installation
+    # otherwise means installation was done into env and can be launched with submit_study command
     if EMG_CONFIG.slurm.assembly_uploader_root_dir:
         # take from root_dir installation
         launcher = f"python3 {os.path.join(EMG_CONFIG.slurm.assembly_uploader_root_dir, 'assembly_uploader', 'submit_study.py')}"
@@ -151,7 +156,6 @@ async def submit_study_xml(study_accession, upload_dir, dry_run):
                                                           "ENA_WEBIN": EMG_CONFIG.webin.emg_webin_account,
                                                           "ENA_WEBIN_PASSWORD": EMG_CONFIG.webin.emg_webin_password
                                                       })
-        print('LOG', output_log)
         # get a registered study accession from logs
         if 'Make a note of this!' in output_log or 'An accession with this alias already exists in project' in output_log:
             new_acc = re.findall(rf"{EMG_CONFIG.ena.primary_study_accession_re}", output_log)
@@ -166,25 +170,28 @@ async def submit_study_xml(study_accession, upload_dir, dry_run):
 @task(
     retries=2,
     #cache_key_fn=context_agnostic_task_input_hash,
-    task_run_name="Generate csv for upload: {assembly_accession}",
+    task_run_name="Generate csv for upload: {run_accession}",
     log_prints=True,
 )
-def generate_assembly_csv(metadata_dir, assembly_accession, coverage, assembler, assembler_version, assembly_path):
-    assembly_csv = os.path.join(metadata_dir, assembly_accession + '.csv')
+def generate_assembly_csv(metadata_dir, run_accession, coverage, assembler, assembler_version, assembly_path):
+    assembly_csv = os.path.join(metadata_dir, run_accession + '.csv')
     with open(assembly_csv, 'w') as file_out:
         file_out.write(','.join(['Run', 'Coverage', 'Assembler', 'Version', 'Filepath']) + '\n')
-        line = ','.join([assembly_accession, str(coverage), assembler, assembler_version, assembly_path])
+        line = ','.join([run_accession, str(coverage), assembler, assembler_version, os.path.abspath(assembly_path)])
         file_out.write(line + '\n')
+    print(f'CSV: {os.path.abspath(assembly_csv)}')
     return assembly_csv
 
 
 @task(
     retries=2,
     #cache_key_fn=context_agnostic_task_input_hash,
-    task_run_name="Generate assembly manifest: {assembly_accession}",
+    task_run_name="Generate assembly manifest: {run_accession}",
     log_prints=True,
 )
-async def generate_assembly_xml(study_accession, assembly_accession, data_csv_path, registered_study, upload_dir):
+async def generate_assembly_xml(study_accession, run_accession, data_csv_path, registered_study, upload_dir):
+    # if assembly_uploader_root_dir set in config - use script from assembly_uploader installation
+    # otherwise means installation was done into env and can be launched with assembly_manifest command
     if EMG_CONFIG.slurm.assembly_uploader_root_dir:
         # take from root_dir installation
         launcher = f"python3 {os.path.join(EMG_CONFIG.slurm.assembly_uploader_root_dir, 'assembly_uploader', 'assembly_manifest.py')}"
@@ -216,25 +223,33 @@ async def generate_assembly_xml(study_accession, assembly_accession, data_csv_pa
     task_runner=SequentialTaskRunner,
 )
 async def assembly_uploader():
-    """ """
     # get path to assembly contigs file
     # TODO replace with real assembly from DB
     study = "ERP108082"
     library = "metagenome"
-    assembly = "SRR3960572"
-    assembly_path = "assembly_uploader/test/test.fasta.gz"
+    run_accession = "SRR5216258"
+    assembly_path = "test/SRR5216258.fasta.gz"
     dry_run = True
     coverage = "20.0"
     assembler = "metaspades"
     assembler_version = "3.15.3"
 
-
     #assembly = analyses.models.Assembly.objects.get(id=assembler_id)
-    print(f"Processing assembly: {assembly}")
-    if check_assembly(assembly, assembly_path, assembler):
-        print(f"{assembly} passed sanity check")
+
+    # TODO remove that copy command
+    print('INITIAL ASSEMBLY', os.path.abspath(assembly_path))
+    # input assembly file is saved /tmp/tmpblablabla. slurm node doesn't see that. so it needs to be in shared folder
+    shutil.copy(os.path.abspath(assembly_path), '/opt/jobs/' + os.path.basename(assembly_path))
+    new_assembly_path = '/opt/jobs/' + os.path.basename(assembly_path)
+    assembly_path = new_assembly_path
+    print('ASSEMBLY', os.path.abspath(assembly_path))
+    # TODO remove code on the top
+
+    print(f"Processing assembly for: {run_accession}")
+    if check_assembly(run_accession, assembly_path, assembler):
+        print(f"Assembly for {run_accession} passed sanity check")
     else:
-        print(f"{assembly} did not pass sanity check. No further action.")
+        print(f"Assembly for {run_accession} did not pass sanity check. No further action.")
         return
 
     # TODO: check a first completed assembly and register study only once
@@ -257,10 +272,10 @@ async def assembly_uploader():
     metadata_dir = os.path.join(upload_folder, "metadata")
     if not os.path.exists(metadata_dir):
         os.mkdir(metadata_dir)
-    print(f"Generate csv for assembly {assembly}")
+    print(f"Generate csv for assembly {run_accession}")
     data_csv_path = generate_assembly_csv(
         metadata_dir=metadata_dir,
-        assembly_accession=assembly,
+        run_accession=run_accession,
         coverage=coverage,
         assembler=assembler,
         assembler_version=assembler_version,
@@ -270,31 +285,36 @@ async def assembly_uploader():
     print("Generate assembly manifests")
     await generate_assembly_xml(
         study_accession=study,
-        assembly_accession=assembly,
+        run_accession=run_accession,
         data_csv_path=data_csv_path,
         registered_study=registered_study,
         upload_dir=upload_output_folder
     )
-    # run webin-cli job
-    manifest = os.path.join(upload_folder, assembly + '.manifest')
+    manifest = os.path.join(upload_folder, run_accession + '.manifest')
+
     if EMG_CONFIG.slurm.webin_cli_executor:
         # take from root_dir installation
         launcher = EMG_CONFIG.slurm.webin_cli_executor
     else:
         # take from env installation
-        launcher = "ena-webin-cli"
-    command = f"{launcher} " \
+        launcher = "/usr/bin/webin-cli/webin-cli.jar"
+    command = f"java -Xms2G -jar {launcher} " \
               f"-context=genome " \
-              f"-manifest={manifest} " \
-              f"-userName={EMG_CONFIG.webin.emg_webin_account} " \
-              f"-password={EMG_CONFIG.webin.emg_webin_password} " \
+              f"-manifest={os.path.abspath(manifest)} " \
+              f"-userName='{EMG_CONFIG.webin.emg_webin_account}' " \
+              f"-password='{EMG_CONFIG.webin.emg_webin_password}' " \
               f"-submit "
     if dry_run:
         command += "-test "
-    command = "ena-webin-cli -h"
+    # TODO: webin behaviour on re-submission fix
+    # ERROR: In analysis, alias: "webin-genome-SRR5216258_d9c4686d1c9ea1f2ea6dda4d0e7a8924".
+    # The object being added already exists in the submission account with accession: "ERZ1744545".
+    # The submission has failed because of a system error.
+    command += " || exit 0"
+
     slurm_job_results = await run_cluster_jobs(
         names=[
-            f"Upload assembly {assembly} to ENA"
+            f"Upload assembly for {run_accession} to ENA"
         ],
         commands=[command],
         expected_time=timedelta(hours=1),
@@ -302,14 +322,15 @@ async def assembly_uploader():
         environment="ALL",  # copy env vars from the prefect agent into the slurm job
         raise_on_job_failure=False,  # allows some jobs to fail without failing everything
     )
+    # TODO grep ERZ accession from webin-cli log
 
     if slurm_status_is_finished_successfully(slurm_job_results[0][FINAL_SLURM_STATE]):
-        print(f"Successfully ran webin-cli upload for {assembly}")
+        print(f"Successfully ran webin-cli upload for {run_accession}")
     else:
         print(
-            f"Something went wrong running webin-cli upload for {assembly} in job {slurm_job_results[0][SLURM_JOB_ID]}"
+            f"Something went wrong running webin-cli upload for {run_accession} in job {slurm_job_results[0][SLURM_JOB_ID]}"
         )
 
-# TODO add input assembly_id, assembler, dry_run
+# TODO add input run_id, assembler, dry_run
 if __name__ == "__main__":
     assembly_uploader()
