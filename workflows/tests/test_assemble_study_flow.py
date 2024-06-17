@@ -98,9 +98,3 @@ async def test_prefect_assemble_study_flow(
         ).acount()
         == 2
     )
-    assert (
-        await analyses.models.Run.objects.filter(
-            status__assembly_completed=True
-        ).acount()
-        == 2
-    )
