@@ -1,6 +1,6 @@
 from datetime import timedelta
 from enum import Enum
-from typing import List
+from typing import List, Any, Union
 
 import django
 from django.conf import settings
@@ -64,7 +64,7 @@ def get_study_from_ena(accession: str) -> ena.models.Study:
 def get_mgnify_study(ena_accession: str) -> analyses.models.Study:
     print(f"Will get/create MGnify study for {ena_accession}")
     ena_study = ena.models.Study.objects.filter(
-        Q(accession=ena_accession) | Q(additional_accessions__contains=ena_accession)
+        Q(accession=ena_accession) | Q(additional_accessions__icontains=ena_accession)
     ).first()
     study, _ = analyses.models.Study.objects.get_or_create(
         ena_study=ena_study, title=ena_study.title
@@ -106,14 +106,31 @@ def get_study_readruns_from_ena(accession: str, limit: int = 20) -> List[str]:
     print(f"Will fetch study {accession} read-runs from ENA portal API")
     mgys_study = analyses.models.Study.objects.get(ena_study__accession=accession)
     portal = httpx.get(
-        f"https://www.ebi.ac.uk/ena/portal/api/links/study?accession={accession}&result=read_run&limit={limit}&format=json"
+        f'https://www.ebi.ac.uk/ena/portal/api/search?result=read_run&dataPortal=metagenome&format=json&fields=sample_accession,sample_title,secondary_sample_accession&query="study_accession={accession} OR secondary_study_accession={accession}"&limit={limit}&format=json'
     )
+
     if portal.status_code == httpx.codes.OK:
         for read_run in portal.json():
+            ena_sample, _ = ena.models.Sample.objects.get_or_create(
+                accession=read_run["sample_accession"],
+                metadata={"sample_title": read_run["sample_title"]},
+                study=mgys_study.ena_study,
+            )
+
+            mgnify_sample, _ = analyses.models.Sample.objects.get_or_create(
+                ena_accessions=[
+                    read_run["sample_accession"],
+                    read_run["secondary_sample_accession"],
+                ],
+                ena_sample=ena_sample,
+                ena_study=mgys_study.ena_study,
+            )
+
             analyses.models.Run.objects.get_or_create(
                 ena_accessions=[read_run["run_accession"]],
                 study=mgys_study,
                 ena_study=mgys_study.ena_study,
+                sample=mgnify_sample,
             )
 
     mgys_study.refresh_from_db()
@@ -130,7 +147,7 @@ def get_or_create_assemblies_for_runs(
 ) -> List[str]:
     assembly_ids = []
     for read_run in read_runs:
-        run = analyses.models.Run.objects.get(ena_accessions__contains=read_run)
+        run = analyses.models.Run.objects.get(ena_accessions__icontains=read_run)
         assembly, created = analyses.models.Assembly.objects.get_or_create(
             run=run, ena_study=study.ena_study, study=study
         )
@@ -143,7 +160,7 @@ def get_or_create_assemblies_for_runs(
 @task(
     log_prints=True,
 )
-def get_assemblies_to_attempt(study: analyses.models.Study) -> List[str]:
+def get_assemblies_to_attempt(study: analyses.models.Study) -> List[Union[str, int]]:
     """
     Determine the list of assemblies worth trying currently for this study.
     :param study:
@@ -155,31 +172,32 @@ def get_assemblies_to_attempt(study: analyses.models.Study) -> List[str]:
             f"status__{analyses.models.Assembly.AssemblyStates.ASSEMBLY_COMPLETED}": False,
             f"status__{analyses.models.Assembly.AssemblyStates.ASSEMBLY_BLOCKED}": False,
         }
-    )
+    ).values_list("id", flat=True)
     return assemblies_worth_trying
+
+
+@task
+def chunk_list(items: List[Any], chunk_size: int) -> List[List[Any]]:
+    return [items[j : j + chunk_size] for j in range(0, len(items), chunk_size)]
 
 
 @flow
 async def perform_assemblies_in_parallel(
-    assembly_ids: List[str],
+    ena_study: ena.models.Study,
+    assembly_ids: List[Union[str, int]],
     miassembler_profile: str,
     assembler_command_arg: str,
     memory_gb: int,
 ):
-    assemblies = [
-        await analyses.models.Assembly.objects.aget(id=id) for id in assembly_ids
-    ]
-    for assembly in assemblies:
+    names = []
+    commands = []
+    assemblies = analyses.models.Assembly.objects.select_related("run").filter(
+        id__in=assembly_ids
+    )
+    async for assembly in assemblies:
         mark_assembly_as_started(assembly)
-
-    ena_study = assemblies[0].ena_study
-
-    chunk_jobs = await run_cluster_jobs(
-        names=[
-            f"Assemble read_run {assembly.run.first_accession}"
-            for assembly in assemblies
-        ],
-        commands=[
+        names.append(f"Assemble read_run {assembly.run.first_accession}")
+        commands.append(
             f"nextflow run ebi-metagenomics/miassembler "
             f"-profile {miassembler_profile} "
             f"-resume "
@@ -189,8 +207,11 @@ async def perform_assemblies_in_parallel(
             f"{assembler_command_arg} "
             f"{'-with-tower' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''} "
             f"-name mi-assembler-{assembly.run.first_accession}-for-{ena_study.accession} "
-            for assembly in assemblies
-        ],
+        )
+
+    chunk_jobs = await run_cluster_jobs(
+        names=names,
+        commands=commands,
         expected_time=timedelta(days=5),
         memory=f"{memory_gb}G",
         environment="ALL,TOWER_ACCESS_TOKEN,TOWER_WORKSPACE_ID",
@@ -262,13 +283,12 @@ Also select how much RAM (in GB) to allocate for each assembly.
     # Work on chunks of 20 readruns at a time
     # Doing so means we don't use our entire cluster allocation for this study
     chunk_size = 20
-    chunked_assemblies = [
-        assemblies_to_attempt[j : j + chunk_size]
-        for j in range(0, len(assemblies_to_attempt), chunk_size)
-    ]
+    chunked_assemblies = chunk_list(assemblies_to_attempt, chunk_size)
     for assembly_chunk in chunked_assemblies:
         # launch jobs for all runs in this chunk in a single flow
+        print(f"Working on assemblies: {assembly_chunk}")
         await perform_assemblies_in_parallel(
+            ena_study,
             assembly_chunk,
             miassembler_profile,
             assembler_command_arg,

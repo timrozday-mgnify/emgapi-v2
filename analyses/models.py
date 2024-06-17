@@ -303,7 +303,7 @@ class Assembly(TimeStampedModel, ENADerivedModel):
 
     def mark_status(self, status: AssemblyStates, set_status_as: bool = True):
         self.status[status] = set_status_as
-        return self.asave()
+        return self.save()
 
     class Meta:
         verbose_name_plural = "Assemblies"
