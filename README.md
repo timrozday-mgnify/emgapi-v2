@@ -126,7 +126,6 @@ Run e.g. `task ebi-wp-k8s-hl:update-api` to build/push/restart the EMG API servi
 
 
 ## TODO
-* DB Schema for merged EMG + Backlog DB
+* DB Schema parity with EMG DB (v1) and EMG Backlog
 * Job cleanup flows
-* Flow test
-* Meta-queue
+* Legacy data importers
