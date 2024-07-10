@@ -1,20 +1,12 @@
-from datetime import timedelta
 import os
 import gzip
 import re
-import random
-import shutil
+from datetime import timedelta
 from Bio import SeqIO
 
-import ena.models
 import analyses.models
-
+from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from prefect import flow, task
-
-from asgiref.sync import sync_to_async
-import django
-from django.conf import settings
-from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 from prefect_shell import ShellOperation
 
@@ -71,6 +63,17 @@ def check_assembly(accession, assembly_path, assembler):
         return False
     return True
 
+@task
+def check_study_registration_existence(study, run_accession):
+    completed_assemblies = study.assemblies_reads.filter(
+        **{
+            f"status__{analyses.models.Assembly.AssemblyStates.ASSEMBLY_COMPLETED}": True,
+        }
+    ).exclude(run__ena_accessions__in=[run_accession]).values_list("id", flat=True)
+    if len(completed_assemblies) > 0:
+        return True
+    else:
+        return False
 
 @task(
     retries=2,
@@ -91,6 +94,17 @@ async def run_small_shell_command(command, env=None, workdir=None):
     else:
         print("No result from ShellOperation")
         return None, None
+
+
+def define_library(run_experiment_type):
+    library = ""
+    if run_experiment_type == "METAG" or run_experiment_type == "Metagenomic":
+        library = "metagenome"
+    elif run_experiment_type == "METAT" or run_experiment_type == "Metatranscriptomic":
+        library = "metatranscriptome"
+    else:
+        print(f"Unsupported experiment type {run_experiment_type}")
+    return library
 
 
 @task(
@@ -219,31 +233,32 @@ async def generate_assembly_xml(study_accession, run_accession, data_csv_path, r
         return False
 
 
+"""
+The idea of that flow is to run assembly_uploader PER-RUN after assembly flow
+"""
 @flow(
     name="Sanity check and upload an assembly",
     log_prints=True,
     flow_run_name=f"Sanity check and upload",
     task_runner=SequentialTaskRunner,
 )
-async def assembly_uploader(study_accession: str, run_accession: str, dry_run=True):
+async def assembly_uploader(study_accession: str, run_accession: str,
+                            assembler: str = EMG_CONFIG.assembler.assembler_default,
+                            assembler_version: str = EMG_CONFIG.assembler.assembler_version_default, dry_run=True):
     mgnify_study = await analyses.models.Study.objects.get_or_create_for_ena_study(study_accession)
-    #await mgnify_study.arefresh_from_db()
     mgnify_run = await analyses.models.Run.objects.aget(ena_accessions__icontains=run_accession)
-    #await mgnify_run.arefresh_from_db()
     print(f"MGnify data returned: study {mgnify_study.accession}, {mgnify_run}")
 
-    mgnify_assembly = await analyses.models.Assembly.objects.aget(run=mgnify_run, reads_study=mgnify_study)
-    await mgnify_assembly.arefresh_from_db()
-    assembly_path = mgnify_assembly.dir
-    print(f"Assembly {mgnify_assembly} found in {assembly_path}")
-"""
-    # TODO replace with real assembly from DB
-    library = "metagenome"
-    coverage = "20.0"
-    assembler = "metaspades"
-    assembler_version = "3.15.3"
+    try:
+        mgnify_assembly = await analyses.models.Assembly.objects.filter(run=mgnify_run, reads_study=mgnify_study,
+                                                                        assembler__name=assembler,
+                                                              assembler__version=assembler_version).afirst()
+    except (MultipleObjectsReturned, ObjectDoesNotExist) as e:
+        print(f"Problem getting assembly for {mgnify_run} assembled with {assembler}_v{assembler_version} from ENA models DB")
+    assembly_path = os.path.join(mgnify_assembly.dir, f"{run_accession}.fasta.gz")
+    print(f"Assembly ID:{mgnify_assembly.id} found in {mgnify_assembly.dir}")
 
-
+    """
     # TODO remove that copy command
     print('INITIAL ASSEMBLY', os.path.abspath(assembly_path))
     # input assembly file is saved /tmp/tmpblablabla. slurm node doesn't see that. so it needs to be in shared folder
@@ -252,6 +267,7 @@ async def assembly_uploader(study_accession: str, run_accession: str, dry_run=Tr
     assembly_path = new_assembly_path
     print('ASSEMBLY', os.path.abspath(assembly_path))
     # TODO remove code on the top
+    """
 
     print(f"Processing assembly for: {run_accession}")
     if check_assembly(run_accession, assembly_path, assembler):
@@ -260,15 +276,18 @@ async def assembly_uploader(study_accession: str, run_accession: str, dry_run=Tr
         print(f"Assembly for {run_accession} did not pass sanity check. No further action.")
         return
 
-    # TODO: check a first completed assembly and register study only once
-    print(f"Register study: {study_accession}")
-    upload_output_folder = os.path.dirname(assembly_path)
-    upload_folder = await create_study_xml(study_accession=study_accession, library=library, output_dir=upload_output_folder)
-    if upload_folder:
-        print(f"Upload folder {upload_folder} and study XMLs were created")
-    else:
-        print("Error occurred on study XML creation step. No further action.")
-        return
+    # check a first completed assembly and register study only once
+    if not check_study_registration_existence(mgnify_study, run_accession):
+        print(f"Register study: {study_accession}")
+        upload_output_folder = os.path.dirname(assembly_path)
+        upload_folder = await create_study_xml(study_accession=study_accession,
+                                               library=define_library(mgnify_run.experiment_type),
+                                               output_dir=upload_output_folder)
+        if upload_folder:
+            print(f"Upload folder {upload_folder} and study XMLs were created")
+        else:
+            print("Error occurred on study XML creation step. No further action.")
+            return
 
     print(f"Submit study: {study_accession}")
     registered_study = await submit_study_xml(study_accession=study_accession, upload_dir=upload_folder, dry_run=dry_run)
@@ -284,7 +303,7 @@ async def assembly_uploader(study_accession: str, run_accession: str, dry_run=Tr
     data_csv_path = generate_assembly_csv(
         metadata_dir=metadata_dir,
         run_accession=run_accession,
-        coverage=coverage,
+        coverage=mgnify_assembly.metadata["coverage"],
         assembler=assembler,
         assembler_version=assembler_version,
         assembly_path=assembly_path
@@ -313,12 +332,12 @@ async def assembly_uploader(study_accession: str, run_accession: str, dry_run=Tr
               f"-password='{EMG_CONFIG.webin.emg_webin_password}' " \
               f"-submit "
     if dry_run:
-        command += "-test "
+        command += "-test -validate"
     # TODO: webin behaviour on re-submission fix
     # ERROR: In analysis, alias: "webin-genome-SRR5216258_d9c4686d1c9ea1f2ea6dda4d0e7a8924".
     # The object being added already exists in the submission account with accession: "ERZ1744545".
     # The submission has failed because of a system error.
-    command += " || exit 0"
+    # command += " || exit 0"
 
     slurm_job_results = await run_cluster_jobs(
         names=[
@@ -331,7 +350,7 @@ async def assembly_uploader(study_accession: str, run_accession: str, dry_run=Tr
         raise_on_job_failure=False,  # allows some jobs to fail without failing everything
     )
     # TODO grep ERZ accession from webin-cli log
-
+"""
     if slurm_status_is_finished_successfully(slurm_job_results[0][FINAL_SLURM_STATE]):
         print(f"Successfully ran webin-cli upload for {run_accession}")
     else:

@@ -1,7 +1,8 @@
 import logging
 import os
+from typing import ClassVar
 
-from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
+from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist, ValidationError
 from django.db import models
 from django.db.models import Q, F, Value, CharField, JSONField, AutoField
 from django.db.models.functions import LPad, Cast
@@ -291,8 +292,35 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
 
 
 class Assembler(TimeStampedModel):
-    name = models.CharField(max_length=20, null=True, blank=True)
+    METASPADES = 'metaspades'
+    MEGAHIT = 'megahit'
+    SPADES = 'spades'
+
+    NAME_CHOICES = [
+        (METASPADES, 'MetaSPAdes'),
+        (MEGAHIT, 'MEGAHIT'),
+        (SPADES, 'SPAdes'),
+    ]
+
+    VERSION_CHOICES = {
+        METASPADES: ['3.15.3', '4.0.0'],
+        MEGAHIT: ['1.2.9'],
+        SPADES: ['3.15.3', '4.0.0']
+    }
+    assembler_default: ClassVar[str] = METASPADES
+
+    name = models.CharField(max_length=20, null=True, blank=True, choices=NAME_CHOICES)
     version = models.CharField(max_length=20)
+
+    def clean(self):
+        if self.name and self.version:
+            valid_versions = self.VERSION_CHOICES.get(self.name, [])
+            if self.version not in valid_versions:
+                raise ValidationError({'version': f"Invalid version '{self.version}' for assembler '{self.name}'. Valid versions are: {', '.join(valid_versions)}"})
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.name} {self.version}" if self.version is not None else self.name
