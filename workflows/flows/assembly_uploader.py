@@ -6,14 +6,17 @@ import random
 import shutil
 from Bio import SeqIO
 
+import ena.models
+import analyses.models
+
 from prefect import flow, task
 
-from prefect_shell import ShellOperation
+from asgiref.sync import sync_to_async
 import django
 from django.conf import settings
 from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
-from prefect_shell import shell_run_command
+from prefect_shell import ShellOperation
 
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 from workflows.prefect_utils.slurm_flow import (
@@ -219,22 +222,27 @@ async def generate_assembly_xml(study_accession, run_accession, data_csv_path, r
 @flow(
     name="Sanity check and upload an assembly",
     log_prints=True,
-    flow_run_name="Sanity check and upload",
+    flow_run_name=f"Sanity check and upload",
     task_runner=SequentialTaskRunner,
 )
-async def assembly_uploader():
-    # get path to assembly contigs file
+async def assembly_uploader(study_accession: str, run_accession: str, dry_run=True):
+    mgnify_study = await analyses.models.Study.objects.get_or_create_for_ena_study(study_accession)
+    #await mgnify_study.arefresh_from_db()
+    mgnify_run = await analyses.models.Run.objects.aget(ena_accessions__icontains=run_accession)
+    #await mgnify_run.arefresh_from_db()
+    print(f"MGnify data returned: study {mgnify_study.accession}, {mgnify_run}")
+
+    mgnify_assembly = await analyses.models.Assembly.objects.aget(run=mgnify_run, reads_study=mgnify_study)
+    await mgnify_assembly.arefresh_from_db()
+    assembly_path = mgnify_assembly.dir
+    print(f"Assembly {mgnify_assembly} found in {assembly_path}")
+"""
     # TODO replace with real assembly from DB
-    study = "ERP108082"
     library = "metagenome"
-    run_accession = "SRR5216258"
-    assembly_path = "test/SRR5216258.fasta.gz"
-    dry_run = True
     coverage = "20.0"
     assembler = "metaspades"
     assembler_version = "3.15.3"
 
-    #assembly = analyses.models.Assembly.objects.get(id=assembler_id)
 
     # TODO remove that copy command
     print('INITIAL ASSEMBLY', os.path.abspath(assembly_path))
@@ -253,17 +261,17 @@ async def assembly_uploader():
         return
 
     # TODO: check a first completed assembly and register study only once
-    print(f"Register study: {study}")
+    print(f"Register study: {study_accession}")
     upload_output_folder = os.path.dirname(assembly_path)
-    upload_folder = await create_study_xml(study_accession=study, library=library, output_dir=upload_output_folder)
+    upload_folder = await create_study_xml(study_accession=study_accession, library=library, output_dir=upload_output_folder)
     if upload_folder:
         print(f"Upload folder {upload_folder} and study XMLs were created")
     else:
         print("Error occurred on study XML creation step. No further action.")
         return
 
-    print(f"Submit study: {study}")
-    registered_study = await submit_study_xml(study_accession=study, upload_dir=upload_folder, dry_run=dry_run)
+    print(f"Submit study: {study_accession}")
+    registered_study = await submit_study_xml(study_accession=study_accession, upload_dir=upload_folder, dry_run=dry_run)
     if registered_study:
         print(f"Study submitted successfully under {registered_study}")
     else:
@@ -284,7 +292,7 @@ async def assembly_uploader():
 
     print("Generate assembly manifests")
     await generate_assembly_xml(
-        study_accession=study,
+        study_accession=study_accession,
         run_accession=run_accession,
         data_csv_path=data_csv_path,
         registered_study=registered_study,
@@ -330,7 +338,4 @@ async def assembly_uploader():
         print(
             f"Something went wrong running webin-cli upload for {run_accession} in job {slurm_job_results[0][SLURM_JOB_ID]}"
         )
-
-# TODO add input run_id, assembler, dry_run
-if __name__ == "__main__":
-    assembly_uploader()
+"""

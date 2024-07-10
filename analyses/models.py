@@ -1,7 +1,9 @@
+import logging
 import os
 
+from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import models
-from django.db.models import F, Value, CharField, JSONField, AutoField
+from django.db.models import Q, F, Value, CharField, JSONField, AutoField
 from django.db.models.functions import LPad, Cast
 
 import ena.models
@@ -115,6 +117,24 @@ class TimeStampedModel(models.Model):
         abstract = True
 
 
+class StudyManager(models.Manager):
+    async def get_or_create_for_ena_study(self, ena_study_accession):
+        print(f"Will get/create MGnify study for {ena_study_accession}")
+        try:
+            #ena_study_1 = ena.models.Study.objects.all()
+            #print(ena_study_1)
+            ena_study_2 = await ena.models.Study.objects.filter(
+                Q(accession=ena_study_accession) | Q(additional_accessions__icontains=ena_study_accession)
+            ).afirst()
+            print(f"Got {ena_study_2}")
+        except (MultipleObjectsReturned, ObjectDoesNotExist) as e:
+            logging.warning(f"Problem getting ENA study {ena_study_accession} from ENA models DB")
+
+        study, _ = await Study.objects.aget_or_create(
+            ena_study=ena_study_2, title=ena_study_2.title
+        )
+        return study
+
 class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
     accession = MGnifyAccessionField(
         accession_prefix="MGYS", accession_length=8, db_index=True
@@ -125,6 +145,7 @@ class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
 
     title = models.CharField(max_length=255)
 
+    objects: StudyManager = StudyManager()
     def __str__(self):
         return self.accession
 
@@ -269,14 +290,30 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
         return f"Run {self.id}: {self.first_accession}"
 
 
+class Assembler(TimeStampedModel):
+    name = models.CharField(max_length=20, null=True, blank=True)
+    version = models.CharField(max_length=20)
+
+    def __str__(self):
+        return f"{self.name} {self.version}" if self.version is not None else self.name
+
+
 class Assembly(TimeStampedModel, ENADerivedModel):
     dir = models.CharField(max_length=200, null=True, blank=True)
     run = models.ForeignKey(
         Run, on_delete=models.CASCADE, related_name="assemblies", null=True, blank=True
     )
-    study = models.ForeignKey(
-        Study, on_delete=models.CASCADE, related_name="assemblies"
+    # raw reads study that was used as resource for assembly
+    reads_study = models.ForeignKey(
+        Study, on_delete=models.CASCADE, related_name="assemblies_reads", null=True, blank=True
     )
+    # TPA study that was created to submit assemblies
+    assembly_study = models.ForeignKey(
+        Study, on_delete=models.CASCADE, related_name="assemblies_assembly", null=True, blank=True
+    )
+    assembler = models.ForeignKey(Assembler, on_delete=models.CASCADE, related_name="assemblies", null=True, blank=True)
+    # coverage,...
+    metadata = JSONField(default=list, db_index=True, blank=True)
 
     class AssemblyStates:
         ASSEMBLY_STARTED = "assembly_started"
@@ -307,6 +344,13 @@ class Assembly(TimeStampedModel, ENADerivedModel):
 
     class Meta:
         verbose_name_plural = "Assemblies"
+
+        constraints = [
+            models.CheckConstraint(
+                check=Q(reads_study__isnull=False) | Q(assembly_study__isnull=False),
+                name='at_least_one_study_present'
+            )
+        ]
 
     def __str__(self):
         return f"Assembly {self.id}  (Run {self.run.first_accession})"

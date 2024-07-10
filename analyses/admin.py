@@ -31,6 +31,7 @@ class StudyAssembliesInline(TabularInline):
     fields = ["run", "status", "dir"]
     readonly_fields = ["run"]
     max_num = 0
+    fk_name = 'reads_study'
     formfield_overrides = {
         models.JSONField: {
             "widget": StatusPathwayWidget(
