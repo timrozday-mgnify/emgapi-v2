@@ -11,6 +11,7 @@ RUN pip install -r requirements.txt
 
 FROM base as django
 COPY . .
+RUN pip install -r requirements-dev.txt
 ENTRYPOINT ["python3", "manage.py"]
 
 FROM base as agent

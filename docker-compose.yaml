@@ -95,16 +95,8 @@ services:
       - logs:/var/log/slurm
       - jobdir:/opt/jobs
       - ./prefectserver:/root/.prefect
-
-  debug:
-    # Just used to give pycharm a python interpreter built accordingly
-    container_name: debug
-    build:
-      context: .
-      target: slurm
-    profiles: ["debug"]
-    volumes:
-      - ".:/app"
+      - "./slurm/fs/nfs/production:/nfs/production"
+      - "./slurm/fs/hps:/hps"
 
   app:
     build:

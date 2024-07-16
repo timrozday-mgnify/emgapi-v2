@@ -32,6 +32,9 @@ This is used by the parent docker-compose setup, to submit Slurm jobs from Prefe
 We are using them to pretend that `/nfs/public` is only available to jobs running in the `datamover` partition.
 This is to help with writing jobs for EBI Codon Slurm infrastructure, which looks a bit like this.
 
+### Data and filesystems
+There are dummy HPS and NFS filesystems at `/hps` and `/nfs/production`. On a `datamover` partitioned job, there is also `/nfs/public`.
+
 ## Using it
 ### Interactively on the nodes
 The Slurm cluster is called `donco` (not `codon` :-] ).

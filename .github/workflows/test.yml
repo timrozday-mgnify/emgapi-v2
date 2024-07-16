@@ -1,0 +1,28 @@
+---
+name: Testing
+
+on: [push, pull_request]  # yamllint disable-line rule:truthy
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker build --target django -t app:latest .
+
+      - name: Run tests
+        run: |
+          docker run -v ${{ github.workspace }}/coverage:/app/coverage --entrypoint bash --rm app:latest -c pytest
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage/coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}

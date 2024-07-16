@@ -28,10 +28,14 @@ class SlurmConfig(BaseModel):
     nextflow_tower_org: str = "EMBL"
     nextflow_tower_workspace: str = "ebi-spws-dev-microbiome-info"
 
+    datamover_paritition: str = "datamover"
+
 
 class EMGConfig(BaseSettings):
     slurm: SlurmConfig = SlurmConfig()
+    environment: str = "development"
 
-    class Config:
-        env_prefix = "emg_"
-        env_nested_delimiter = "__"
+    model_config = {
+        "env_prefix": "emg_",
+        "env_nested_delimiter": "__",
+    }

@@ -1,3 +1,7 @@
+[![Testing](https://github.com/EBI-Metagenomics/emgapi-v2/actions/workflows/test.yml/badge.svg)](https://github.com/EBI-Metagenomics/emgapi-v2/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/EBI-Metagenomics/emgapi-v2/branch/main/graph/badge.svg?token=27IVW899W8)](https://codecov.io/gh/EBI-Metagenomics/emgapi-v2)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 # Prototype EMG backlog/API, using Prefect
 
 There are two real Django apps here:
@@ -101,6 +105,18 @@ See [the slurm/README.md](slurm/README.md) for details. In short: `task slurm` a
 ## Writing flows
 See [the workflows/README.md](workflows/README.md) for details. In short: add Python/Prefect code to a file in `workflows/flows/` and then `FLOW=my_flow task deploy-flow`.
 
+## Testing
+The project uses the [pytest](https://docs.pytest.org) framework.
+[Prefect has some helpers](https://docs.prefect.io/latest/guides/testing/) for testing.
+We also use [Pytest-django](https://pytest-django.readthedocs.io/en/latest/) to help with Django testing.
+
+Testing libraries are in `requirements-dev.txt`. These are installed in the docker compose `app` container. So:
+
+```shell
+task test
+# ...will run everything. Or for a subset, use pytest arguments after -- e.g.:
+task test -- -k study
+```
 
 ## Deployment
 The `deployment/` folder has deployment configs for different environments.
@@ -110,7 +126,6 @@ Run e.g. `task ebi-wp-k8s-hl:update-api` to build/push/restart the EMG API servi
 
 
 ## TODO
-* DB Schema for merged EMG + Backlog DB
+* DB Schema parity with EMG DB (v1) and EMG Backlog
 * Job cleanup flows
-* Flow test
-* Meta-queue
+* Legacy data importers

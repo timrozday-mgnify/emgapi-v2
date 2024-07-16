@@ -172,6 +172,11 @@ STORAGES = {
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+
+def get_environment(request):
+    return [EMG_CONFIG.environment, "info" if DEBUG else "warning"]
+
+
 UNFOLD = {
     "SITE_ICON": {
         "light": lambda request: static(
@@ -183,6 +188,7 @@ UNFOLD = {
         "light": lambda request: static("img/icons/mgnify_wordmark_dark_on_light.png"),
         "dark": lambda request: static("img/icons/mgnify_wordmark_light_on_dark.png"),
     },
+    "ENVIRONMENT": "emgapiv2.settings.get_environment",
     "SITE_TITLE": "MGnify Production",
     "SITE_HEADER": "MGnify Production",
     "COLORS": {
@@ -265,12 +271,12 @@ LOGGING = {
     "loggers": {
         "django": {
             "handlers": ["console"],
-            "level": "DEBUG",
+            "level": "INFO",
             "propagate": True,
         },
         "django.db.backends": {
             "handlers": ["console"],
-            "level": "DEBUG",
+            "level": "INFO",
             "propagate": True,
         },
         "django.utils.autoreload": {
