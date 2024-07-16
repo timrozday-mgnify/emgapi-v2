@@ -83,6 +83,12 @@ def mark_assembly_as_started(assembly: analyses.models.Assembly):
     assembly.mark_status(assembly.AssemblyStates.ASSEMBLY_STARTED)
 
 
+@task(log_prints=True)
+def mark_assembly_as_failed(assembly: analyses.models.Assembly):
+    print(f"Assembly {assembly} (run {assembly.run}) has been marked as failed")
+    assembly.mark_status(assembly.AssemblyStates.ASSEMBLY_FAILED)
+
+
 class AssemblerChoices(str, Enum):
     pipeline_default = "pipeline_default"
     megahit = "megahit"
@@ -223,7 +229,7 @@ async def perform_assemblies_in_parallel(
         if slurm_status_is_finished_successfully(assembly_job[FINAL_SLURM_STATE]):
             mark_assembly_as_completed(assembly)
         else:
-            assembly.mark_status(assembly.AssemblyStates.ASSEMBLY_FAILED)
+            mark_assembly_as_failed(assembly)
 
 
 @flow(
