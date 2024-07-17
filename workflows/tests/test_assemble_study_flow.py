@@ -13,7 +13,7 @@ from workflows.flows.assemble_study import (
 )
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "mock_suspend_flow_run", ["workflows.flows.assemble_study"], indirect=True
