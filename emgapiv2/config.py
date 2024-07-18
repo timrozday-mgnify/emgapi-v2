@@ -46,6 +46,7 @@ class WebinConfig(BaseModel):
 
 class ENAConfig(BaseModel):
     primary_study_accession_re: str = "(PRJ[EDN][A-Z][0-9]+)"
+    assembly_accession_re: str = "([EDS]RZ[0-9]{6,})"
 
 
 class EMGConfig(BaseSettings):

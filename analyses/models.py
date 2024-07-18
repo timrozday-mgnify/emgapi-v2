@@ -348,6 +348,9 @@ class Assembly(TimeStampedModel, ENADerivedModel):
         ASSEMBLY_FAILED = "assembly_failed"
         ASSEMBLY_COMPLETED = "assembly_completed"
         ASSEMBLY_BLOCKED = "assembly_blocked"
+        ASSEMBLY_UPLOADED = "assembly_uploaded"
+        ASSEMBLY_UPLOAD_FAILED = "assembly_upload_failed"
+        ASSEMBLY_UPLOAD_BLOCKED = "assembly_upload_blocked"
         ANALYSIS_STARTED = "analysis_started"
         ANALYSIS_COMPLETED = "analysis_completed"
 
@@ -360,6 +363,9 @@ class Assembly(TimeStampedModel, ENADerivedModel):
                 cls.ASSEMBLY_BLOCKED: False,
                 cls.ANALYSIS_STARTED: False,
                 cls.ANALYSIS_COMPLETED: False,
+                cls.ASSEMBLY_UPLOADED: False,
+                cls.ASSEMBLY_UPLOAD_FAILED: False,
+                cls.ASSEMBLY_UPLOAD_BLOCKED: False,
             }
 
     status = models.JSONField(
@@ -368,6 +374,10 @@ class Assembly(TimeStampedModel, ENADerivedModel):
 
     def mark_status(self, status: AssemblyStates, set_status_as: bool = True):
         self.status[status] = set_status_as
+        return self.save()
+
+    def add_erz_accession(self, erz_accession):
+        self.ena_accessions.append(erz_accession)
         return self.save()
 
     class Meta:

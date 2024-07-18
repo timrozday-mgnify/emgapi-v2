@@ -14,45 +14,52 @@ from workflows.flows.assembly_uploader import (
 @patch("workflows.flows.assembly_uploader.create_study_xml")
 @patch("workflows.flows.assembly_uploader.submit_study_xml")
 @patch("workflows.flows.assembly_uploader.generate_assembly_xml")
-#@patch("workflows.prefect_utils.slurm_flow.start_cluster_job")
+@patch("workflows.flows.assembly_uploader.get_assigned_assembly_accession")
 async def test_prefect_assembly_upload_flow(
+        mock_get_assigned_assembly_accession,
         mock_generate_assembly_xml,
         mock_submit_study_xml,
         mock_create_study_xml,
-        mock_start_cluster_job,
-        #mock_check_cluster_job_all_completed,
         prefect_harness,
-        capsys):
+        capsys,
+        mock_cluster_can_accept_jobs_yes,
+        mock_start_cluster_job,
+        mock_check_cluster_job_all_completed
+        ):
     """
     This test mocks all assembly_uploader functions and just checks steps execution
     """
+
+    study_accession = "PRJNA398089"
+    assembly_study_accession = "PRJNA567089"
+    run_accession = "SRR6180434"
+    erz_assigned_accession = "ERZ24815338"
+    sample_accession = "SAMN07793787"
+    assembler_name = "metaspades"
+    assembler_version = "3.15.3"
+
     async def mock_create_study_xml_func(*args, **kwargs):
-        await asyncio.sleep(1)  # Simulate asynchronous work
-        upload_dir = "slurm/fs/hps/tests/assembly_uploader/PRJ1_upload"
+        upload_dir = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload"
         if not os.path.exists(upload_dir):
             os.mkdir(upload_dir)
         return upload_dir
+
     async def mock_submit_study_xml_func(*args, **kwargs):
-        await asyncio.sleep(1)
-        return "PRJ2"
+        return assembly_study_accession
+
     async def mock_mock_generate_assembly_xml_func(*args, **kwargs):
-        await asyncio.sleep(1)
-        run_manifest = "slurm/fs/hps/tests/assembly_uploader/PRJ1_upload/ERR1.manifest"
+        run_manifest = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/{run_accession}.manifest"
         if not os.path.exists(run_manifest):
             os.mknod(run_manifest)
         return True
 
+    async def mock_get_assigned_assembly_accession_func(*args, **kwargs):
+        return erz_assigned_accession
+
     mock_create_study_xml.side_effect = mock_create_study_xml_func
     mock_submit_study_xml.side_effect = mock_submit_study_xml_func
     mock_generate_assembly_xml.side_effect = mock_mock_generate_assembly_xml_func
-
-    #mock_check_cluster_job_all_completed.assert_called()
-
-    study_accession = "PRJ1"
-    run_accession = "ERR1"
-    sample_accession = "SAMP1"
-    assembler_name = "metaspades"
-    assembler_version = "3.15.3"
+    mock_get_assigned_assembly_accession.side_effect = mock_get_assigned_assembly_accession_func
 
     # create DB records for tests
     # TODO: move to fixtures
@@ -78,17 +85,34 @@ async def test_prefect_assembly_upload_flow(
                             assembler_version=assembler_version, dry_run=True)
     captured_logging = capsys.readouterr().err
     # sanity check
-    assert "Assembly for ERR1 passed sanity check" in captured_logging
-    assert "WARN: ERR1.assembly_graph.fastg.gz does not exist" in captured_logging
+    assert f"Assembly for {run_accession} passed sanity check" in captured_logging
+    assert f"WARN: {run_accession}.assembly_graph.fastg.gz does not exist" in captured_logging
     assert "params.txt does not exist" not in captured_logging
     # create study XML
-    assert "Upload folder slurm/fs/hps/tests/assembly_uploader/PRJ1_upload and study XMLs were created" in captured_logging
+    assert f"Upload folder slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload and study XMLs were created" in captured_logging
     # submit study
-    assert "Study submitted successfully under PRJ2" in captured_logging
+    assert f"Study submitted successfully under {assembly_study_accession}" in captured_logging
     # assembly manifest
-    assert os.path.exists("slurm/fs/hps/tests/assembly_uploader/PRJ1_upload/ERR1.manifest")
+    assert os.path.exists(f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/{run_accession}.manifest")
     # webin-cli cluster job
     mock_start_cluster_job.assert_called()
+    mock_check_cluster_job_all_completed.assert_called()
+
+    assert (
+            await mg_models.Assembly.objects.filter(
+                status__assembly_uploaded=True
+            ).acount()
+            == 1
+    )
+
+    assert (
+            await mg_models.Assembly.objects.filter(
+                status__assembly_upload_failed=True
+            ).acount()
+            == 0
+    )
+
+    #assert mgnify_assembly.ena_accessions == [erz_assigned_accession]
 
 # TODO test with only Shell mock
 # TODO add test for 2 assemblies and no study registration
