@@ -202,7 +202,9 @@ def chunk_list(items: List[Any], chunk_size: int) -> List[List[Any]]:
     return [items[j : j + chunk_size] for j in range(0, len(items), chunk_size)]
 
 
-@task
+@task(
+    cache_key_fn=context_agnostic_task_input_hash,
+)
 def make_samplesheet(
     ena_study: ena.models.Study, assembly_ids: List[Union[str, int]]
 ) -> Path:
@@ -238,6 +240,7 @@ def make_samplesheet(
                 renderer=lambda ftps: ftps[1] if len(ftps) > 1 else "",
             ),
         },
+        bludgeon=True,
     )
 
     with open(sample_sheet_tsv) as f:
@@ -277,7 +280,7 @@ async def perform_assemblies_in_parallel(
         f"--outdir {ena_study.accession}_miassembler "
         f"{assembler_command_arg} "
         f"{'-with-tower' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''} "
-        f"-name mi-assembler-for-samplesheet-{slugify(samplesheet)} "
+        f"-name mi-assembler-for-samplesheet-{slugify(samplesheet)[-30:]} "
     )
 
     try:
