@@ -120,19 +120,16 @@ class TimeStampedModel(models.Model):
 
 class StudyManager(models.Manager):
     async def get_or_create_for_ena_study(self, ena_study_accession):
-        print(f"Will get/create MGnify study for {ena_study_accession}")
+        logging.info(f"Will get/create MGnify study for {ena_study_accession}")
         try:
-            #ena_study_1 = ena.models.Study.objects.all()
-            #print(ena_study_1)
-            ena_study_2 = await ena.models.Study.objects.filter(
+            ena_study = await ena.models.Study.objects.filter(
                 Q(accession=ena_study_accession) | Q(additional_accessions__icontains=ena_study_accession)
             ).afirst()
-            print(f"Got {ena_study_2}")
+            logging.debug(f"Got {ena_study}")
         except (MultipleObjectsReturned, ObjectDoesNotExist) as e:
             logging.warning(f"Problem getting ENA study {ena_study_accession} from ENA models DB")
-
         study, _ = await Study.objects.aget_or_create(
-            ena_study=ena_study_2, title=ena_study_2.title
+            ena_study=ena_study, title=ena_study.title
         )
         return study
 
@@ -302,21 +299,10 @@ class Assembler(TimeStampedModel):
         (SPADES, 'SPAdes'),
     ]
 
-    VERSION_CHOICES = {
-        METASPADES: ['3.15.3', '4.0.0'],
-        MEGAHIT: ['1.2.9'],
-        SPADES: ['3.15.3', '4.0.0']
-    }
     assembler_default: ClassVar[str] = METASPADES
 
     name = models.CharField(max_length=20, null=True, blank=True, choices=NAME_CHOICES)
     version = models.CharField(max_length=20)
-
-    def clean(self):
-        if self.name and self.version:
-            valid_versions = self.VERSION_CHOICES.get(self.name, [])
-            if self.version not in valid_versions:
-                raise ValidationError({'version': f"Invalid version '{self.version}' for assembler '{self.name}'. Valid versions are: {', '.join(valid_versions)}"})
 
     def save(self, *args, **kwargs):
         self.clean()
@@ -377,8 +363,9 @@ class Assembly(TimeStampedModel, ENADerivedModel):
         return self.save()
 
     def add_erz_accession(self, erz_accession):
-        self.ena_accessions.append(erz_accession)
-        return self.save()
+        if erz_accession not in self.ena_accessions:
+            self.ena_accessions.append(erz_accession)
+            return self.save()
 
     class Meta:
         verbose_name_plural = "Assemblies"

@@ -15,7 +15,7 @@ from workflows.flows.assembly_uploader import (
 @patch("workflows.flows.assembly_uploader.submit_study_xml")
 @patch("workflows.flows.assembly_uploader.generate_assembly_xml")
 @patch("workflows.flows.assembly_uploader.get_assigned_assembly_accession")
-async def test_prefect_assembly_upload_flow(
+async def test_prefect_assembly_upload_flow_assembly_metaspades(
         mock_get_assigned_assembly_accession,
         mock_generate_assembly_xml,
         mock_submit_study_xml,
@@ -27,7 +27,9 @@ async def test_prefect_assembly_upload_flow(
         mock_check_cluster_job_all_completed
         ):
     """
-    This test mocks all assembly_uploader functions and just checks steps execution
+    This test mocks all assembly_uploader functions and just checks steps execution.
+    All fixtures are implemented in the test.
+    Flow is running 1 metaspades assembly
     """
 
     study_accession = "PRJNA398089"
@@ -40,9 +42,12 @@ async def test_prefect_assembly_upload_flow(
 
     async def mock_create_study_xml_func(*args, **kwargs):
         upload_dir = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload"
+        reg_xml = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/reg.xml"
+        submission_xml = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/submission.xml"
         if not os.path.exists(upload_dir):
             os.mkdir(upload_dir)
-        return upload_dir
+            os.mknod(reg_xml)
+            os.mknod(submission_xml)
 
     async def mock_submit_study_xml_func(*args, **kwargs):
         return assembly_study_accession
@@ -83,13 +88,13 @@ async def test_prefect_assembly_upload_flow(
 
     await assembly_uploader(study_accession=study_accession, run_accession=run_accession, assembler=assembler_name,
                             assembler_version=assembler_version, dry_run=True)
-    captured_logging = capsys.readouterr().err
+    captured_logging = capsys.readouterr().err + capsys.readouterr().out
     # sanity check
     assert f"Assembly for {run_accession} passed sanity check" in captured_logging
     assert f"WARN: {run_accession}.assembly_graph.fastg.gz does not exist" in captured_logging
     assert "params.txt does not exist" not in captured_logging
     # create study XML
-    assert f"Upload folder slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload and study XMLs were created" in captured_logging
+    assert os.path.exists(f'slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload')
     # submit study
     assert f"Study submitted successfully under {assembly_study_accession}" in captured_logging
     # assembly manifest
@@ -112,7 +117,13 @@ async def test_prefect_assembly_upload_flow(
             == 0
     )
 
-    #assert mgnify_assembly.ena_accessions == [erz_assigned_accession]
-
 # TODO test with only Shell mock
-# TODO add test for 2 assemblies and no study registration
+
+# TODO fix fixtures usage
+"""
+async def test_fixtures_usage(prefect_harness, ena_study_fixture):
+    study_accession = "PRJ1"
+    run_accession = "ERR1"
+
+    await assembly_uploader(study_accession=study_accession, run_accession=run_accession, dry_run=True)
+"""

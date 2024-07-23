@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.db import models
 
 from emgapiv2.widgets import StatusPathwayWidget
-from .models import Study, Sample, Analysis, AssemblyAnalysisRequest, Run, Assembly
+from .models import Study, Sample, Analysis, AssemblyAnalysisRequest, Run, Assembly, Assembler
 
 from unfold.admin import ModelAdmin, TabularInline
 
@@ -31,6 +31,32 @@ class StudyAssembliesInline(TabularInline):
     fields = ["run", "status", "dir"]
     readonly_fields = ["run"]
     max_num = 0
+    fk_name = 'assembly_study'
+    formfield_overrides = {
+        models.JSONField: {
+            "widget": StatusPathwayWidget(
+                pathway=[
+                    Assembly.AssemblyStates.ASSEMBLY_STARTED,
+                    Assembly.AssemblyStates.ASSEMBLY_COMPLETED,
+                    Assembly.AssemblyStates.ASSEMBLY_FAILED,
+                    Assembly.AssemblyStates.ASSEMBLY_BLOCKED,
+                    Assembly.AssemblyStates.ASSEMBLY_UPLOADED,
+                    Assembly.AssemblyStates.ASSEMBLY_UPLOAD_FAILED,
+                    Assembly.AssemblyStates.ASSEMBLY_UPLOAD_BLOCKED,
+                    Assembly.AssemblyStates.ANALYSIS_STARTED,
+                    Assembly.AssemblyStates.ANALYSIS_COMPLETED,
+
+                ]
+            )
+        },
+    }
+
+class StudyReadsInline(TabularInline):
+    model = Assembly
+    show_change_link = True
+    fields = ["run", "status", "dir"]
+    readonly_fields = ["run"]
+    max_num = 0
     fk_name = 'reads_study'
     formfield_overrides = {
         models.JSONField: {
@@ -40,6 +66,9 @@ class StudyAssembliesInline(TabularInline):
                     Assembly.AssemblyStates.ASSEMBLY_COMPLETED,
                     Assembly.AssemblyStates.ASSEMBLY_FAILED,
                     Assembly.AssemblyStates.ASSEMBLY_BLOCKED,
+                    Assembly.AssemblyStates.ASSEMBLY_UPLOADED,
+                    Assembly.AssemblyStates.ASSEMBLY_UPLOAD_FAILED,
+                    Assembly.AssemblyStates.ASSEMBLY_UPLOAD_BLOCKED,
                     Assembly.AssemblyStates.ANALYSIS_STARTED,
                     Assembly.AssemblyStates.ANALYSIS_COMPLETED,
                 ]
@@ -47,10 +76,9 @@ class StudyAssembliesInline(TabularInline):
         },
     }
 
-
 @admin.register(Study)
 class StudyAdmin(ModelAdmin):
-    inlines = [StudyRunsInline, StudyAssembliesInline]
+    inlines = [StudyRunsInline, StudyAssembliesInline, StudyReadsInline]
 
 
 @admin.register(Sample)
@@ -76,3 +104,8 @@ class AnalysisAdmin(ModelAdmin):
 @admin.register(AssemblyAnalysisRequest)
 class AssemblyAnalysisRequestAdmin(ModelAdmin):
     readonly_fields = ["flow_run_link"]
+
+
+@admin.register(Assembler)
+class AssemblerAdmin(ModelAdmin):
+    pass

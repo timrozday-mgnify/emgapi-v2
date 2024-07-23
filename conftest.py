@@ -7,17 +7,17 @@ import ena.models as ena_models
 from workflows.prefect_utils.slurm_flow import SlurmStatus
 
 @pytest.fixture
-def ena_study_fixture():
+def ena_study():
     return ena_models.Study.objects.create(accession="PRJ1", title="Project 1")
 
 # TODO: resolve usage fixtures in tests directly: database locked problem
 @pytest.fixture
-def ena_sample(ena_study_fixture):
-    return ena_models.Sample.objects.create(study=ena_study_fixture, metadata={"accession": "SAMP1", "description": "Sample 1"})
+def ena_sample(ena_study):
+    return ena_models.Sample.objects.create(study=ena_study, metadata={"accession": "SAMP1", "description": "Sample 1"})
 
 @pytest.fixture
-def mgnify_study(ena_study_fixture):
-    return mg_models.Study.objects.create(ena_study=ena_study_fixture, title="Project 1")
+def mgnify_study(ena_study):
+    return mg_models.Study.objects.create(ena_study=ena_study, title="Project 1")
 
 @pytest.fixture
 def mgnify_sample(ena_sample):
