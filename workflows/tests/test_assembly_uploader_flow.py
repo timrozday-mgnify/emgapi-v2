@@ -88,7 +88,8 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
 
     await assembly_uploader(study_accession=study_accession, run_accession=run_accession, assembler=assembler_name,
                             assembler_version=assembler_version, dry_run=True)
-    captured_logging = capsys.readouterr().err + capsys.readouterr().out
+    captured_logging = capsys.readouterr()
+    captured_logging = captured_logging.err + captured_logging.out
     # sanity check
     assert f"Assembly for {run_accession} passed sanity check" in captured_logging
     assert f"WARN: {run_accession}.assembly_graph.fastg.gz does not exist" in captured_logging
