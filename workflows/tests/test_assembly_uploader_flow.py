@@ -1,12 +1,9 @@
 import os
 import pytest
 from unittest.mock import patch
-import asyncio
 import analyses.models as mg_models
 import ena.models as ena_models
-from workflows.flows.assembly_uploader import (
-    assembly_uploader
-)
+from workflows.flows.assembly_uploader import assembly_uploader
 
 
 @pytest.mark.django_db
@@ -16,16 +13,16 @@ from workflows.flows.assembly_uploader import (
 @patch("workflows.flows.assembly_uploader.generate_assembly_xml")
 @patch("workflows.flows.assembly_uploader.get_assigned_assembly_accession")
 async def test_prefect_assembly_upload_flow_assembly_metaspades(
-        mock_get_assigned_assembly_accession,
-        mock_generate_assembly_xml,
-        mock_submit_study_xml,
-        mock_create_study_xml,
-        prefect_harness,
-        capsys,
-        mock_cluster_can_accept_jobs_yes,
-        mock_start_cluster_job,
-        mock_check_cluster_job_all_completed
-        ):
+    mock_get_assigned_assembly_accession,
+    mock_generate_assembly_xml,
+    mock_submit_study_xml,
+    mock_create_study_xml,
+    prefect_harness,
+    caplog,
+    mock_cluster_can_accept_jobs_yes,
+    mock_start_cluster_job,
+    mock_check_cluster_job_all_completed,
+):
     """
     This test mocks all assembly_uploader functions and just checks steps execution.
     All fixtures are implemented in the test.
@@ -42,7 +39,9 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
 
     async def mock_create_study_xml_func(*args, **kwargs):
         upload_dir = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload"
-        reg_xml = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/reg.xml"
+        reg_xml = (
+            f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/reg.xml"
+        )
         submission_xml = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/submission.xml"
         if not os.path.exists(upload_dir):
             os.mkdir(upload_dir)
@@ -64,59 +63,88 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
     mock_create_study_xml.side_effect = mock_create_study_xml_func
     mock_submit_study_xml.side_effect = mock_submit_study_xml_func
     mock_generate_assembly_xml.side_effect = mock_mock_generate_assembly_xml_func
-    mock_get_assigned_assembly_accession.side_effect = mock_get_assigned_assembly_accession_func
+    mock_get_assigned_assembly_accession.side_effect = (
+        mock_get_assigned_assembly_accession_func
+    )
 
     # create DB records for tests
     # TODO: move to fixtures
-    ena_study = await ena_models.Study.objects.acreate(accession=study_accession, title="Project 1")
-    ena_sample = await ena_models.Sample.objects.acreate(study=ena_study,
-                                                        metadata={"accession": sample_accession,
-                                                                  "description": "Sample 1"})
+    ena_study = await ena_models.Study.objects.acreate(
+        accession=study_accession, title="Project 1"
+    )
+    ena_sample = await ena_models.Sample.objects.acreate(
+        study=ena_study,
+        metadata={"accession": sample_accession, "description": "Sample 1"},
+    )
 
-    mgnify_study = await mg_models.Study.objects.acreate(ena_study=ena_study, title="Project 1", )
-    mgnify_sample = await mg_models.Sample.objects.acreate(ena_sample=ena_sample, ena_study=ena_sample.study)
-    mgnify_run = await mg_models.Run.objects.acreate(ena_accessions=[run_accession], study=mgnify_study,
-                                              ena_study=mgnify_sample.ena_study, sample=mgnify_sample,
-                                                     experiment_type="Metagenomic")
-    assembler = await mg_models.Assembler.objects.acreate(name=assembler_name, version=assembler_version)
-    mgnify_assembly = await mg_models.Assembly.objects.acreate(run=mgnify_run, reads_study=mgnify_study,
-                                                        ena_study=mgnify_run.ena_study,
-                                                        assembler=assembler,
-                                                        dir='slurm/fs/hps/tests/assembly_uploader',
-                                                        metadata={"coverage": 20},
-                                                        status={"status": "assembly_completed"})
+    mgnify_study = await mg_models.Study.objects.acreate(
+        ena_study=ena_study,
+        title="Project 1",
+    )
+    mgnify_sample = await mg_models.Sample.objects.acreate(
+        ena_sample=ena_sample, ena_study=ena_sample.study
+    )
+    mgnify_run = await mg_models.Run.objects.acreate(
+        ena_accessions=[run_accession],
+        study=mgnify_study,
+        ena_study=mgnify_sample.ena_study,
+        sample=mgnify_sample,
+        experiment_type="Metagenomic",
+    )
+    assembler = await mg_models.Assembler.objects.acreate(
+        name=assembler_name, version=assembler_version
+    )
+    mgnify_assembly = await mg_models.Assembly.objects.acreate(
+        run=mgnify_run,
+        reads_study=mgnify_study,
+        ena_study=mgnify_run.ena_study,
+        assembler=assembler,
+        dir="slurm/fs/hps/tests/assembly_uploader",
+        metadata={"coverage": 20},
+        status={"status": "assembly_completed"},
+    )
 
-    await assembly_uploader(study_accession=study_accession, run_accession=run_accession, assembler=assembler_name,
-                            assembler_version=assembler_version, dry_run=True)
-    captured_logging = capsys.readouterr()
-    captured_logging = captured_logging.err + captured_logging.out
+    await assembly_uploader(
+        study_accession=study_accession,
+        run_accession=run_accession,
+        assembler=assembler_name,
+        assembler_version=assembler_version,
+        dry_run=True,
+    )
+    captured_logging = caplog.text
     # sanity check
     assert f"Assembly for {run_accession} passed sanity check" in captured_logging
-    assert f"WARN: {run_accession}.assembly_graph.fastg.gz does not exist" in captured_logging
+    assert f"{run_accession}.assembly_graph.fastg.gz does not exist" in captured_logging
     assert "params.txt does not exist" not in captured_logging
     # create study XML
-    assert os.path.exists(f'slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload')
+    assert os.path.exists(
+        f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload"
+    )
     # submit study
-    assert f"Study submitted successfully under {assembly_study_accession}" in captured_logging
+    assert (
+        f"Study submitted successfully under {assembly_study_accession}"
+        in captured_logging
+    )
     # assembly manifest
-    assert os.path.exists(f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/{run_accession}.manifest")
+    assert os.path.exists(
+        f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/{run_accession}.manifest"
+    )
     # webin-cli cluster job
     mock_start_cluster_job.assert_called()
     mock_check_cluster_job_all_completed.assert_called()
 
     assert (
-            await mg_models.Assembly.objects.filter(
-                status__assembly_uploaded=True
-            ).acount()
-            == 1
+        await mg_models.Assembly.objects.filter(status__assembly_uploaded=True).acount()
+        == 1
     )
 
     assert (
-            await mg_models.Assembly.objects.filter(
-                status__assembly_upload_failed=True
-            ).acount()
-            == 0
+        await mg_models.Assembly.objects.filter(
+            status__assembly_upload_failed=True
+        ).acount()
+        == 0
     )
+
 
 # TODO test with only Shell mock
 
