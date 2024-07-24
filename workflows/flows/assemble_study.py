@@ -54,24 +54,6 @@ def get_study_from_ena(accession: str) -> ena.models.Study:
         print(f"Bad status! {portal.status_code} {portal}")
 
 
-@task(
-    retries=2,
-    cache_key_fn=context_agnostic_task_input_hash,
-    cache_expiration=timedelta(minutes=10),
-    task_run_name="Set up MGnify Study: {ena_accession}",
-    log_prints=True,
-)
-def get_mgnify_study(ena_accession: str) -> analyses.models.Study:
-    print(f"Will get/create MGnify study for {ena_accession}")
-    ena_study = ena.models.Study.objects.filter(
-        Q(accession=ena_accession) | Q(additional_accessions__icontains=ena_accession)
-    ).first()
-    study, _ = analyses.models.Study.objects.get_or_create(
-        ena_study=ena_study, title=ena_study.title
-    )
-    return study
-
-
 @task(log_prints=True)
 def mark_assembly_as_completed(assembly: analyses.models.Assembly):
     print(f"Assembly {assembly} (run {assembly.run}) is now assembled")
@@ -155,7 +137,7 @@ def get_or_create_assemblies_for_runs(
     for read_run in read_runs:
         run = analyses.models.Run.objects.get(ena_accessions__icontains=read_run)
         assembly, created = analyses.models.Assembly.objects.get_or_create(
-            run=run, ena_study=study.ena_study, study=study
+            run=run, ena_study=study.ena_study, reads_study=study
         )
         if created:
             print(f"Created assembly {assembly}")
@@ -173,7 +155,7 @@ def get_assemblies_to_attempt(study: analyses.models.Study) -> List[Union[str, i
     :return:
     """
     study.refresh_from_db()
-    assemblies_worth_trying = study.assemblies.filter(
+    assemblies_worth_trying = study.assemblies_reads.filter(
         **{
             f"status__{analyses.models.Assembly.AssemblyStates.ASSEMBLY_COMPLETED}": False,
             f"status__{analyses.models.Assembly.AssemblyStates.ASSEMBLY_BLOCKED}": False,
@@ -253,7 +235,7 @@ async def assemble_study(accession: str, miassembler_profile: str = "codon_slurm
     print(f"ENA Study is {ena_study.accession}: {ena_study.title}")
 
     # Get a MGnify Study object for this ENA Study
-    mgnify_study = get_mgnify_study(accession)
+    mgnify_study = await analyses.models.Study.objects.get_or_create_for_ena_study(accession)
     await mgnify_study.arefresh_from_db()
     print(f"MGnify study is {mgnify_study.accession}: {mgnify_study.title}")
 

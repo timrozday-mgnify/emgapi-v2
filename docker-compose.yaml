@@ -83,6 +83,9 @@ services:
       - PREFECT_LOCAL_STORAGE_PATH=/root/.prefect/storage
       - DATABASE_URL=postgres://postgres:postgres@app-database:5432/emg
     profiles: ["prefect", "all"]
+    env_file:
+      - path: ./secrets-local.env
+        required: false
     depends_on:
       prefect-server:
         condition: service_healthy

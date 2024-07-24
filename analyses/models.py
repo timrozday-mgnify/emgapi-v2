@@ -1,7 +1,10 @@
+import logging
 import os
+from typing import ClassVar
 
+from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist, ValidationError
 from django.db import models
-from django.db.models import F, Value, CharField, JSONField, AutoField
+from django.db.models import Q, F, Value, CharField, JSONField, AutoField
 from django.db.models.functions import LPad, Cast
 
 import ena.models
@@ -115,6 +118,21 @@ class TimeStampedModel(models.Model):
         abstract = True
 
 
+class StudyManager(models.Manager):
+    async def get_or_create_for_ena_study(self, ena_study_accession):
+        logging.info(f"Will get/create MGnify study for {ena_study_accession}")
+        try:
+            ena_study = await ena.models.Study.objects.filter(
+                Q(accession=ena_study_accession) | Q(additional_accessions__icontains=ena_study_accession)
+            ).afirst()
+            logging.debug(f"Got {ena_study}")
+        except (MultipleObjectsReturned, ObjectDoesNotExist) as e:
+            logging.warning(f"Problem getting ENA study {ena_study_accession} from ENA models DB")
+        study, _ = await Study.objects.aget_or_create(
+            ena_study=ena_study, title=ena_study.title
+        )
+        return study
+
 class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
     accession = MGnifyAccessionField(
         accession_prefix="MGYS", accession_length=8, db_index=True
@@ -125,6 +143,7 @@ class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
 
     title = models.CharField(max_length=255)
 
+    objects: StudyManager = StudyManager()
     def __str__(self):
         return self.accession
 
@@ -269,20 +288,55 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
         return f"Run {self.id}: {self.first_accession}"
 
 
+class Assembler(TimeStampedModel):
+    METASPADES = 'metaspades'
+    MEGAHIT = 'megahit'
+    SPADES = 'spades'
+
+    NAME_CHOICES = [
+        (METASPADES, 'MetaSPAdes'),
+        (MEGAHIT, 'MEGAHIT'),
+        (SPADES, 'SPAdes'),
+    ]
+
+    assembler_default: ClassVar[str] = METASPADES
+
+    name = models.CharField(max_length=20, null=True, blank=True, choices=NAME_CHOICES)
+    version = models.CharField(max_length=20)
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.name} {self.version}" if self.version is not None else self.name
+
+
 class Assembly(TimeStampedModel, ENADerivedModel):
     dir = models.CharField(max_length=200, null=True, blank=True)
     run = models.ForeignKey(
         Run, on_delete=models.CASCADE, related_name="assemblies", null=True, blank=True
     )
-    study = models.ForeignKey(
-        Study, on_delete=models.CASCADE, related_name="assemblies"
+    # raw reads study that was used as resource for assembly
+    reads_study = models.ForeignKey(
+        Study, on_delete=models.CASCADE, related_name="assemblies_reads", null=True, blank=True
     )
+    # TPA study that was created to submit assemblies
+    assembly_study = models.ForeignKey(
+        Study, on_delete=models.CASCADE, related_name="assemblies_assembly", null=True, blank=True
+    )
+    assembler = models.ForeignKey(Assembler, on_delete=models.CASCADE, related_name="assemblies", null=True, blank=True)
+    # coverage,...
+    metadata = JSONField(default=list, db_index=True, blank=True)
 
     class AssemblyStates:
         ASSEMBLY_STARTED = "assembly_started"
         ASSEMBLY_FAILED = "assembly_failed"
         ASSEMBLY_COMPLETED = "assembly_completed"
         ASSEMBLY_BLOCKED = "assembly_blocked"
+        ASSEMBLY_UPLOADED = "assembly_uploaded"
+        ASSEMBLY_UPLOAD_FAILED = "assembly_upload_failed"
+        ASSEMBLY_UPLOAD_BLOCKED = "assembly_upload_blocked"
         ANALYSIS_STARTED = "analysis_started"
         ANALYSIS_COMPLETED = "analysis_completed"
 
@@ -295,6 +349,9 @@ class Assembly(TimeStampedModel, ENADerivedModel):
                 cls.ASSEMBLY_BLOCKED: False,
                 cls.ANALYSIS_STARTED: False,
                 cls.ANALYSIS_COMPLETED: False,
+                cls.ASSEMBLY_UPLOADED: False,
+                cls.ASSEMBLY_UPLOAD_FAILED: False,
+                cls.ASSEMBLY_UPLOAD_BLOCKED: False,
             }
 
     status = models.JSONField(
@@ -305,8 +362,20 @@ class Assembly(TimeStampedModel, ENADerivedModel):
         self.status[status] = set_status_as
         return self.save()
 
+    def add_erz_accession(self, erz_accession):
+        if erz_accession not in self.ena_accessions:
+            self.ena_accessions.append(erz_accession)
+            return self.save()
+
     class Meta:
         verbose_name_plural = "Assemblies"
+
+        constraints = [
+            models.CheckConstraint(
+                check=Q(reads_study__isnull=False) | Q(assembly_study__isnull=False),
+                name='at_least_one_study_present'
+            )
+        ]
 
     def __str__(self):
         return f"Assembly {self.id}  (Run {self.run.first_accession})"

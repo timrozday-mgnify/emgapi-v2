@@ -1,21 +1,24 @@
-from prefect import flow, task
+from prefect import flow, task, get_run_logger
 from typing import List
 import httpx
 
 
-@task(log_prints=True)
+@task()
 def get_stars(repo: str):
+    logger = get_run_logger()
     url = f"https://api.github.com/repos/{repo}"
     count = httpx.get(url).json()["stargazers_count"]
-    print(f"{repo} has {count} stars!")
+    logger.info(f"{repo} has {count} stars!")
     return count
 
 
 @flow(name="GitHub Stars")
 def github_stars(repos: List[str]):
+    logger = get_run_logger()
     counts = []
     for repo in repos:
         stars = get_stars(repo)
+        logger.info(f"{repo} has {stars} stars!")
         counts.append(stars)
     return counts
 

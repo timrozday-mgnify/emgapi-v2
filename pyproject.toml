@@ -2,3 +2,8 @@
 DJANGO_SETTINGS_MODULE = "emgapiv2.settings_test"
 python_files = ["tests.py", "test_*.py", "*_tests.py"]
 addopts = "--cov=/app --cov-report=term-missing --cov-report=html:coverage/htmlcov --cov-report=xml:coverage/coverage.xml"
+env = [
+    "EMG_WEBIN__EMG_WEBIN_ACCOUNT=Webin-000",
+    "EMG_WEBIN__EMG_WEBIN_PASSWORD=password"
+]
+filterwarnings = "ignore:.*is deprecated:DeprecationWarning"

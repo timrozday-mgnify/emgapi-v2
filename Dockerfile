@@ -36,6 +36,9 @@ RUN if [ "$(uname -m)" = "x86_64" ]; then \
 ENV SLURM_LIB_DIR=/slurm/lib
 ENV SLURM_INCLUDE_DIR=/usr/include
 RUN pip install https://github.com/PySlurm/pyslurm/archive/refs/tags/v21.8.1.tar.gz
-COPY . .
 ENV TZ="Etc/UTC"
+
+COPY . .
+RUN pip install -r requirements-tools.txt
+
 ENTRYPOINT ["/usr/local/bin/submitter-entrypoint.sh", "python3", "manage.py"]

@@ -4,7 +4,7 @@ from workflows.flows.simple_example import github_stars
 
 
 @pytest.mark.django_db
-def test_prefect_simple_example_flow(prefect_harness, httpx_mock):
+def test_prefect_simple_example_flow(prefect_harness, httpx_mock, caplog):
     httpx_mock.add_response(
         url="https://api.github.com/repos/EBI-Metagenomics/emg-viral-pipeline",
         json={"stargazers_count": 99},
@@ -16,4 +16,5 @@ def test_prefect_simple_example_flow(prefect_harness, httpx_mock):
     stars = github_stars(
         ["EBI-Metagenomics/emg-viral-pipeline", "EBI-Metagenomics/notebooks"]
     )
+    assert "stars" in caplog.text
     assert stars == [99, 33]

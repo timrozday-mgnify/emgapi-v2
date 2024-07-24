@@ -30,11 +30,32 @@ class SlurmConfig(BaseModel):
 
     datamover_paritition: str = "datamover"
 
+    assembler_uploader_python_executable: str = "python3"
+    assembly_uploader_root_dir: str = ""
+    webin_cli_executor: str = "/usr/bin/webin-cli/webin-cli.jar"
+
+
+class AssemblerConfig(BaseModel):
+    assembler_default: str = "metaspades"
+    assembler_version_default: str = "3.15.3"
+
+
+class WebinConfig(BaseModel):
+    emg_webin_account: str = None
+    emg_webin_password: str = None
+
+
+class ENAConfig(BaseModel):
+    primary_study_accession_re: str = "(PRJ[EDN][A-Z][0-9]+)"
+    assembly_accession_re: str = "([EDS]RZ[0-9]{6,})"
+
 
 class EMGConfig(BaseSettings):
     slurm: SlurmConfig = SlurmConfig()
     environment: str = "development"
-
+    webin: WebinConfig = WebinConfig()
+    ena: ENAConfig = ENAConfig()
+    assembler: AssemblerConfig = AssemblerConfig()
     model_config = {
         "env_prefix": "emg_",
         "env_nested_delimiter": "__",
