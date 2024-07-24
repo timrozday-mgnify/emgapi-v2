@@ -46,6 +46,12 @@ RUN chmod +x nextflow
 RUN mv nextflow /usr/bin/
 COPY configs/slurm_prolog.sh /usr/local/bin/slurm_prolog.sh
 COPY configs/slurm_epilog.sh /usr/local/bin/slurm_epilog.sh
+
+RUN mkdir -p /usr/bin/webin-cli
+RUN wget https://github.com/enasequence/webin-cli/releases/download/7.3.0/webin-cli-7.3.0.jar -O /usr/bin/webin-cli/webin-cli.jar
+RUN chmod +x /usr/bin/webin-cli/webin-cli.jar
+ENV PATH="/usr/bin/webin-cli:$PATH"
+
 ENTRYPOINT ["/usr/local/bin/worker-entrypoint.sh"]
 
 FROM worker as single_node

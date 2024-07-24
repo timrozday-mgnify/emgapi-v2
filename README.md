@@ -33,6 +33,14 @@ This is in the `slurm` directory: see [slurm/README.md](slurm/README.md) for mor
 ### Set up docker-compose
 E.g. following [the docker docs](https://docs.docker.com/compose/install/) or using Podman or Colima, as you prefer. In theory all should work.
 
+### Create secrets-local.env
+That file is used in development (docker-compose.yml) to export variables into environment. 
+Currently, that file has mandatory variables: username and password for assembly uploader using [webin-cli](https://ena-docs.readthedocs.io/en/latest/submit/general-guide/webin-cli.html)
+```commandline
+export EMG_WEBIN__EMG_WEBIN_ACCOUNT="Webin-XXX"
+export EMG_WEBIN__EMG_WEBIN_PASSWORD="password"
+```
+
 ### The taskfile
 The project has a taskfile to simplify some common activities. So, [install Task](https://taskfile.dev/installation/).
 
