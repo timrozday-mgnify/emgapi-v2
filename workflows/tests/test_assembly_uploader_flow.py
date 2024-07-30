@@ -146,6 +146,88 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
     )
 
 
+
+@pytest.mark.django_db
+@pytest.mark.asyncio
+async def test_prefect_assembly_upload_flow_post_assembly_sanity_check_not_passed(
+    prefect_harness,
+    caplog,
+):
+    """
+    This test mocks all assembly_uploader functions and just checks steps execution.
+    All fixtures are implemented in the test.
+    Flow is running 1 metaspades assembly
+    """
+
+    study_accession = "PRJNA398089"
+    run_accession = "SRR6180435"
+    sample_accession = "SAMN07793787"
+    assembler_name = "metaspades"
+    assembler_version = "3.15.3"
+
+    # create DB records for tests
+    # TODO: move to fixtures
+    ena_study = await ena_models.Study.objects.acreate(
+        accession=study_accession, title="Project 1"
+    )
+    ena_sample = await ena_models.Sample.objects.acreate(
+        study=ena_study,
+        metadata={"accession": sample_accession, "description": "Sample 1"},
+    )
+
+    mgnify_study = await mg_models.Study.objects.acreate(
+        ena_study=ena_study,
+        title="Project 1",
+    )
+    mgnify_sample = await mg_models.Sample.objects.acreate(
+        ena_sample=ena_sample, ena_study=ena_sample.study
+    )
+    mgnify_run = await mg_models.Run.objects.acreate(
+        ena_accessions=[run_accession],
+        study=mgnify_study,
+        ena_study=mgnify_sample.ena_study,
+        sample=mgnify_sample,
+        experiment_type="Metagenomic",
+    )
+    assembler = await mg_models.Assembler.objects.acreate(
+        name=assembler_name, version=assembler_version
+    )
+    mgnify_assembly = await mg_models.Assembly.objects.acreate(
+        run=mgnify_run,
+        reads_study=mgnify_study,
+        ena_study=mgnify_run.ena_study,
+        assembler=assembler,
+        dir="slurm/fs/hps/tests/assembly_uploader",
+        metadata={"coverage": 20},
+        status={"status": "assembly_completed"},
+    )
+    with pytest.raises(Exception) as excinfo:
+        await assembly_uploader(
+            study_accession=study_accession,
+            run_accession=run_accession,
+            assembler=assembler_name,
+            assembler_version=assembler_version,
+            dry_run=True,
+        )
+    assert str(excinfo.value) == f"Assembly for {run_accession} did not pass sanity check. No further action."
+
+    assert (
+        await mg_models.Assembly.objects.filter(
+            status__post_assembly_qc_failed=True
+        ).acount()
+        == 1
+    )
+
+    assert (
+            await mg_models.Assembly.objects.filter(
+                status__post_assembly_completed=True
+            ).acount()
+            == 0
+    )
+
+
+
+
 # TODO test with only Shell mock
 
 # TODO fix fixtures usage
