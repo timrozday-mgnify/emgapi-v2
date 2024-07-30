@@ -1,8 +1,19 @@
 from django.contrib import admin
 from django.db import models
+from django import forms
 
 from emgapiv2.widgets import StatusPathwayWidget
-from .models import Study, Sample, Analysis, AssemblyAnalysisRequest, Run, Assembly, Assembler
+from .models import (
+    Study,
+    Sample,
+    Analysis,
+    AssemblyAnalysisRequest,
+    Run,
+    Assembly,
+    Assembler,
+    Biome,
+    ComputeResourceHeuristic,
+)
 
 from unfold.admin import ModelAdmin, TabularInline
 
@@ -31,7 +42,7 @@ class StudyAssembliesInline(TabularInline):
     fields = ["run", "status", "dir"]
     readonly_fields = ["run"]
     max_num = 0
-    fk_name = 'assembly_study'
+    fk_name = "assembly_study"
     formfield_overrides = {
         models.JSONField: {
             "widget": StatusPathwayWidget(
@@ -45,11 +56,11 @@ class StudyAssembliesInline(TabularInline):
                     Assembly.AssemblyStates.ASSEMBLY_UPLOAD_BLOCKED,
                     Assembly.AssemblyStates.ANALYSIS_STARTED,
                     Assembly.AssemblyStates.ANALYSIS_COMPLETED,
-
                 ]
             )
         },
     }
+
 
 class StudyReadsInline(TabularInline):
     model = Assembly
@@ -57,7 +68,7 @@ class StudyReadsInline(TabularInline):
     fields = ["run", "status", "dir"]
     readonly_fields = ["run"]
     max_num = 0
-    fk_name = 'reads_study'
+    fk_name = "reads_study"
     formfield_overrides = {
         models.JSONField: {
             "widget": StatusPathwayWidget(
@@ -75,6 +86,7 @@ class StudyReadsInline(TabularInline):
             )
         },
     }
+
 
 @admin.register(Study)
 class StudyAdmin(ModelAdmin):
@@ -109,3 +121,38 @@ class AssemblyAnalysisRequestAdmin(ModelAdmin):
 @admin.register(Assembler)
 class AssemblerAdmin(ModelAdmin):
     pass
+
+
+class BiomeForm(forms.ModelForm):
+    parent = forms.ModelChoiceField(queryset=Biome.objects.all(), required=True)
+
+    class Meta:
+        model = Biome
+        fields = ["biome_name", "parent"]
+
+    def save_m2m(self):
+        return self._save_m2m()
+
+    def save(self, commit=True):
+        parent = self.cleaned_data.get("parent")
+        if not parent:
+            parent = Biome.objects.roots.first()
+        return Biome.objects.create_child(
+            biome_name=self.cleaned_data["biome_name"], parent=parent
+        )
+
+
+@admin.register(Biome)
+class BiomeAdmin(ModelAdmin):
+    form = BiomeForm
+    readonly_fields = ["pretty_lineage", "descendants_count"]
+    search_fields = ["path", "biome_name"]
+
+
+@admin.register(ComputeResourceHeuristic)
+class ComputeResourceHeuristicAdmin(ModelAdmin):
+    search_fields = ["biome__path", "assembler__name", "process"]
+    list_filter = [
+        "assembler",
+        "process",
+    ]

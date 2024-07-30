@@ -25,7 +25,7 @@ tasks:
     desc: "Build and deploy a prefect flow. E.g. FLOW=mgnify_run_pipeline_flow task deploy-flow"
     cmds:
       - docker compose --profile prefect up -d
-      - docker compose run app prefectcli deployment build workflows/flows/{{.FLOW}}.py:{{.FLOW}} --name {{.FLOW}}_deployment --output workflows/deployments/{{.FLOW}}_deployment.yaml -p {{.POOL}} --apply
+      - docker compose run app prefectcli deploy workflows/flows/{{.FLOW}}.py:{{.FLOW}} --name {{.FLOW}}_deployment -p {{.POOL}}
     vars:
       POOL: "slurm"
     requires:

@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django_ltree",  ## for hierarchical models like Biome
     "debug_toolbar",
     "ena",
     "analyses",
