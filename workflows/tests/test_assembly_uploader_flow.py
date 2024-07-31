@@ -147,7 +147,7 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
 
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
 async def test_prefect_assembly_upload_flow_post_assembly_sanity_check_not_passed(
     prefect_harness,
