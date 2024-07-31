@@ -113,7 +113,9 @@ WSGI_APPLICATION = "emgapiv2.wsgi.application"
 
 DATABASES = {
     "default": dj_database_url.config(
-        conn_max_age=600, conn_health_checks=True, default="sqlite:///db.sqlite3"
+        conn_max_age=600,
+        conn_health_checks=True,
+        default="postgres://postgres:postgres@localhost:5432/emg_test",
     ),
 }
 
@@ -268,11 +270,17 @@ LOGGING = {
     "root": {
         "handlers": ["console"],
         "level": "DEBUG",
+        "propagate": True,
     },
     "loggers": {
         "django": {
             "handlers": ["console"],
-            "level": "INFO",
+            "level": "DEBUG",
+            "propagate": True,
+        },
+        "prefect": {
+            "handlers": ["console"],
+            "level": "DEBUG",
             "propagate": True,
         },
         "django.db.backends": {

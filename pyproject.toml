@@ -4,7 +4,8 @@ python_files = ["tests.py", "test_*.py", "*_tests.py"]
 addopts = "--cov=/app --cov-report=term-missing --cov-report=html:coverage/htmlcov --cov-report=xml:coverage/coverage.xml"
 env = [
     "EMG_WEBIN__EMG_WEBIN_ACCOUNT=Webin-000",
-    "EMG_WEBIN__EMG_WEBIN_PASSWORD=password"
+    "EMG_WEBIN__EMG_WEBIN_PASSWORD=password",
+    "DATABASE_URL=postgres://postgres:postgres@host.docker.internal:5434/emg_test"
 ]
 filterwarnings = "ignore:.*is deprecated:DeprecationWarning"
 

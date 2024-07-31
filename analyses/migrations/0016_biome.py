@@ -7,6 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     dependencies = [
         ("analyses", "0015_alter_assembler_name"),
+        ("django_ltree", "0001_create_extension"),
     ]
 
     operations = [
