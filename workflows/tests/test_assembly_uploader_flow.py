@@ -6,7 +6,7 @@ import ena.models as ena_models
 from workflows.flows.assembly_uploader import assembly_uploader
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
 @patch("workflows.flows.assembly_uploader.create_study_xml")
 @patch("workflows.flows.assembly_uploader.submit_study_xml")

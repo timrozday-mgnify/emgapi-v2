@@ -1,4 +1,5 @@
 import json
+from enum import Enum
 
 import pytest
 from prefect.artifacts import Artifact
@@ -25,6 +26,8 @@ async def test_prefect_assemble_study_flow(
     mock_cluster_can_accept_jobs_yes,
     mock_start_cluster_job,
     mock_check_cluster_job_all_completed,
+    top_level_biomes,
+    assemblers,
 ):
     ### ENA MOCKING ###
     accession = "SRP1"
@@ -66,20 +69,32 @@ async def test_prefect_assemble_study_flow(
         ],
     )
 
-    ### Pretend that a human authorized the flow and picked some parameters ###
+    ## Pretend that a human resumed the flow with the biome picker, and then with the assembler selector.
+    BiomeChoices = Enum("BiomeChoices", {"root.engineered": "Root:Engineered"})
+
+    class BiomeInputMock(BaseModel):
+        biome: BiomeChoices
+
     class AssemblerInputMock(BaseModel):
         assembler: AssemblerChoices
         memory_gb: int
 
-    mock_suspend_flow_run.return_value = AssemblerInputMock(
-        assembler=AssemblerChoices.pipeline_default, memory_gb=8
-    )
+    def suspend_side_effect(wait_for_input=None):
+        if wait_for_input.__name__ == "BiomeInput":
+            return BiomeInputMock(biome=BiomeChoices["root.engineered"])
+        if wait_for_input.__name__ == "AssemblerInput":
+            return AssemblerInputMock(
+                assembler=AssemblerChoices.pipeline_default, memory_gb=8
+            )
+
+    mock_suspend_flow_run.side_effect = suspend_side_effect
+    ## ----
 
     ### RUN WORKFLOW ###
     await assemble_study(accession)
 
     ### MOCKS WERE ALL CALLED ###
-    mock_suspend_flow_run.assert_called_once()
+    mock_suspend_flow_run.assert_called()
     mock_start_cluster_job.assert_called()
     mock_check_cluster_job_all_completed.assert_called()
 

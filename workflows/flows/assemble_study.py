@@ -2,6 +2,7 @@ import csv
 from datetime import timedelta
 from enum import Enum
 
+from asgiref.sync import sync_to_async
 from django.utils.text import slugify
 from pathlib import Path
 from typing import List, Any, Union
@@ -347,7 +348,7 @@ async def assemble_study(accession: str, miassembler_profile: str = "codon_slurm
     print(f"ENA Study is {ena_study.accession}: {ena_study.title}")
 
     # define this within flow because it dynamically creates options from DB.
-    BiomeChoices = get_biomes_as_choices()
+    BiomeChoices = await sync_to_async(get_biomes_as_choices)()
 
     class BiomeInput(RunInput):
         biome: BiomeChoices

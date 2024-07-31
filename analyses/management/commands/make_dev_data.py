@@ -18,14 +18,20 @@ class Command(BaseCommand):
         self.make_assemblies(mgnify_study, metaspades_assembler, megehit_assembler)
 
     def make_biomes(self):
-        root = analyses_models.Biome.objects.create(biome_name="root")
-        host_assoc = analyses_models.Biome.objects.create_child(
-            biome_name="Host-associated", parent=root
+        root = analyses_models.Biome.objects.create(biome_name="root", path="root")
+        host_assoc = analyses_models.Biome.objects.create(
+            biome_name="Host-associated",
+            path=analyses_models.Biome.lineage_to_path("Root:Host-associated"),
         )
-        analyses_models.Biome.objects.create_child(biome_name="Engineered", parent=root)
-        analyses_models.Biome.objects.create_child(
-            biome_name="Human", parent=host_assoc
+        engineered = analyses_models.Biome.objects.create(
+            biome_name="Engineered",
+            path=analyses_models.Biome.lineage_to_path("Root:Engineered"),
         )
+        human = analyses_models.Biome.objects.create(
+            biome_name="Human",
+            path=analyses_models.Biome.lineage_to_path("Root:Host-associated:Human"),
+        )
+        return [root, host_assoc, engineered, human]
 
     def make_ena_study(self) -> ena_models.Study:
         ena_study, _ = ena_models.Study.objects.get_or_create(

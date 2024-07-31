@@ -6,6 +6,17 @@ on: [push, pull_request]  # yamllint disable-line rule:truthy
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_DB: test_emg
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - "5432:5432"
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -19,7 +30,9 @@ jobs:
 
       - name: Run tests
         run: |
-          docker run -v ${{ github.workspace }}/coverage:/app/coverage --entrypoint bash --rm app:latest -c pytest
+          docker run -v ${{ github.workspace }}/coverage:/app/coverage --entrypoint bash \
+          --add-host=host.docker.internal:host-gateway \
+          -e DATABASE_URL=postgres://postgres:postgres@host.docker.internal:5432/emg --rm app:latest -c pytest
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
