@@ -390,7 +390,10 @@ class Assembly(TimeStampedModel, ENADerivedModel):
     metadata = JSONField(default=list, db_index=True, blank=True)
 
     class AssemblyStates:
+        ENA_METADATA_SANITY_CHECK_FAILED = "ena_metadata_sanity_check_failed"
+        ENA_DATA_QC_CHECK_FAILED = "ena_data_qc_check_failed"
         ASSEMBLY_STARTED = "assembly_started"
+        POST_ASSEMBLY_QC_FAILED = "post_assembly_qc_failed"
         ASSEMBLY_FAILED = "assembly_failed"
         ASSEMBLY_COMPLETED = "assembly_completed"
         ASSEMBLY_BLOCKED = "assembly_blocked"

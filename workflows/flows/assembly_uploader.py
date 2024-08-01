@@ -385,6 +385,11 @@ def mark_assembly_as_upload_blocked(assembly: analyses.models.Assembly):
 
 
 @task()
+def mark_assembly_as_post_assembly_qc_failed(assembly: analyses.models.Assembly):
+    assembly.mark_status(assembly.AssemblyStates.POST_ASSEMBLY_QC_FAILED)
+
+
+@task()
 def add_erz_accession(assembly: analyses.models.Assembly, erz_accession):
     assembly.add_erz_accession(erz_accession)
 
@@ -498,10 +503,10 @@ async def assembly_uploader(
     if check_assembly(run_accession, assembly_path, assembler):
         logger.info(f"Assembly for {run_accession} passed sanity check")
     else:
-        logger.warning(
+        mark_assembly_as_post_assembly_qc_failed(mgnify_assembly)
+        raise Exception(
             f"Assembly for {run_accession} did not pass sanity check. No further action."
         )
-        return
 
     # Register study and submit to ENA (if was not submitted before)
     registered_study = await process_study(
