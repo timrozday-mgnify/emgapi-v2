@@ -1,11 +1,17 @@
 import logging
 import os
+import re
 from typing import ClassVar
 
-from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist, ValidationError
+from django.core.exceptions import (
+    MultipleObjectsReturned,
+    ObjectDoesNotExist,
+    ValidationError,
+)
 from django.db import models
 from django.db.models import Q, F, Value, CharField, JSONField, AutoField
 from django.db.models.functions import LPad, Cast
+from django_ltree.models import TreeModel
 
 import ena.models
 
@@ -118,20 +124,58 @@ class TimeStampedModel(models.Model):
         abstract = True
 
 
+class Biome(TreeModel):
+    biome_name = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.pretty_lineage
+
+    @property
+    def pretty_lineage(self):
+        return ":".join(self.ancestors().values_list("biome_name", flat=True))
+
+    @property
+    def descendants_count(self):
+        return self.descendants().count()
+
+    @staticmethod
+    def lineage_to_path(lineage: str) -> str:
+        """
+        E.g. "root:Host-associated:Human:Digestive system:pañal" -> root.host-associated.human.digestive_system:paal
+        :param lineage: Lineage string in colon-separated form.
+        :return: Lineage as a dot-separated path suitable for a postgres ltree field (alphanumeric and _ only, nospaced)
+        """
+        ascii_lower = lineage.encode("ascii", "ignore").decode("ascii").lower()
+        dot_separated = ascii_lower.replace(":", ".")
+        underscore_punctuated = (
+            dot_separated.replace(" ", "_")
+            .replace("(", "_")
+            .replace(")", "_")
+            .replace("-", "_")
+            .replace("__", "_")
+            .strip("_.")
+        )
+        return re.sub(r"[^a-zA-Z0-9._]", "", underscore_punctuated)
+
+
 class StudyManager(models.Manager):
     async def get_or_create_for_ena_study(self, ena_study_accession):
         logging.info(f"Will get/create MGnify study for {ena_study_accession}")
         try:
             ena_study = await ena.models.Study.objects.filter(
-                Q(accession=ena_study_accession) | Q(additional_accessions__icontains=ena_study_accession)
+                Q(accession=ena_study_accession)
+                | Q(additional_accessions__icontains=ena_study_accession)
             ).afirst()
             logging.debug(f"Got {ena_study}")
         except (MultipleObjectsReturned, ObjectDoesNotExist) as e:
-            logging.warning(f"Problem getting ENA study {ena_study_accession} from ENA models DB")
+            logging.warning(
+                f"Problem getting ENA study {ena_study_accession} from ENA models DB"
+            )
         study, _ = await Study.objects.aget_or_create(
             ena_study=ena_study, title=ena_study.title
         )
         return study
+
 
 class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
     accession = MGnifyAccessionField(
@@ -140,10 +184,12 @@ class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
     ena_study = models.ForeignKey(
         ena.models.Study, on_delete=models.CASCADE, null=True, blank=True
     )
+    biome = models.ForeignKey(Biome, on_delete=models.CASCADE, null=True, blank=True)
 
     title = models.CharField(max_length=255)
 
     objects: StudyManager = StudyManager()
+
     def __str__(self):
         return self.accession
 
@@ -289,14 +335,14 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
 
 
 class Assembler(TimeStampedModel):
-    METASPADES = 'metaspades'
-    MEGAHIT = 'megahit'
-    SPADES = 'spades'
+    METASPADES = "metaspades"
+    MEGAHIT = "megahit"
+    SPADES = "spades"
 
     NAME_CHOICES = [
-        (METASPADES, 'MetaSPAdes'),
-        (MEGAHIT, 'MEGAHIT'),
-        (SPADES, 'SPAdes'),
+        (METASPADES, "MetaSPAdes"),
+        (MEGAHIT, "MEGAHIT"),
+        (SPADES, "SPAdes"),
     ]
 
     assembler_default: ClassVar[str] = METASPADES
@@ -312,20 +358,41 @@ class Assembler(TimeStampedModel):
         return f"{self.name} {self.version}" if self.version is not None else self.name
 
 
+class AssemblyManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().select_related("run")
+
+
 class Assembly(TimeStampedModel, ENADerivedModel):
+    objects = AssemblyManager()
+
     dir = models.CharField(max_length=200, null=True, blank=True)
     run = models.ForeignKey(
         Run, on_delete=models.CASCADE, related_name="assemblies", null=True, blank=True
     )
     # raw reads study that was used as resource for assembly
     reads_study = models.ForeignKey(
-        Study, on_delete=models.CASCADE, related_name="assemblies_reads", null=True, blank=True
+        Study,
+        on_delete=models.CASCADE,
+        related_name="assemblies_reads",
+        null=True,
+        blank=True,
     )
     # TPA study that was created to submit assemblies
     assembly_study = models.ForeignKey(
-        Study, on_delete=models.CASCADE, related_name="assemblies_assembly", null=True, blank=True
+        Study,
+        on_delete=models.CASCADE,
+        related_name="assemblies_assembly",
+        null=True,
+        blank=True,
     )
-    assembler = models.ForeignKey(Assembler, on_delete=models.CASCADE, related_name="assemblies", null=True, blank=True)
+    assembler = models.ForeignKey(
+        Assembler,
+        on_delete=models.CASCADE,
+        related_name="assemblies",
+        null=True,
+        blank=True,
+    )
     # coverage,...
     metadata = JSONField(default=list, db_index=True, blank=True)
 
@@ -376,7 +443,7 @@ class Assembly(TimeStampedModel, ENADerivedModel):
         constraints = [
             models.CheckConstraint(
                 check=Q(reads_study__isnull=False) | Q(assembly_study__isnull=False),
-                name='at_least_one_study_present'
+                name="at_least_one_study_present",
             )
         ]
 
@@ -435,3 +502,32 @@ class AssemblyAnalysisRequest(TimeStampedModel):
     def mark_status(self, status: AssemblyAnalysisStates, set_status_as: bool = True):
         self.status[status] = set_status_as
         return self.save()
+
+
+class ComputeResourceHeuristic(TimeStampedModel):
+    """
+    Model for heuristics like how much memory is needed to assemble a certain biome with a certain assembler.
+    """
+
+    # process type for when the heuristic should be used
+    class ProcessTypes(models.TextChoices):
+        ASSEMBLY = "ASSEM", "Assembly"
+
+    process = models.CharField(
+        choices=ProcessTypes, max_length=5, null=True, blank=True
+    )
+
+    # relationships used for selecting heuristic value
+    biome = models.ForeignKey(Biome, on_delete=models.CASCADE, null=True, blank=True)
+    assembler = models.ForeignKey(
+        Assembler, on_delete=models.CASCADE, null=True, blank=True
+    )
+
+    # heuristic values
+    memory_gb = models.FloatField(null=True, blank=True)
+
+    def __str__(self):
+        if self.process == self.ProcessTypes.ASSEMBLY:
+            return f"ComputeResourceHeuristic {self.id} (Use {self.memory_gb:.0f} GB to assemble {self.biome} with {self.assembler})"
+        else:
+            return f"ComputeResourceHeuristic {self.id ({self.process})}"

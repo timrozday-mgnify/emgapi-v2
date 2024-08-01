@@ -4,9 +4,13 @@ from unittest.mock import patch
 import analyses.models as mg_models
 import ena.models as ena_models
 from workflows.flows.assembly_uploader import assembly_uploader
+from workflows.prefect_utils.testing_utils import (
+    run_flow_and_capture_logs,
+    run_async_flow_and_capture_logs,
+)
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
 @patch("workflows.flows.assembly_uploader.create_study_xml")
 @patch("workflows.flows.assembly_uploader.submit_study_xml")
@@ -18,10 +22,15 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
     mock_submit_study_xml,
     mock_create_study_xml,
     prefect_harness,
-    caplog,
     mock_cluster_can_accept_jobs_yes,
     mock_start_cluster_job,
     mock_check_cluster_job_all_completed,
+    raw_reads_mgnify_study,
+    raw_read_run,
+    mgnify_assembly_completed,
+    assemblers,
+    mgnify_study,
+    raw_read_ena_study,
 ):
     """
     This test mocks all assembly_uploader functions and just checks steps execution.
@@ -29,13 +38,12 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
     Flow is running 1 metaspades assembly
     """
 
-    study_accession = "PRJNA398089"
-    assembly_study_accession = "PRJNA567089"
-    run_accession = "SRR6180434"
     erz_assigned_accession = "ERZ24815338"
-    sample_accession = "SAMN07793787"
+    study_accession = raw_read_ena_study.accession
+    run_accession = raw_read_run.first_accession
+
     assembler_name = "metaspades"
-    assembler_version = "3.15.3"
+    assembler_version = "v0"
 
     async def mock_create_study_xml_func(*args, **kwargs):
         upload_dir = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload"
@@ -49,7 +57,7 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
             os.mknod(submission_xml)
 
     async def mock_submit_study_xml_func(*args, **kwargs):
-        return assembly_study_accession
+        return mgnify_study.accession
 
     async def mock_mock_generate_assembly_xml_func(*args, **kwargs):
         run_manifest = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/{run_accession}.manifest"
@@ -67,51 +75,17 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
         mock_get_assigned_assembly_accession_func
     )
 
-    # create DB records for tests
-    # TODO: move to fixtures
-    ena_study = await ena_models.Study.objects.acreate(
-        accession=study_accession, title="Project 1"
-    )
-    ena_sample = await ena_models.Sample.objects.acreate(
-        study=ena_study,
-        metadata={"accession": sample_accession, "description": "Sample 1"},
-    )
-
-    mgnify_study = await mg_models.Study.objects.acreate(
-        ena_study=ena_study,
-        title="Project 1",
-    )
-    mgnify_sample = await mg_models.Sample.objects.acreate(
-        ena_sample=ena_sample, ena_study=ena_sample.study
-    )
-    mgnify_run = await mg_models.Run.objects.acreate(
-        ena_accessions=[run_accession],
-        study=mgnify_study,
-        ena_study=mgnify_sample.ena_study,
-        sample=mgnify_sample,
-        experiment_type="Metagenomic",
-    )
-    assembler = await mg_models.Assembler.objects.acreate(
-        name=assembler_name, version=assembler_version
-    )
-    mgnify_assembly = await mg_models.Assembly.objects.acreate(
-        run=mgnify_run,
-        reads_study=mgnify_study,
-        ena_study=mgnify_run.ena_study,
-        assembler=assembler,
-        dir="slurm/fs/hps/tests/assembly_uploader",
-        metadata={"coverage": 20},
-        status={"status": "assembly_completed"},
-    )
-
-    await assembly_uploader(
+    logged_uploader_result = await run_async_flow_and_capture_logs(
+        assembly_uploader,
         study_accession=study_accession,
         run_accession=run_accession,
         assembler=assembler_name,
         assembler_version=assembler_version,
         dry_run=True,
     )
-    captured_logging = caplog.text
+
+    captured_logging = logged_uploader_result.logs
+
     # sanity check
     assert f"Assembly for {run_accession} passed sanity check" in captured_logging
     assert f"{run_accession}.assembly_graph.fastg.gz does not exist" in captured_logging
@@ -122,7 +96,7 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
     )
     # submit study
     assert (
-        f"Study submitted successfully under {assembly_study_accession}"
+        f"Study submitted successfully under {mgnify_study.accession}"
         in captured_logging
     )
     # assembly manifest
@@ -146,12 +120,10 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
     )
 
 
-
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
 async def test_prefect_assembly_upload_flow_post_assembly_sanity_check_not_passed(
     prefect_harness,
-    caplog,
 ):
     """
     This test mocks all assembly_uploader functions and just checks steps execution.
@@ -187,7 +159,7 @@ async def test_prefect_assembly_upload_flow_post_assembly_sanity_check_not_passe
         study=mgnify_study,
         ena_study=mgnify_sample.ena_study,
         sample=mgnify_sample,
-        experiment_type="Metagenomic",
+        experiment_type=mg_models.Run.ExperimentTypes.METAGENOMIC,
     )
     assembler = await mg_models.Assembler.objects.acreate(
         name=assembler_name, version=assembler_version
@@ -209,7 +181,10 @@ async def test_prefect_assembly_upload_flow_post_assembly_sanity_check_not_passe
             assembler_version=assembler_version,
             dry_run=True,
         )
-    assert str(excinfo.value) == f"Assembly for {run_accession} did not pass sanity check. No further action."
+    assert (
+        str(excinfo.value)
+        == f"Assembly for {run_accession} did not pass sanity check. No further action."
+    )
 
     assert (
         await mg_models.Assembly.objects.filter(
@@ -219,13 +194,11 @@ async def test_prefect_assembly_upload_flow_post_assembly_sanity_check_not_passe
     )
 
     assert (
-            await mg_models.Assembly.objects.filter(
-                status__post_assembly_completed=True
-            ).acount()
-            == 0
+        await mg_models.Assembly.objects.filter(
+            status__post_assembly_completed=True
+        ).acount()
+        == 0
     )
-
-
 
 
 # TODO test with only Shell mock

@@ -9,12 +9,29 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         study_directory = options.get("study_dir")
+        self.make_biomes()
         ena_study = self.make_ena_study()
         mgnify_study = self.make_mgnify_study(ena_study)
         metaspades_assembler = self.make_assembler_metaspades()[0]
         megehit_assembler = self.make_assembler_megahit()[0]
         self.make_samples_and_reads(mgnify_study)
         self.make_assemblies(mgnify_study, metaspades_assembler, megehit_assembler)
+
+    def make_biomes(self):
+        root = analyses_models.Biome.objects.create(biome_name="root", path="root")
+        host_assoc = analyses_models.Biome.objects.create(
+            biome_name="Host-associated",
+            path=analyses_models.Biome.lineage_to_path("Root:Host-associated"),
+        )
+        engineered = analyses_models.Biome.objects.create(
+            biome_name="Engineered",
+            path=analyses_models.Biome.lineage_to_path("Root:Engineered"),
+        )
+        human = analyses_models.Biome.objects.create(
+            biome_name="Human",
+            path=analyses_models.Biome.lineage_to_path("Root:Host-associated:Human"),
+        )
+        return [root, host_assoc, engineered, human]
 
     def make_ena_study(self) -> ena_models.Study:
         ena_study, _ = ena_models.Study.objects.get_or_create(
@@ -64,15 +81,20 @@ class Command(BaseCommand):
         return run_objects
 
     def make_assembler_metaspades(self):
-        return analyses_models.Assembler.objects.get_or_create(name="metaspades", version="3.15.3")
+        return analyses_models.Assembler.objects.get_or_create(
+            name="metaspades", version="3.15.3"
+        )
 
     def make_assembler_megahit(self):
-        return analyses_models.Assembler.objects.get_or_create(name="megahit", version="1.2.9")
+        return analyses_models.Assembler.objects.get_or_create(
+            name="megahit", version="1.2.9"
+        )
 
     def make_assemblies(
-        self, mgnify_study: analyses_models.Study,
-            assembler_metaspades: analyses_models.Assembler,
-            assembler_megahit: analyses_models.Assembler,
+        self,
+        mgnify_study: analyses_models.Study,
+        assembler_metaspades: analyses_models.Assembler,
+        assembler_megahit: analyses_models.Assembler,
     ) -> [analyses_models.Assembly]:
         assembleable_runs = mgnify_study.runs.filter(
             experiment_type=analyses_models.Run.ExperimentTypes.METAGENOMIC
@@ -80,15 +102,23 @@ class Command(BaseCommand):
         assembly_objects = []
         for run in assembleable_runs:
             assembly, _ = analyses_models.Assembly.objects.get_or_create(
-                run=run, reads_study=mgnify_study, ena_study=mgnify_study.ena_study, assembler=assembler_metaspades,
-                dir=f'/hps/tests/assembly_uploader', metadata={"coverage": 20}
+                run=run,
+                reads_study=mgnify_study,
+                ena_study=mgnify_study.ena_study,
+                assembler=assembler_metaspades,
+                dir=f"/hps/tests/assembly_uploader",
+                metadata={"coverage": 20},
             )
             assembly_objects.append(assembly)
         # create assembly for first run in list
         for run in assembleable_runs[:1]:
             assembly, _ = analyses_models.Assembly.objects.get_or_create(
-                run=run, reads_study=mgnify_study, ena_study=mgnify_study.ena_study, assembler=assembler_megahit,
-                dir=f'/hps/tests/assembly_uploader', metadata={"coverage": 20}
+                run=run,
+                reads_study=mgnify_study,
+                ena_study=mgnify_study.ena_study,
+                assembler=assembler_megahit,
+                dir=f"/hps/tests/assembly_uploader",
+                metadata={"coverage": 20},
             )
             assembly_objects.append(assembly)
 

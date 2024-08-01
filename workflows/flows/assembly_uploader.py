@@ -481,16 +481,19 @@ async def assembly_uploader(
     logger.info(f"MGnify data returned: study {mgnify_study.accession}, {mgnify_run}")
 
     try:
-        mgnify_assembly = await analyses.models.Assembly.objects.filter(
-            run=mgnify_run,
-            reads_study=mgnify_study,
-            assembler__name=assembler,
-            assembler__version=assembler_version,
-        ).afirst()
+        mgnify_assembly: analyses.models.Assembly = (
+            await analyses.models.Assembly.objects.filter(
+                run=mgnify_run,
+                reads_study=mgnify_study,
+                assembler__name=assembler,
+                assembler__version=assembler_version,
+            ).aget()
+        )
     except (MultipleObjectsReturned, ObjectDoesNotExist) as e:
         logger.error(
             f"Problem getting assembly for {mgnify_run} assembled with {assembler}_v{assembler_version} from ENA models DB"
         )
+        raise e
 
     assembly_path = os.path.join(mgnify_assembly.dir, f"{run_accession}.fasta.gz")
     upload_folder = os.path.join(

@@ -1,18 +1,28 @@
+import csv
 from datetime import timedelta
 from enum import Enum
+
+from asgiref.sync import sync_to_async
+from django.utils.text import slugify
+from pathlib import Path
 from typing import List, Any, Union
 
 import django
 from django.conf import settings
-from django.db.models import Q
+from prefect.artifacts import create_table_artifact
 from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 
+from emgapiv2.settings import EMG_CONFIG
+from workflows.nextflow_utils.samplesheets import (
+    queryset_to_samplesheet,
+    queryset_hash,
+    SamplesheetColumnSource,
+)
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 from workflows.prefect_utils.slurm_flow import (
-    run_cluster_jobs,
-    slurm_status_is_finished_successfully,
-    FINAL_SLURM_STATE,
+    run_cluster_job,
+    ClusterJobFailedException,
 )
 
 django.setup()
@@ -22,6 +32,23 @@ import httpx
 import ena.models
 import analyses.models
 from prefect import flow, task, suspend_flow_run
+
+
+@task()
+def get_memory_for_assembler(
+    biome: analyses.models.Biome,
+    assembler: analyses.models.Assembler,
+):
+    assembler_heuristics = analyses.models.ComputeResourceHeuristic.objects.filter(
+        process=analyses.models.ComputeResourceHeuristic.ProcessTypes.ASSEMBLY,
+        assembler=assembler,
+    )
+
+    # ascend the biome hierarchy to find a memory heuristic
+    for biome_to_try in biome.ancestors().reverse():
+        heuristic = assembler_heuristics.filter(biome=biome_to_try).first()
+        if heuristic:
+            return heuristic.memory_gb
 
 
 @task(
@@ -83,6 +110,15 @@ class AssemblerInput(RunInput):
     memory_gb: int
 
 
+def get_biomes_as_choices():
+    biomes = {
+        str(biome.path): biome.pretty_lineage
+        for biome in analyses.models.Biome.objects.all()
+    }
+    BiomeChoices = Enum("BiomeChoices", biomes)
+    return BiomeChoices
+
+
 @task(
     retries=10,
     retry_delay_seconds=60,
@@ -94,31 +130,42 @@ def get_study_readruns_from_ena(accession: str, limit: int = 20) -> List[str]:
     print(f"Will fetch study {accession} read-runs from ENA portal API")
     mgys_study = analyses.models.Study.objects.get(ena_study__accession=accession)
     portal = httpx.get(
-        f'https://www.ebi.ac.uk/ena/portal/api/search?result=read_run&dataPortal=metagenome&format=json&fields=sample_accession,sample_title,secondary_sample_accession&query="study_accession={accession} OR secondary_study_accession={accession}"&limit={limit}&format=json'
+        f'https://www.ebi.ac.uk/ena/portal/api/search?result=read_run&dataPortal=metagenome&format=json&fields=sample_accession,sample_title,secondary_sample_accession,fastq_md5,fastq_ftp,library_layout,library_strategy&query="study_accession={accession} OR secondary_study_accession={accession}"&limit={limit}&format=json'
     )
 
     if portal.status_code == httpx.codes.OK:
         for read_run in portal.json():
             ena_sample, _ = ena.models.Sample.objects.get_or_create(
                 accession=read_run["sample_accession"],
-                metadata={"sample_title": read_run["sample_title"]},
-                study=mgys_study.ena_study,
+                defaults={
+                    "metadata": {"sample_title": read_run["sample_title"]},
+                    "study": mgys_study.ena_study,
+                },
             )
 
-            mgnify_sample, _ = analyses.models.Sample.objects.get_or_create(
-                ena_accessions=[
-                    read_run["sample_accession"],
-                    read_run["secondary_sample_accession"],
-                ],
+            mgnify_sample, _ = analyses.models.Sample.objects.update_or_create(
                 ena_sample=ena_sample,
-                ena_study=mgys_study.ena_study,
+                defaults={
+                    "ena_accessions": [
+                        read_run["sample_accession"],
+                        read_run["secondary_sample_accession"],
+                    ],
+                    "ena_study": mgys_study.ena_study,
+                },
             )
 
-            analyses.models.Run.objects.get_or_create(
+            analyses.models.Run.objects.update_or_create(
                 ena_accessions=[read_run["run_accession"]],
                 study=mgys_study,
                 ena_study=mgys_study.ena_study,
                 sample=mgnify_sample,
+                defaults={
+                    "metadata": {
+                        "library_strategy": read_run["library_strategy"],
+                        "library_layout": read_run["library_layout"],
+                        "fastq_ftps": list(read_run["fastq_ftp"].split(";")),
+                    }
+                },
             )
 
     mgys_study.refresh_from_db()
@@ -169,49 +216,115 @@ def chunk_list(items: List[Any], chunk_size: int) -> List[List[Any]]:
     return [items[j : j + chunk_size] for j in range(0, len(items), chunk_size)]
 
 
-@flow
-async def perform_assemblies_in_parallel(
-    ena_study: ena.models.Study,
+@task(
+    cache_key_fn=context_agnostic_task_input_hash,
+)
+def make_samplesheet(
+    mgnify_study: analyses.models.Study,
     assembly_ids: List[Union[str, int]],
-    miassembler_profile: str,
-    assembler_command_arg: str,
-    memory_gb: int,
-):
-    names = []
-    commands = []
+    assembler: analyses.models.Assembler,
+) -> Path:
     assemblies = analyses.models.Assembly.objects.select_related("run").filter(
         id__in=assembly_ids
     )
-    async for assembly in assemblies:
-        mark_assembly_as_started(assembly)
-        names.append(f"Assemble read_run {assembly.run.first_accession}")
-        commands.append(
-            f"nextflow run ebi-metagenomics/miassembler "
-            f"-profile {miassembler_profile} "
-            f"-resume "
-            f"--outdir {ena_study.accession}_{assembly.run.first_accession}_miassembler "
-            f"--study_accession {ena_study.accession} "
-            f"--reads_accession {assembly.run.first_accession} "
-            f"{assembler_command_arg} "
-            f"{'-with-tower' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''} "
-            f"-name mi-assembler-{assembly.run.first_accession}-for-{ena_study.accession} "
-        )
 
-    chunk_jobs = await run_cluster_jobs(
-        names=names,
-        commands=commands,
-        expected_time=timedelta(days=5),
-        memory=f"{memory_gb}G",
-        environment="ALL,TOWER_ACCESS_TOKEN,TOWER_WORKSPACE_ID",
-        # will copy this env from the prefect worker to the jobs
-        raise_on_job_failure=False,
+    ss_hash = queryset_hash(assemblies, "id")
+
+    memory = get_memory_for_assembler(mgnify_study.biome, assembler)
+
+    sample_sheet_tsv = queryset_to_samplesheet(
+        queryset=assemblies,
+        filename=Path(EMG_CONFIG.slurm.default_workdir)
+        / Path(
+            f"{mgnify_study.ena_study.accession}_samplesheet_miassembler_{ss_hash}.csv"
+        ),
+        column_map={
+            "study_accession": SamplesheetColumnSource(
+                lookup_string="ena_study__accession"
+            ),
+            "reads_accession": SamplesheetColumnSource(
+                lookup_string="run__ena_accessions",
+                renderer=lambda accessions: accessions[0],
+            ),
+            "library_strategy": SamplesheetColumnSource(
+                lookup_string="run__metadata__library_strategy"
+            ),
+            "library_layout": SamplesheetColumnSource(
+                lookup_string="run__metadata__library_layout"
+            ),
+            "fastq_1": SamplesheetColumnSource(
+                lookup_string="run__metadata__fastq_ftps", renderer=lambda ftps: ftps[0]
+            ),
+            "fastq_2": SamplesheetColumnSource(
+                lookup_string="run__metadata__fastq_ftps",
+                renderer=lambda ftps: ftps[1] if len(ftps) > 1 else "",
+            ),
+            "assembler": SamplesheetColumnSource(
+                lookup_string="id", renderer=lambda _: assembler
+            ),
+            "assembler_memory": SamplesheetColumnSource(
+                lookup_string="id", renderer=lambda _: memory
+            ),
+        },
+        bludgeon=True,
     )
 
-    for assembly, assembly_job in zip(assemblies, chunk_jobs):
-        if slurm_status_is_finished_successfully(assembly_job[FINAL_SLURM_STATE]):
-            mark_assembly_as_completed(assembly)
-        else:
+    with open(sample_sheet_tsv) as f:
+        csv_reader = csv.DictReader(f, delimiter="\t")
+        table = list(csv_reader)
+
+    create_table_artifact(
+        key="miassembler-initial-sample-sheet",
+        table=table,
+        description="Sample sheet created for run of MIAssembler",
+    )
+    return sample_sheet_tsv
+
+
+@flow
+async def perform_assemblies_in_parallel(
+    mgnify_study: analyses.models.Study,
+    assembly_ids: List[Union[str, int]],
+    miassembler_profile: str,
+    assembler: analyses.models.Assembler,
+    memory_gb: int,
+):
+    assemblies = analyses.models.Assembly.objects.select_related("run").filter(
+        id__in=assembly_ids
+    )
+
+    samplesheet = make_samplesheet(mgnify_study, assembly_ids, assembler)
+
+    async for assembly in assemblies:
+        mark_assembly_as_started(assembly)
+
+    command = (
+        f"nextflow run ebi-metagenomics/miassembler "
+        f"-profile {miassembler_profile} "
+        f"-resume "
+        f"--samplesheet {samplesheet} "
+        f"--outdir {mgnify_study.ena_study.accession}_miassembler "
+        f"--assembler {assembler.name.lower()} "
+        f"{'-with-tower' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''} "
+        f"-name mi-assembler-for-samplesheet-{slugify(samplesheet)[-30:]} "
+    )
+
+    try:
+        await run_cluster_job(
+            name=f"Assemble study {mgnify_study.ena_study.accession} via samplesheet {slugify(samplesheet)}",
+            command=command,
+            expected_time=timedelta(days=5),
+            memory=f"{memory_gb}G",
+            environment="ALL,TOWER_ACCESS_TOKEN,TOWER_WORKSPACE_ID",
+        )
+    except ClusterJobFailedException:
+        for assembly in assemblies:
             mark_assembly_as_failed(assembly)
+    else:
+        # assume that if job finished, all assemblies finished...
+        # todo: integrate per-run error handling
+        for assembly in assemblies:
+            mark_assembly_as_completed(assembly)
 
 
 @flow(
@@ -234,10 +347,34 @@ async def assemble_study(accession: str, miassembler_profile: str = "codon_slurm
     await ena_study.arefresh_from_db()
     print(f"ENA Study is {ena_study.accession}: {ena_study.title}")
 
+    # define this within flow because it dynamically creates options from DB.
+    BiomeChoices = await sync_to_async(get_biomes_as_choices)()
+
+    class BiomeInput(RunInput):
+        biome: BiomeChoices
+
+    biome_input: BiomeInput = await suspend_flow_run(
+        wait_for_input=BiomeInput.with_initial_data(
+            description=f"""
+**Biome tagger**
+Please select a Biome for the entire study [{ena_study.accession}: {ena_study.title}](https://www.ebi.ac.uk/ena/browser/view/{ena_study.accession}).
+
+The Biome is important metadata, and will also be used to guess how much memory is needed to assemble this study.
+        """
+        )
+    )
+
+    biome = await analyses.models.Biome.objects.aget(path=biome_input.biome.name)
+
     # Get a MGnify Study object for this ENA Study
-    mgnify_study = await analyses.models.Study.objects.get_or_create_for_ena_study(accession)
-    await mgnify_study.arefresh_from_db()
-    print(f"MGnify study is {mgnify_study.accession}: {mgnify_study.title}")
+    mgnify_study = await analyses.models.Study.objects.get_or_create_for_ena_study(
+        accession
+    )
+    mgnify_study.biome = biome
+    await mgnify_study.asave()
+    print(
+        f"MGnify study is {mgnify_study.accession}: {mgnify_study.title}. Biome: {biome.path}"
+    )
 
     read_runs = get_study_readruns_from_ena(ena_study.accession, limit=5000)
     print(f"Have {len(read_runs)} from ENA portal API")
@@ -252,17 +389,22 @@ This will assemble all {len(read_runs)} read-runs of study {ena_study.accession}
 using [MI-Assembler](https://www.github.com/ebi-metagenomics/mi-assembler).
 
 Please pick which assembler tool to use, or let the pipeline choose for you.
-Also select how much RAM (in GB) to allocate for each assembly.
+Also optionally select how much RAM (in GB) to allocate for each nextflow head job.
+(The RAM for the assembly itself is determined by the `ComputeResourceHeuristics`.)
             """,
         )
     )
-    print(f"Using assembler: {assembler_input}")
+    print(f"Using assembler name: {assembler_input}")
+    assembler_name = assembler_input.assembler
+    if assembler_name == AssemblerChoices.pipeline_default:
+        assembler_name = analyses.models.Assembler.assembler_default
 
-    assembler_command_arg = (
-        f"--assembler {assembler_input.assembler.value}"
-        if assembler_input.assembler != AssemblerChoices.pipeline_default
-        else ""
+    assembler = (
+        await analyses.models.Assembler.objects.filter(name__iexact=assembler_name)
+        .order_by("-version")
+        .afirst()
     )
+    # assumes latest version...
 
     get_or_create_assemblies_for_runs(mgnify_study, read_runs)
 
@@ -276,9 +418,9 @@ Also select how much RAM (in GB) to allocate for each assembly.
         # launch jobs for all runs in this chunk in a single flow
         print(f"Working on assemblies: {assembly_chunk}")
         await perform_assemblies_in_parallel(
-            ena_study,
+            mgnify_study,
             assembly_chunk,
             miassembler_profile,
-            assembler_command_arg,
+            assembler,
             assembler_input.memory_gb,
         )
