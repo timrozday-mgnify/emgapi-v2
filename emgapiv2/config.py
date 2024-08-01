@@ -30,9 +30,11 @@ class SlurmConfig(BaseModel):
 
     datamover_paritition: str = "datamover"
 
-    assembler_uploader_python_executable: str = "python3"
+    assembly_uploader_python_executable: str = "python3"
     assembly_uploader_root_dir: str = ""
     webin_cli_executor: str = "/usr/bin/webin-cli/webin-cli.jar"
+
+    amplicon_nextflow_master_job_memory: int = 5  # Gb
 
 
 class AssemblerConfig(BaseModel):

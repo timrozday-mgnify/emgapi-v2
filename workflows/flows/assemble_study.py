@@ -20,6 +20,7 @@ from workflows.nextflow_utils.samplesheets import (
     SamplesheetColumnSource,
 )
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
+from workflows.ena_utils.ena_api_requests import get_study_from_ena, get_study_readruns_from_ena
 from workflows.prefect_utils.slurm_flow import (
     run_cluster_job,
     ClusterJobFailedException,
@@ -27,9 +28,6 @@ from workflows.prefect_utils.slurm_flow import (
 
 django.setup()
 
-import httpx
-
-import ena.models
 import analyses.models
 from prefect import flow, task, suspend_flow_run
 
@@ -49,36 +47,6 @@ def get_memory_for_assembler(
         heuristic = assembler_heuristics.filter(biome=biome_to_try).first()
         if heuristic:
             return heuristic.memory_gb
-
-
-@task(
-    retries=2,
-    cache_key_fn=context_agnostic_task_input_hash,
-    task_run_name="Get study from ENA: {accession}",
-    log_prints=True,
-)
-def get_study_from_ena(accession: str) -> ena.models.Study:
-    if ena.models.Study.objects.filter(accession=accession).exists():
-        return ena.models.Study.objects.get(accession=accession)
-    print(f"Will fetch from ENA Portal API Study {accession}")
-    portal = httpx.get(
-        f"https://www.ebi.ac.uk/ena/portal/api/search?result=study&query=study_accession%3D{accession}%20OR%20secondary_study_accession%3D{accession}&limit=10&format=json&fields=study_title,secondary_study_accession"
-    )
-    if portal.status_code == httpx.codes.OK:
-        s = portal.json()[0]
-        primary_accession: str = s["study_accession"]
-        secondary_accession: str = s["secondary_study_accession"]
-        study, created = ena.models.Study.objects.get_or_create(
-            accession=primary_accession,
-            defaults={
-                "title": portal.json()[0]["study_title"],
-                "additional_accessions": [secondary_accession],
-                # TODO: more metadata
-            },
-        )
-        return study
-    else:
-        print(f"Bad status! {portal.status_code} {portal}")
 
 
 @task(log_prints=True)
@@ -117,59 +85,6 @@ def get_biomes_as_choices():
     }
     BiomeChoices = Enum("BiomeChoices", biomes)
     return BiomeChoices
-
-
-@task(
-    retries=10,
-    retry_delay_seconds=60,
-    cache_key_fn=context_agnostic_task_input_hash,
-    task_run_name="Get study readruns from ENA: {accession}",
-    log_prints=True,
-)
-def get_study_readruns_from_ena(accession: str, limit: int = 20) -> List[str]:
-    print(f"Will fetch study {accession} read-runs from ENA portal API")
-    mgys_study = analyses.models.Study.objects.get(ena_study__accession=accession)
-    portal = httpx.get(
-        f'https://www.ebi.ac.uk/ena/portal/api/search?result=read_run&dataPortal=metagenome&format=json&fields=sample_accession,sample_title,secondary_sample_accession,fastq_md5,fastq_ftp,library_layout,library_strategy&query="study_accession={accession} OR secondary_study_accession={accession}"&limit={limit}&format=json'
-    )
-
-    if portal.status_code == httpx.codes.OK:
-        for read_run in portal.json():
-            ena_sample, _ = ena.models.Sample.objects.get_or_create(
-                accession=read_run["sample_accession"],
-                defaults={
-                    "metadata": {"sample_title": read_run["sample_title"]},
-                    "study": mgys_study.ena_study,
-                },
-            )
-
-            mgnify_sample, _ = analyses.models.Sample.objects.update_or_create(
-                ena_sample=ena_sample,
-                defaults={
-                    "ena_accessions": [
-                        read_run["sample_accession"],
-                        read_run["secondary_sample_accession"],
-                    ],
-                    "ena_study": mgys_study.ena_study,
-                },
-            )
-
-            analyses.models.Run.objects.update_or_create(
-                ena_accessions=[read_run["run_accession"]],
-                study=mgys_study,
-                ena_study=mgys_study.ena_study,
-                sample=mgnify_sample,
-                defaults={
-                    "metadata": {
-                        "library_strategy": read_run["library_strategy"],
-                        "library_layout": read_run["library_layout"],
-                        "fastq_ftps": list(read_run["fastq_ftp"].split(";")),
-                    }
-                },
-            )
-
-    mgys_study.refresh_from_db()
-    return [run.ena_accessions[0] for run in mgys_study.runs.all()]
 
 
 @task(
@@ -213,7 +128,7 @@ def get_assemblies_to_attempt(study: analyses.models.Study) -> List[Union[str, i
 
 @task
 def chunk_list(items: List[Any], chunk_size: int) -> List[List[Any]]:
-    return [items[j : j + chunk_size] for j in range(0, len(items), chunk_size)]
+    return [items[j: j + chunk_size] for j in range(0, len(items), chunk_size)]
 
 
 @task(

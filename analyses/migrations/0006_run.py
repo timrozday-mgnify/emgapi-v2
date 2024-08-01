@@ -50,7 +50,6 @@ class Migration(migrations.Migration):
                     "status",
                     models.JSONField(
                         blank=True,
-                        default=analyses.models.Run.RunStates.default_status,
                         null=True,
                     ),
                 ),
