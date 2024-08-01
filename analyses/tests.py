@@ -1,5 +1,11 @@
+import csv
+import os
+import tempfile
+
 import pytest
-from .models import Study, Biome
+from django.core.management import call_command
+
+from .models import Study, Biome, ComputeResourceHeuristic, Assembler
 from ena.models import Study as ENAStudy
 
 
@@ -90,3 +96,80 @@ def test_study_biome_lookups(top_level_biomes, mgnify_study):
     eng_studies = Study.objects.filter(biome__path__descendants=eng.path)
     assert eng_studies.count() == 1
     assert eng_studies.first() == mgnify_study
+
+
+@pytest.mark.django_db
+def test_compute_resource_heuristics(top_level_biomes, assemblers):
+    # test CSV importer
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, newline="") as temp_csv:
+        writer = csv.DictWriter(
+            temp_csv, fieldnames=["lineage", "memory_gb", "assembler"]
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "lineage": "root:Host-associated",
+                "memory_gb": 100,
+                "assembler": "metaspades",
+            }
+        )
+        writer.writerow(
+            {
+                "lineage": "root:Host-associated:Human",
+                "memory_gb": 50,
+                "assembler": "metaspades",
+            }
+        )
+        temp_csv_name = temp_csv.name
+
+    try:
+        call_command("import_assembler_memory_compute_heuristics", "-p", temp_csv_name)
+
+        assert ComputeResourceHeuristic.objects.count() == 2
+
+        # should select the closest ancestor biome of a deep biome
+        deep_biome = Biome.objects.create(
+            path=Biome.lineage_to_path("root:Host-associated:Human:Digestive system"),
+            biome_name="Digestive system",
+        )
+        ram_for_deep_biome = (
+            ComputeResourceHeuristic.objects.filter(
+                process=ComputeResourceHeuristic.ProcessTypes.ASSEMBLY,
+                assembler=assemblers.get(name=Assembler.METASPADES),
+                biome__path__ancestors=deep_biome.path,
+            )
+            .reverse()
+            .first()
+        )
+        assert ram_for_deep_biome is not None
+        assert ram_for_deep_biome.memory_gb == 50
+
+    finally:
+        os.remove(temp_csv_name)
+
+
+@pytest.mark.django_db
+def test_biome_importer(httpx_mock):
+    httpx_mock.add_response(
+        url=f"http://old.api/v1/biomes?page=1",
+        json={
+            "links": {
+                "next": "http://old.api/v1/biomes?page=2",
+            },
+            "data": [{"id": "root", "attributes": {"biome-name": "Root"}}],
+        },
+    )
+    httpx_mock.add_response(
+        url=f"http://old.api/v1/biomes?page=2",
+        json={
+            "links": {
+                "next": None,
+            },
+            "data": [{"id": "root:Deep", "attributes": {"biome-name": "Deep"}}],
+        },
+    )
+    call_command("import_biomes_from_api_v1", "-u", "http://old.api/v1/biomes")
+    assert Biome.objects.count() == 2
+    assert Biome.objects.filter(path="root.deep").exists()
+    assert Biome.objects.get(path="root.deep").biome_name == "Deep"
+    assert Biome.objects.get(path="root.deep").pretty_lineage == "root:Deep"

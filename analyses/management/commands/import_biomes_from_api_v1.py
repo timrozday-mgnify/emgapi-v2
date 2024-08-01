@@ -1,5 +1,5 @@
-import requests
-from django.core.management.base import BaseCommand, CommandError
+import httpx
+from django.core.management.base import BaseCommand
 
 from analyses.models import Biome
 
@@ -24,7 +24,7 @@ class Command(BaseCommand):
         Biome.objects.get_or_create(biome_name="root", path="root")
 
         while next_page:
-            response = requests.get(next_page)
+            response = httpx.get(next_page)
             for biome in response.json()["data"]:
                 path = Biome.lineage_to_path(biome["id"])
                 biome_name = biome["attributes"]["biome-name"]
