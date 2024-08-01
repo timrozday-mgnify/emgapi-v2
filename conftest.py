@@ -13,41 +13,9 @@ def ena_study():
     return ena_models.Study.objects.create(accession="PRJ1", title="Project 1")
 
 
-# TODO: resolve usage fixtures in tests directly: database locked problem
-@pytest.fixture
-def ena_sample(ena_study):
-    return ena_models.Sample.objects.create(
-        study=ena_study, metadata={"accession": "SAMP1", "description": "Sample 1"}
-    )
-
-
 @pytest.fixture
 def mgnify_study(ena_study):
     return mg_models.Study.objects.create(ena_study=ena_study, title="Project 1")
-
-
-@pytest.fixture
-def mgnify_sample(ena_sample):
-    return mg_models.Sample.objects.create(
-        ena_sample=ena_sample, ena_study=ena_sample.study
-    )
-
-
-@pytest.fixture
-def mgnify_run(mgnify_study, mgnify_sample):
-    return mg_models.Run.objects.create(
-        ena_accessions=["ERR1"],
-        study=mgnify_study,
-        ena_study=mgnify_sample.ena_study,
-        sample=mgnify_sample,
-    )
-
-
-@pytest.fixture
-def mgnify_assembly(mgnify_study, mgnify_run):
-    return mg_models.Assembly.objects.create(
-        run=mgnify_run, reads_study=mgnify_study, ena_study=mgnify_run.ena_study
-    )
 
 
 @pytest.fixture
@@ -110,3 +78,64 @@ def assemblers():
     for name, label in Assembler.NAME_CHOICES:
         mg_models.Assembler.objects.create(name=name, version="v0")
     return mg_models.Assembler.objects.all()
+
+
+@pytest.fixture
+def raw_read_ena_study():
+    return ena_models.Study.objects.create(
+        accession="PRJNA398089", title="Some Raw Reads"
+    )
+
+
+@pytest.fixture
+def raw_reads_mgnify_study(raw_read_ena_study):
+    return mg_models.Study.objects.create(
+        ena_study=raw_read_ena_study, title=raw_read_ena_study.title
+    )
+
+
+@pytest.fixture
+def assembly_study_accession():
+    return "PRJNA567089"
+
+
+@pytest.fixture
+def raw_read_ena_sample(raw_read_ena_study):
+    return ena_models.Sample.objects.create(
+        study=raw_read_ena_study,
+        metadata={"accession": "SAMN07793787", "description": "Sample 1"},
+    )
+
+
+@pytest.fixture
+def raw_reads_mgnify_sample(raw_reads_mgnify_study, raw_read_ena_sample):
+    return mg_models.Sample.objects.create(
+        ena_sample=raw_read_ena_sample,
+        ena_study=raw_reads_mgnify_study.ena_study,
+    )
+
+
+@pytest.fixture
+def raw_read_run(raw_reads_mgnify_study, raw_reads_mgnify_sample):
+    return mg_models.Run.objects.create(
+        ena_accessions=["SRR6180434"],
+        study=raw_reads_mgnify_study,
+        ena_study=raw_reads_mgnify_study.ena_study,
+        sample=raw_reads_mgnify_sample,
+    )
+
+
+@pytest.fixture
+def mgnify_assembly_completed(
+    mgnify_study, raw_read_run, raw_reads_mgnify_study, assemblers
+):
+    assembler = assemblers.filter(name=mg_models.Assembler.METASPADES).first()
+    return mg_models.Assembly.objects.create(
+        run=raw_read_run,
+        reads_study=raw_reads_mgnify_study,
+        ena_study=mgnify_study.ena_study,
+        assembler=assembler,
+        dir="slurm/fs/hps/tests/assembly_uploader",
+        metadata={"coverage": 20},
+        status={"status": "assembly_completed"},
+    )

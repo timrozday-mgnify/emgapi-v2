@@ -358,7 +358,14 @@ class Assembler(TimeStampedModel):
         return f"{self.name} {self.version}" if self.version is not None else self.name
 
 
+class AssemblyManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().select_related("run")
+
+
 class Assembly(TimeStampedModel, ENADerivedModel):
+    objects = AssemblyManager()
+
     dir = models.CharField(max_length=200, null=True, blank=True)
     run = models.ForeignKey(
         Run, on_delete=models.CASCADE, related_name="assemblies", null=True, blank=True
