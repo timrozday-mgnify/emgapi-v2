@@ -1,6 +1,6 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
-
+from typing import List
 
 class SlurmConfig(BaseModel):
     default_job_status_checks_limit: int = 10

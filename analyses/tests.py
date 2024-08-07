@@ -9,7 +9,7 @@ from .models import Study, Biome, ComputeResourceHeuristic, Assembler
 from ena.models import Study as ENAStudy
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def test_study():
     # Test accessioning
     ena_study = ENAStudy.objects.create(accession="PRJ1", title="Project 1")
@@ -30,7 +30,7 @@ def test_biome_lineage_path_generator():
     )
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def test_biome_hierarchy():
     root: Biome = Biome.objects.create(biome_name="root", path="root")
     engineered: Biome = Biome.objects.create(
@@ -79,14 +79,14 @@ def test_biome_hierarchy():
     assert engineered.children().count() == 2
 
 
-@pytest.mark.django_db
-def test_study_biome_lookups(top_level_biomes, mgnify_study):
+@pytest.mark.django_db(transaction=True)
+def test_study_biome_lookups(top_level_biomes, raw_reads_mgnify_study):
     cont_cult: Biome = Biome.objects.create(
         biome_name="Continuous culture",
         path="root.engineered.bioreactor.continuous_culture",
     )
-    mgnify_study.biome = cont_cult
-    mgnify_study.save()
+    raw_reads_mgnify_study.biome = cont_cult
+    raw_reads_mgnify_study.save()
 
     # something like a lineage lookup:
     eng = Biome.objects.get(path=Biome.lineage_to_path("root:Engineered"))
@@ -95,10 +95,10 @@ def test_study_biome_lookups(top_level_biomes, mgnify_study):
     # (slightly counterintuitive naming)
     eng_studies = Study.objects.filter(biome__path__descendants=eng.path)
     assert eng_studies.count() == 1
-    assert eng_studies.first() == mgnify_study
+    assert eng_studies.first() == raw_reads_mgnify_study
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def test_compute_resource_heuristics(top_level_biomes, assemblers):
     # test CSV importer
     with tempfile.NamedTemporaryFile(mode="w", delete=False, newline="") as temp_csv:
@@ -148,7 +148,7 @@ def test_compute_resource_heuristics(top_level_biomes, assemblers):
         os.remove(temp_csv_name)
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def test_biome_importer(httpx_mock):
     httpx_mock.add_response(
         url=f"http://old.api/v1/biomes?page=1",

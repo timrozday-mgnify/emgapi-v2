@@ -3,6 +3,7 @@ from django.core.management import BaseCommand
 from ena import models as ena_models
 from analyses import models as analyses_models
 
+from emgapiv2.settings import TESTDEVDATA as TestDevData
 
 class Command(BaseCommand):
     help = "Make some development data in the DB"
@@ -18,20 +19,12 @@ class Command(BaseCommand):
         self.make_assemblies(mgnify_study, metaspades_assembler, megehit_assembler)
 
     def make_biomes(self):
-        root = analyses_models.Biome.objects.create(biome_name="root", path="root")
-        host_assoc = analyses_models.Biome.objects.create(
-            biome_name="Host-associated",
-            path=analyses_models.Biome.lineage_to_path("Root:Host-associated"),
-        )
-        engineered = analyses_models.Biome.objects.create(
-            biome_name="Engineered",
-            path=analyses_models.Biome.lineage_to_path("Root:Engineered"),
-        )
-        human = analyses_models.Biome.objects.create(
-            biome_name="Human",
-            path=analyses_models.Biome.lineage_to_path("Root:Host-associated:Human"),
-        )
-        return [root, host_assoc, engineered, human]
+        biomes_list = TestDevData.top_level_biomes
+        biomes = []
+        for biome in biomes_list:
+            biome_obj = analyses_models.Biome.objects.create(biome_name=biome.biome_name, path=biome.path)
+            biomes.append(biome_obj)
+        return biomes
 
     def make_ena_study(self) -> ena_models.Study:
         ena_study, _ = ena_models.Study.objects.get_or_create(

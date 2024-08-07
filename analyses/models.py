@@ -333,7 +333,6 @@ class Assembly(TimeStampedModel, ENADerivedModel):
 
     class Meta:
         verbose_name_plural = "Assemblies"
-
         constraints = [
             models.CheckConstraint(
                 check=Q(reads_study__isnull=False) | Q(assembly_study__isnull=False),

@@ -1,6 +1,5 @@
 import csv
 from datetime import timedelta
-from enum import Enum
 from pathlib import Path
 from typing import List, Any, Union
 
@@ -8,8 +7,6 @@ import django
 django.setup()
 from prefect.artifacts import create_table_artifact
 from django.conf import settings
-from django.db.models import Q
-from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 from django.utils.text import slugify
 
@@ -23,7 +20,6 @@ from workflows.nextflow_utils.samplesheets import (
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 from workflows.prefect_utils.slurm_flow import run_cluster_job, ClusterJobFailedException
 
-import ena.models
 import analyses.models
 from prefect import flow, task, suspend_flow_run, get_run_logger
 
@@ -43,31 +39,32 @@ def get_runs_to_attempt(study: analyses.models.Study) -> List[Union[str, int]]:
             f"status__{analyses.models.Analysis.AnalysisStates.ANALYSIS_COMPLETED}": False,
             f"status__{analyses.models.Analysis.AnalysisStates.ANALYSIS_BLOCKED}": False,
         }
-    ).values_list("id", flat=True)
+    ).filter(run__experiment_type=analyses.models.Run.ExperimentTypes.AMPLICON.value).values_list("id", flat=True)
+    print(f"Got {len(runs_worth_trying)} run to attempt")
     return runs_worth_trying
 
 
 @task(
     log_prints=True,
 )
-def create_analyses(study: analyses.models.Study, runs: List):
-    logger = get_run_logger()
-    analyses = []
+def create_analyses(study: analyses.models.Study, runs: List[str]):
+    analyses_list = []
     for run in runs:
-        try:
-            analysis = analyses.models.Analysis.objects.get_or_create(
-                study=study,
-                sample=run.sample,
-                run=run
-            )
-        except Exception as e:
-            logger.error(f"Command failed for {run} with error: {e}")
-        analyses.append(analysis)
-    return analyses
+        run_obj = analyses.models.Run.objects.get(ena_accessions__contains=run)
+        analysis, created = analyses.models.Analysis.objects.get_or_create(
+            study=study,
+            sample=run_obj.sample,
+            run=run_obj,
+            ena_study=study.ena_study
+        )
+        if created:
+            print(f"Created analyses {analysis} {analysis.run.experiment_type}")
+        analyses_list.append(analysis)
+    return analyses_list
 
 
-@task
-def chunk_list(items: List[Any], chunk_size: int) -> List[List[Any]]:
+@task(log_prints=True)
+def chunk_amplicon_list(items: List[Any], chunk_size: int) -> List[List[Any]]:
     return [items[j: j + chunk_size] for j in range(0, len(items), chunk_size)]
 
 
@@ -89,7 +86,7 @@ def mark_analysis_as_completed(analysis: analyses.models.Analysis):
 @task(
     cache_key_fn=context_agnostic_task_input_hash,
 )
-def make_samplesheet(
+def make_samplesheet_amplicon(
     mgnify_study: analyses.models.Study,
     runs_ids: List[Union[str, int]],
 ) -> Path:
@@ -107,18 +104,18 @@ def make_samplesheet(
         ),
         column_map={
             "sample": SamplesheetColumnSource(
-                lookup_string="run__ena_accessions",
+                lookup_string="ena_accessions",
                 renderer=lambda accessions: accessions[0],
             ),
             "fastq_1": SamplesheetColumnSource(
-                lookup_string="run__metadata__fastq_ftps", renderer=lambda ftps: ftps[0]
+                lookup_string="metadata__fastq_ftps", renderer=lambda ftps: ftps[0]
             ),
             "fastq_2": SamplesheetColumnSource(
-                lookup_string="run__metadata__fastq_ftps",
+                lookup_string="metadata__fastq_ftps",
                 renderer=lambda ftps: ftps[1] if len(ftps) > 1 else "",
             ),
             "single_end": SamplesheetColumnSource(
-                lookup_string="run__metadata__fastq_ftps",
+                lookup_string="metadata__fastq_ftps",
                 renderer=lambda ftps: "false" if len(ftps) > 1 else "true",
             ),
         },
@@ -137,7 +134,10 @@ def make_samplesheet(
     return sample_sheet_tsv
 
 
-@flow
+@flow(
+    name="Run analysis pipeline-v6 in parallel",
+    log_prints=True
+)
 async def perform_amplicons_in_parallel(
     mgnify_study: analyses.models.Study,
     amplicon_ids: List[Union[str, int]],
@@ -146,8 +146,7 @@ async def perform_amplicons_in_parallel(
     amplicon_analyses = analyses.models.Analysis.objects.select_related("run").filter(
         id__in=amplicon_ids
     )
-
-    samplesheet = make_samplesheet(mgnify_study, amplicon_ids)
+    samplesheet = make_samplesheet_amplicon(mgnify_study, amplicon_ids)
 
     async for run in amplicon_analyses:
         mark_analysis_as_started(run)
@@ -185,28 +184,28 @@ async def perform_amplicons_in_parallel(
 @flow(
     name="Run analysis pipeline-v6 on amplicon study",
     log_prints=True,
-    flow_run_name="Analyse amplicon: {accession}",
+    flow_run_name="Analyse amplicon: {study_accession}",
     task_runner=SequentialTaskRunner,
 )
-async def analyse_amplicon_study(accession: str, nextflow_profile: str = "codon_slurm"):
+async def analysis_amplicon_study(study_accession: str, nextflow_profile: str = "codon_slurm"):
     """
     Get a study from ENA, and input it to MGnify.
     Kick off amplicon-v6 pipeline.
-    :param accession: Study accession e.g. PRJxxxxxx
+    :param study_accession: Study accession e.g. PRJxxxxxx
     :param profile: Name of the nextflow profile to use for amplicon-v6.
     """
     # Create/get ENA Study object
-    ena_study = get_study_from_ena(accession)
+    ena_study = get_study_from_ena(study_accession)
     await ena_study.arefresh_from_db()
     print(f"ENA Study is {ena_study.accession}: {ena_study.title}")
 
     # Get a MGnify Study object for this ENA Study
-    mgnify_study = await analyses.models.Study.objects.get_or_create_for_ena_study(accession)
+    mgnify_study = await analyses.models.Study.objects.get_or_create_for_ena_study(study_accession)
     await mgnify_study.arefresh_from_db()
     print(f"MGnify study is {mgnify_study.accession}: {mgnify_study.title}")
 
-    read_runs = get_study_readruns_from_ena(ena_study.accession, limit=5000)
-    print(f"Have {len(read_runs)} from ENA portal API")
+    read_runs = get_study_readruns_from_ena(ena_study.accession, limit=5000, filter_library_strategy="AMPLICON")
+    print(f"Returned {len(read_runs)} run from ENA portal API")
 
     # get or create Analysis for runs
     mgnify_analyses = create_analyses(mgnify_study, read_runs)
@@ -215,10 +214,11 @@ async def analyse_amplicon_study(accession: str, nextflow_profile: str = "codon_
     # Work on chunks of 20 readruns at a time
     # Doing so means we don't use our entire cluster allocation for this study
     chunk_size = 20
-    chunked_runs = chunk_list(runs_to_attempt, chunk_size)
+    chunked_runs = chunk_amplicon_list(runs_to_attempt, chunk_size)
+    print('chunked', chunked_runs)
     for runs_chunk in chunked_runs:
         # launch jobs for all runs in this chunk in a single flow
-        print(f"Working on amplicons: {runs_chunk}")
+        print(f"Working on amplicons: {runs_chunk[0]}-{runs_chunk[len(runs_chunk)-1]}")
         await perform_amplicons_in_parallel(
             mgnify_study,
             runs_chunk,

@@ -15,7 +15,7 @@ RESULT_FORMAT = 'json'
     task_run_name="Get study from ENA: {accession}",
     log_prints=True,
 )
-def get_study_from_ena(accession: str) -> ena.models.Study:
+def get_study_from_ena(accession: str, limit: int = 10) -> ena.models.Study:
     fields = ','.join([
         "study_title",
         "secondary_study_accession"
@@ -25,7 +25,7 @@ def get_study_from_ena(accession: str) -> ena.models.Study:
         return ena.models.Study.objects.get(accession=accession)
     print(f"Will fetch from ENA Portal API Study {accession}")
     portal = httpx.get(
-        f"{ENA_SEARCH_API}?result=study&query=study_accession%3D{accession}%20OR%20secondary_study_accession%3D{accession}&limit=10&format={RESULT_FORMAT}&fields={fields}"
+        f"{ENA_SEARCH_API}?result=study&query=study_accession%3D{accession}%20OR%20secondary_study_accession%3D{accession}&limit={limit}&format={RESULT_FORMAT}&fields={fields}"
     )
     if portal.status_code == httpx.codes.OK:
         s = portal.json()[0]
@@ -51,7 +51,7 @@ def get_study_from_ena(accession: str) -> ena.models.Study:
     task_run_name="Get study readruns from ENA: {accession}",
     log_prints=True,
 )
-def get_study_readruns_from_ena(accession: str, limit: int = 20) -> List[str]:
+def get_study_readruns_from_ena(accession: str, limit: int = 20, filter_library_strategy: str = None) -> List[str]:
     fields = ','.join([
         "sample_accession",
         "sample_title",
@@ -64,8 +64,12 @@ def get_study_readruns_from_ena(accession: str, limit: int = 20) -> List[str]:
 
     print(f"Will fetch study {accession} read-runs from ENA portal API")
     mgys_study = analyses.models.Study.objects.get(ena_study__accession=accession)
+    query = f'query="study_accession={accession} OR secondary_study_accession={accession}'
+    if filter_library_strategy:
+        query += f' AND library_strategy=%22{filter_library_strategy}%22'
+    query += '"'
     portal = httpx.get(
-        f'{ENA_SEARCH_API}?result=read_run&dataPortal=metagenome&format={RESULT_FORMAT}&fields={fields}&query="study_accession={accession} OR secondary_study_accession={accession}"&limit={limit}'
+        f'{ENA_SEARCH_API}?result=read_run&dataPortal=metagenome&format={RESULT_FORMAT}&fields={fields}&{query}&limit={limit}'
     )
 
     if portal.status_code == httpx.codes.OK:
