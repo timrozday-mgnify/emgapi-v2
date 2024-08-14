@@ -12,6 +12,7 @@ from django.conf import settings
 from prefect.artifacts import create_table_artifact
 from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
+import pandas as pd
 
 from emgapiv2.settings import EMG_CONFIG
 from workflows.nextflow_utils.samplesheets import (
@@ -154,7 +155,7 @@ def get_study_readruns_from_ena(accession: str, limit: int = 20) -> List[str]:
                 },
             )
 
-            analyses.models.Run.objects.update_or_create(
+            run, _ = analyses.models.Run.objects.update_or_create(
                 ena_accessions=[read_run["run_accession"]],
                 study=mgys_study,
                 ena_study=mgys_study.ena_study,
@@ -164,8 +165,11 @@ def get_study_readruns_from_ena(accession: str, limit: int = 20) -> List[str]:
                         "library_strategy": read_run["library_strategy"],
                         "library_layout": read_run["library_layout"],
                         "fastq_ftps": list(read_run["fastq_ftp"].split(";")),
-                    }
+                    },
                 },
+            )
+            run.set_experiment_type_by_ena_library_strategy(
+                read_run["library_strategy"]
             )
 
     mgys_study.refresh_from_db()
@@ -183,6 +187,12 @@ def get_or_create_assemblies_for_runs(
     assembly_ids = []
     for read_run in read_runs:
         run = analyses.models.Run.objects.get(ena_accessions__icontains=read_run)
+        if run.experiment_type not in [run.ExperimentTypes.METAGENOMIC]:
+            print(
+                f"Not creating assembly for run {run.first_accession} because it is a {run.experiment_type}"
+            )
+            continue
+
         assembly, created = analyses.models.Assembly.objects.get_or_create(
             run=run, ena_study=study.ena_study, reads_study=study
         )
@@ -281,19 +291,36 @@ def make_samplesheet(
     return sample_sheet_tsv
 
 
-@flow
-async def perform_assemblies_in_parallel(
+@task(
+    cache_key_fn=context_agnostic_task_input_hash,
+)
+def make_samplesheets_for_runs_to_assemble(
     mgnify_study: analyses.models.Study,
-    assembly_ids: List[Union[str, int]],
+    assembler: analyses.models.Assembler,
+    chunk_size: int = 10,
+) -> [Path]:
+    assemblies_to_attempt = get_assemblies_to_attempt(mgnify_study)
+    chunked_assemblies = chunk_list(assemblies_to_attempt, chunk_size)
+
+    sheets = [
+        make_samplesheet(mgnify_study, assembly_chunk, assembler)
+        for assembly_chunk in chunked_assemblies
+    ]
+    return sheets
+
+
+@flow
+async def run_assembler_for_samplesheet(
+    mgnify_study: analyses.models.Study,
+    samplesheet_tsv: Path,
     miassembler_profile: str,
     assembler: analyses.models.Assembler,
     memory_gb: int,
 ):
-    assemblies = analyses.models.Assembly.objects.select_related("run").filter(
-        id__in=assembly_ids
+    samplesheet_df = pd.read_csv(samplesheet_tsv, sep="\t")
+    assemblies = mgnify_study.assemblies_reads.filter(
+        run__ena_accessions__0__in=samplesheet_df["reads_accession"]
     )
-
-    samplesheet = make_samplesheet(mgnify_study, assembly_ids, assembler)
 
     async for assembly in assemblies:
         mark_assembly_as_started(assembly)
@@ -302,16 +329,16 @@ async def perform_assemblies_in_parallel(
         f"nextflow run ebi-metagenomics/miassembler "
         f"-profile {miassembler_profile} "
         f"-resume "
-        f"--samplesheet {samplesheet} "
+        f"--samplesheet {samplesheet_tsv} "
         f"--outdir {mgnify_study.ena_study.accession}_miassembler "
         f"--assembler {assembler.name.lower()} "
         f"{'-with-tower' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''} "
-        f"-name mi-assembler-for-samplesheet-{slugify(samplesheet)[-30:]} "
+        f"-name mi-assembler-for-samplesheet-{slugify(samplesheet_tsv)[-30:]} "
     )
 
     try:
         await run_cluster_job(
-            name=f"Assemble study {mgnify_study.ena_study.accession} via samplesheet {slugify(samplesheet)}",
+            name=f"Assemble study {mgnify_study.ena_study.accession} via samplesheet {slugify(samplesheet_tsv)}",
             command=command,
             expected_time=timedelta(days=5),
             memory=f"{memory_gb}G",
@@ -407,19 +434,11 @@ Also optionally select how much RAM (in GB) to allocate for each nextflow head j
     # assumes latest version...
 
     get_or_create_assemblies_for_runs(mgnify_study, read_runs)
-
-    assemblies_to_attempt = get_assemblies_to_attempt(mgnify_study)
-
-    # Work on chunks of 20 readruns at a time
-    # Doing so means we don't use our entire cluster allocation for this study
-    chunk_size = 20
-    chunked_assemblies = chunk_list(assemblies_to_attempt, chunk_size)
-    for assembly_chunk in chunked_assemblies:
-        # launch jobs for all runs in this chunk in a single flow
-        print(f"Working on assemblies: {assembly_chunk}")
-        await perform_assemblies_in_parallel(
+    samplesheets = make_samplesheets_for_runs_to_assemble(mgnify_study, assembler)
+    for samplesheet in samplesheets:
+        await run_assembler_for_samplesheet(
             mgnify_study,
-            assembly_chunk,
+            samplesheet,
             miassembler_profile,
             assembler,
             assembler_input.memory_gb,
