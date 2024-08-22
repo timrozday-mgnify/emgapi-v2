@@ -20,3 +20,4 @@ deployment/**/auth
 /work/
 /coverage
 /staticfiles
+*env/
