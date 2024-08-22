@@ -199,7 +199,7 @@ def list_assembly_analysis_requests(request):
 
 
 @api.get(
-    "/analysis_requests/{id}",
+    "/analysis_requests/{analysis_request_id}",
     response=MGnifyAssemblyAnalysisRequest,
     tags=[ApiSections.REQUESTS.value],
 )
