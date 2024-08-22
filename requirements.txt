@@ -1,6 +1,6 @@
 django==5.0.4
 django-ninja==1.1.0
-prefect==2.18.3
+prefect==2.20.2
 prefect-shell==0.2.2
 dj-database-url
 psycopg2-binary
@@ -18,3 +18,7 @@ gunicorn==22.0.0
 django-debug-toolbar==4.3.0
 
 biopython==1.83
+
+pymongo==4.8.0
+mysql-connector-python==9.0.0
+SQLAlchemy==2.0.32

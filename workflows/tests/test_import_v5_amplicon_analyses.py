@@ -1,0 +1,85 @@
+import pymongo
+import pytest
+from sqlalchemy import select
+
+from analyses.models import Analysis
+from workflows.data_io_utils.legacy_emg_dbs import LegacyStudy, legacy_emg_db_session
+from workflows.flows.import_v5_amplicon_analyses import import_v5_amplicon_analyses
+from workflows.prefect_utils.testing_utils import run_flow_and_capture_logs
+
+
+def test_legacy_db(in_memory_legacy_emg_db):
+    with in_memory_legacy_emg_db as session:
+        # check fixture is working since it is a bit complicated in itself, as well as the legacy db tables
+        study_select_stmt = select(LegacyStudy).where(LegacyStudy.id == 5000)
+        legacy_study: LegacyStudy = session.scalar(study_select_stmt)
+        assert legacy_study is not None
+        assert legacy_study.centre_name == "MARS"
+
+
+def test_legacy_db_mocker(mock_legacy_emg_db_session):
+    print("the session is ", legacy_emg_db_session)  # Should show the mock
+
+    with legacy_emg_db_session() as session:
+        assert str(session.bind.url) == "sqlite:///:memory:"
+        # check fixture is working since it is a bit complicated in itself, as well as the legacy db tables
+        study_select_stmt = select(LegacyStudy).where(LegacyStudy.id == 5000)
+        legacy_study: LegacyStudy = session.scalar(study_select_stmt)
+        assert legacy_study is not None
+        assert legacy_study.centre_name == "MARS"
+
+
+def test_mongo_taxonomy_mock(mock_mongo_client_for_taxonomy):
+    # check the mongo mock fixture since it is a bit complicated in itself
+    mongo_client = pymongo.MongoClient("mongodb://anything")
+    db = mongo_client["any_db"]
+    taxonomies_collection: pymongo.collection.Collection = db.analysis_job_taxonomy
+    mgya_taxonomies = taxonomies_collection.find_one({"accession": "anything"})
+    assert mgya_taxonomies is not None
+    print(mgya_taxonomies["accession"])
+    assert mgya_taxonomies["accession"] == "MGYA00012345"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_prefect_import_v5_amplicon_analyses_flow(
+    prefect_harness, mock_legacy_emg_db_session, mock_mongo_client_for_taxonomy
+):
+    importer_flow_run = run_flow_and_capture_logs(
+        import_v5_amplicon_analyses,
+        mgys="MGYS00005000",
+    )
+
+    assert "Created analysis MGYA00012345 (V5)" in importer_flow_run.logs
+
+    imported_analysis: Analysis = Analysis.objects.filter(
+        accession="MGYA00012345"
+    ).first()
+    assert imported_analysis is not None
+    assert imported_analysis.study.ena_study.accession == "ERP1"
+    assert imported_analysis.study.first_accession == "ERP1"
+    assert imported_analysis.study.accession == "MGYS00005000"
+    assert imported_analysis.sample.first_accession == "SAMEA1"
+    assert "SAMEA1" in imported_analysis.sample.ena_accessions
+    assert "ERS1" in imported_analysis.sample.ena_accessions
+
+    imported_analysis_with_annos: Analysis = Analysis.objects_and_annotations.get(
+        accession="MGYA00012345"
+    )
+    assert imported_analysis_with_annos is not None
+    tax_annos = imported_analysis_with_annos.annotations.get(Analysis.TAXONOMIES)
+    assert tax_annos is not None
+    assert {
+        "source": "SSU",
+        "assignments": [
+            {"count": 30, "organim": "Archaea:Euks::Something|5.0"},
+            {"count": 40, "organim": "Bacteria|5.0"},
+        ],
+    } in tax_annos
+
+    assert {
+        "source": "LSU",
+        "assignments": [
+            {"count": 10, "organim": "Archaea:Euks::Something|5.0"},
+            {"count": 20, "organim": "Bacteria|5.0"},
+        ],
+    } in tax_annos

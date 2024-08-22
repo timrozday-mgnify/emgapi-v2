@@ -1,12 +1,12 @@
 import logging
 import os
 import re
+from enum import Enum
 from typing import ClassVar
 
 from django.core.exceptions import (
     MultipleObjectsReturned,
     ObjectDoesNotExist,
-    ValidationError,
 )
 from django.db import models
 from django.db.models import Q, F, Value, CharField, JSONField, AutoField
@@ -235,6 +235,15 @@ class Analysis(MGnifyAutomatedModel, TimeStampedModel, VisibilityControlledModel
     ANTISMASH_GENE_CLUSTERS = "antismash_gene_clusters"
     PFAMS = "pfams"
 
+    TAXONOMY_SOURCE = "source"
+    TAXONOMY_ASSIGNMENTS = "assignments"
+
+    class TaxonomySources(Enum):
+        SSU: str = "SSU"
+        LSU: str = "LSU"
+        ITS_ONE_DB: str = "ITSoneDB"
+        UNITE: str = "UNITE"
+
     suppression_following_fields = ["sample"]
     study = models.ForeignKey(Study, on_delete=models.CASCADE, to_field="accession")
     results_dir = models.CharField(max_length=100)
@@ -258,8 +267,19 @@ class Analysis(MGnifyAutomatedModel, TimeStampedModel, VisibilityControlledModel
 
     annotations = models.JSONField(default=default_annotations.__func__)
 
+    class PipelineVersions(models.TextChoices):
+        v5 = "V5", "v5.0"
+        v6 = "V6", "v6.0"
+
+    pipeline_version = models.CharField(
+        choices=PipelineVersions, max_length=5, default=PipelineVersions.v6
+    )
+
     class Meta:
         verbose_name_plural = "Analyses"
+
+    def __str__(self):
+        return f"{self.accession} ({self.pipeline_version})"
 
 
 class AnalysedContig(TimeStampedModel):
