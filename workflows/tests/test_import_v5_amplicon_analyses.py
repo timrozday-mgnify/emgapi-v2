@@ -42,7 +42,10 @@ def test_mongo_taxonomy_mock(mock_mongo_client_for_taxonomy):
 
 @pytest.mark.django_db(transaction=True)
 def test_prefect_import_v5_amplicon_analyses_flow(
-    prefect_harness, mock_legacy_emg_db_session, mock_mongo_client_for_taxonomy
+    prefect_harness,
+    mock_legacy_emg_db_session,
+    mock_mongo_client_for_taxonomy,
+    ninja_api_client,
 ):
     importer_flow_run = run_flow_and_capture_logs(
         import_v5_amplicon_analyses,
@@ -61,25 +64,50 @@ def test_prefect_import_v5_amplicon_analyses_flow(
     assert imported_analysis.sample.first_accession == "SAMEA1"
     assert "SAMEA1" in imported_analysis.sample.ena_accessions
     assert "ERS1" in imported_analysis.sample.ena_accessions
+    assert imported_analysis.study.biome.biome_name == "Martian soil"
 
     imported_analysis_with_annos: Analysis = Analysis.objects_and_annotations.get(
         accession="MGYA00012345"
     )
     assert imported_analysis_with_annos is not None
     tax_annos = imported_analysis_with_annos.annotations.get(Analysis.TAXONOMIES)
-    assert tax_annos is not None
-    assert {
-        "source": "SSU",
-        "assignments": [
-            {"count": 30, "organim": "Archaea:Euks::Something|5.0"},
-            {"count": 40, "organim": "Bacteria|5.0"},
+    assert tax_annos == {
+        "ssu": [
+            {"count": 30, "organism": "Archaea:Euks::Something|5.0"},
+            {"count": 40, "organism": "Bacteria|5.0"},
         ],
-    } in tax_annos
+        "lsu": [
+            {"count": 10, "organism": "Archaea:Euks::Something|5.0"},
+            {"count": 20, "organism": "Bacteria|5.0"},
+        ],
+        "its_one_db": None,
+        "unite": None,
+    }
 
-    assert {
-        "source": "LSU",
-        "assignments": [
-            {"count": 10, "organim": "Archaea:Euks::Something|5.0"},
-            {"count": 20, "organim": "Bacteria|5.0"},
-        ],
-    } in tax_annos
+    response = ninja_api_client.get("/analyses/MGYA00012345")
+    assert response.status_code == 200
+
+    json_response = response.json()
+    assert json_response["study_accession"] == "MGYS00005000"
+
+    response = ninja_api_client.get(
+        "/analyses/MGYA00012345/annotations/taxonomies__ssu"
+    )
+    assert response.status_code == 200
+
+    json_response = response.json()
+    assert json_response["items"] == [
+        {"count": 30, "organism": "Archaea:Euks::Something|5.0", "description": None},
+        {"count": 40, "organism": "Bacteria|5.0", "description": None},
+    ]
+
+    response = ninja_api_client.get(
+        "/analyses/MGYA00012345/annotations/taxonomies__lsu"
+    )
+    assert response.status_code == 200
+
+    json_response = response.json()
+    assert json_response["items"] == [
+        {"count": 10, "organism": "Archaea:Euks::Something|5.0", "description": None},
+        {"count": 20, "organism": "Bacteria|5.0", "description": None},
+    ]

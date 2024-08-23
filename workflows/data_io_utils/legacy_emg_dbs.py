@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from typing import Any
+from typing import Optional, List
 
 import pymongo
 from django.conf import settings
@@ -13,8 +13,6 @@ from sqlalchemy.orm import (
     sessionmaker,
 )
 
-from analyses.models import Analysis
-
 
 class LegacyEMGBase(DeclarativeBase):
     """
@@ -27,6 +25,16 @@ class LegacyEMGBase(DeclarativeBase):
     """
 
     pass
+
+
+class LegacyBiome(LegacyEMGBase):
+    __tablename__ = "BIOME_HIERARCHY_TREE"
+
+    id: Mapped[int] = mapped_column("BIOME_ID", Integer, primary_key=True)
+    lineage: Mapped[str] = mapped_column("LINEAGE", String)
+    biome_name: Mapped[str] = mapped_column("BIOME_NAME", String)
+
+    studies: Mapped["LegacyStudy"] = relationship("LegacyStudy", back_populates="biome")
 
 
 class LegacyStudy(LegacyEMGBase):
@@ -44,6 +52,11 @@ class LegacyStudy(LegacyEMGBase):
     analysis_jobs: Mapped[list["LegacyAnalysisJob"]] = relationship(
         back_populates="study"
     )
+
+    biome_id: Mapped[int] = mapped_column(
+        "BIOME_ID", ForeignKey("BIOME_HIERARCHY_TREE.BIOME_ID")
+    )
+    biome: Mapped["LegacyBiome"] = relationship("LegacyBiome", back_populates="studies")
 
 
 class LegacySample(LegacyEMGBase):
@@ -81,7 +94,11 @@ class LegacyAnalysisJob(LegacyEMGBase):
 
 
 @task(task_run_name="Get taxonomy for {mgya} from legacy mongo")
-def get_taxonomy_from_api_v1_mongo(mgya: str) -> dict[Analysis.TaxonomySources, Any]:
+def get_taxonomy_from_api_v1_mongo(
+    mgya: str,
+) -> dict["analyses.models.Analysis.TaxonomySources", Optional[List]]:
+    from analyses.models import Analysis  # prevent importing before apps ready
+
     logger = get_run_logger()
     mongo_dsn = settings.EMG_CONFIG.legacy_service.emg_mongo_dsn
     mongo_client = pymongo.MongoClient(mongo_dsn)
@@ -96,10 +113,10 @@ def get_taxonomy_from_api_v1_mongo(mgya: str) -> dict[Analysis.TaxonomySources, 
         return {}
 
     return {
-        Analysis.TaxonomySources.SSU: mgya_taxonomies.get("taxonomy_ssu"),
-        Analysis.TaxonomySources.LSU: mgya_taxonomies.get("taxonomy_lsu"),
-        Analysis.TaxonomySources.ITS_ONE_DB: mgya_taxonomies.get("itsonedb"),
-        Analysis.TaxonomySources.UNITE: mgya_taxonomies.get("unite"),
+        Analysis.TaxonomySources.SSU.value: mgya_taxonomies.get("taxonomy_ssu"),
+        Analysis.TaxonomySources.LSU.value: mgya_taxonomies.get("taxonomy_lsu"),
+        Analysis.TaxonomySources.ITS_ONE_DB.value: mgya_taxonomies.get("itsonedb"),
+        Analysis.TaxonomySources.UNITE.value: mgya_taxonomies.get("unite"),
     }
 
 

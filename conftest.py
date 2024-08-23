@@ -5,6 +5,8 @@ from unittest import mock
 import pymongo
 import pytest
 from unittest.mock import patch, AsyncMock
+
+from ninja.testing import TestClient
 from prefect.testing.utilities import prefect_test_harness
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -12,11 +14,13 @@ from sqlalchemy.orm import sessionmaker
 import analyses.models as mg_models
 import ena.models as ena_models
 from analyses.models import Assembler
+from emgapiv2.api import api
 from workflows.data_io_utils.legacy_emg_dbs import (
     LegacyEMGBase,
     LegacyStudy,
     LegacyAnalysisJob,
     LegacySample,
+    LegacyBiome,
 )
 from workflows.prefect_utils.slurm_flow import SlurmStatus
 
@@ -164,6 +168,13 @@ def in_memory_legacy_emg_db():
     Session = sessionmaker(bind=engine)
     session = Session()
 
+    biome = LegacyBiome(
+        id=1,
+        biome_name="Martian soil",
+        lineage="root:Environmental:Planetary:Martian soil",
+    )
+    session.add(biome)
+
     study = LegacyStudy(
         id=5000,
         centre_name="MARS",
@@ -172,6 +183,7 @@ def in_memory_legacy_emg_db():
         is_private=False,
         project_id="PRJ1",
         is_suppressed=False,
+        biome_id=1,
     )
     session.add(study)
 
@@ -226,12 +238,12 @@ def mock_mongo_client_for_taxonomy(monkeypatch):
         "job_id": "12345",
         "pipeline_version": "5.0",
         "taxonomy_lsu": [
-            {"count": 10, "organim": "Archaea:Euks::Something|5.0"},
-            {"count": 20, "organim": "Bacteria|5.0"},
+            {"count": 10, "organism": "Archaea:Euks::Something|5.0"},
+            {"count": 20, "organism": "Bacteria|5.0"},
         ],
         "taxonomy_ssu": [
-            {"count": 30, "organim": "Archaea:Euks::Something|5.0"},
-            {"count": 40, "organim": "Bacteria|5.0"},
+            {"count": 30, "organism": "Archaea:Euks::Something|5.0"},
+            {"count": 40, "organism": "Bacteria|5.0"},
         ],
     }
 
@@ -246,3 +258,8 @@ def mock_mongo_client_for_taxonomy(monkeypatch):
     monkeypatch.setattr(pymongo, "MongoClient", lambda *args, **kwargs: mock_client)
 
     return mock_client
+
+
+@pytest.fixture(scope="session")
+def ninja_api_client():
+    yield TestClient(api)

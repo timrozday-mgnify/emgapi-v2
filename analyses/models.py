@@ -141,7 +141,7 @@ class Biome(TreeModel):
     @staticmethod
     def lineage_to_path(lineage: str) -> str:
         """
-        E.g. "root:Host-associated:Human:Digestive system:pañal" -> root.host-associated.human.digestive_system:paal
+        E.g. "root:Host-associated:Human:Digestive system:estómago" -> root.host-associated.human.digestive_system:estmago
         :param lineage: Lineage string in colon-separated form.
         :return: Lineage as a dot-separated path suitable for a postgres ltree field (alphanumeric and _ only, nospaced)
         """
@@ -231,18 +231,21 @@ class Analysis(MGnifyAutomatedModel, TimeStampedModel, VisibilityControlledModel
     INTERPRO_IDENTIFIERS = "interpro_identifiers"
     KEGG_MODULES = "kegg_modules"
     KEGG_ORTHOLOGS = "kegg_orthologs"
-    TAXONOMIES = "taxonomies"
     ANTISMASH_GENE_CLUSTERS = "antismash_gene_clusters"
     PFAMS = "pfams"
 
-    TAXONOMY_SOURCE = "source"
-    TAXONOMY_ASSIGNMENTS = "assignments"
+    TAXONOMIES = "taxonomies"
 
     class TaxonomySources(Enum):
-        SSU: str = "SSU"
-        LSU: str = "LSU"
-        ITS_ONE_DB: str = "ITSoneDB"
-        UNITE: str = "UNITE"
+        SSU: str = "ssu"
+        LSU: str = "lsu"
+        ITS_ONE_DB: str = "its_one_db"
+        UNITE: str = "unite"
+
+    TAXONOMIES_SSU = f"{TAXONOMIES}__{TaxonomySources.SSU.value}"
+    TAXONOMIES_LSU = f"{TAXONOMIES}__{TaxonomySources.LSU.value}"
+    TAXONOMIES_ITS_ONE_DB = f"{TAXONOMIES}__{TaxonomySources.ITS_ONE_DB.value}"
+    TAXONOMIES_UNITE = f"{TAXONOMIES}__{TaxonomySources.UNITE.value}"
 
     suppression_following_fields = ["sample"]
     study = models.ForeignKey(Study, on_delete=models.CASCADE, to_field="accession")

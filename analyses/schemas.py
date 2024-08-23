@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from enum import Enum
 from typing import Optional, List
 
@@ -38,7 +40,8 @@ class MGnifyAnalysis(ModelSchema):
 
 class MGnifyAnalysisTypedAnnotation(Schema):
     count: int
-    description: str
+    description: Optional[str] = None  # for functional
+    organism: Optional[str] = None  # for taxonomic
 
 
 class MGnifyAnalysisWithAnnotations(MGnifyAnalysis):
@@ -68,7 +71,10 @@ class MGnifyFunctionalAnalysisAnnotationType(Enum):
     interpro_identifiers: str = analyses.models.Analysis.INTERPRO_IDENTIFIERS
     kegg_modules: str = analyses.models.Analysis.KEGG_MODULES
     kegg_orthologs: str = analyses.models.Analysis.KEGG_ORTHOLOGS
-    taxonomies: str = analyses.models.Analysis.TAXONOMIES
+    taxonomies_ssu: str = analyses.models.Analysis.TAXONOMIES_SSU
+    taxonomies_lsu: str = analyses.models.Analysis.TAXONOMIES_LSU
+    taxonomies_itsonedb: str = analyses.models.Analysis.TAXONOMIES_ITS_ONE_DB
+    taxonomies_units: str = analyses.models.Analysis.TAXONOMIES_UNITE
     antismash_gene_clusters: str = analyses.models.Analysis.ANTISMASH_GENE_CLUSTERS
     pfams: str = analyses.models.Analysis.PFAMS
 

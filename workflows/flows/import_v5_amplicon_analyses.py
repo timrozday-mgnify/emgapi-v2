@@ -3,21 +3,24 @@ from prefect import flow, task, get_run_logger
 from prefect.task_runners import SequentialTaskRunner
 from sqlalchemy import select
 
+django.setup()
+
 from workflows.data_io_utils.legacy_emg_dbs import (
     LegacyStudy,
     LegacySample,
     get_taxonomy_from_api_v1_mongo,
     legacy_emg_db_session,
+    LegacyBiome,
 )
 
-django.setup()
-
 import ena.models
-from analyses.models import Analysis, Study, Sample
+from analyses.models import Analysis, Study, Sample, Biome
 
 
 @task
-def make_study_from_legacy_emg_db(legacy_study: LegacyStudy) -> Study:
+def make_study_from_legacy_emg_db(
+    legacy_study: LegacyStudy, legacy_biome: LegacyBiome
+) -> Study:
     logger = get_run_logger()
 
     ena_study, created = ena.models.Study.objects.get_or_create(
@@ -30,13 +33,20 @@ def make_study_from_legacy_emg_db(legacy_study: LegacyStudy) -> Study:
     if created:
         logger.warning(f"Created new ENA study object {ena_study}")
 
+    biome, created = Biome.objects.get_or_create(
+        path=Biome.lineage_to_path(legacy_biome.lineage),
+        defaults={"biome_name": legacy_biome.biome_name},
+    )
+    if created:
+        logger.warning(f"Created new Biome object {biome}")
+
     mg_study, created = Study.objects.get_or_create(
         id=legacy_study.id,
         defaults={
             "ena_study": ena_study,
             "title": legacy_study.study_name,
             "ena_accessions": [legacy_study.ext_study_id, legacy_study.project_id],
-            #     TODO: biome
+            "biome": biome,
         },
     )
     if created:
@@ -66,7 +76,6 @@ def make_sample_from_legacy_emg_db(legacy_sample: LegacySample, study: Study) ->
                 legacy_sample.primary_accession,
                 legacy_sample.ext_sample_id,
             ],
-            #     TODO: biome
         },
     )
     if created:
@@ -95,8 +104,9 @@ def import_v5_amplicon_analyses(mgys: str):
         study_select_stmt = select(LegacyStudy).where(LegacyStudy.id == study_id)
         legacy_study: LegacyStudy = session.scalar(study_select_stmt)
         logger.info(f"Got legacy study {legacy_study}")
+        legacy_biome = legacy_study.biome
 
-        study = make_study_from_legacy_emg_db(legacy_study)
+        study = make_study_from_legacy_emg_db(legacy_study, legacy_biome)
 
         for legacy_analysis in legacy_study.analysis_jobs:
             legacy_sample = legacy_analysis.sample
@@ -119,8 +129,5 @@ def import_v5_amplicon_analyses(mgys: str):
                 logger.warning(f"Updated analysis {analysis}")
 
             taxonomy = get_taxonomy_from_api_v1_mongo(analysis.accession)
-            analysis.annotations[analysis.TAXONOMIES] = [
-                {analysis.TAXONOMY_SOURCE: k.value, analysis.TAXONOMY_ASSIGNMENTS: v}
-                for k, v in taxonomy.items()
-            ]
+            analysis.annotations[Analysis.TAXONOMIES] = taxonomy
             analysis.save()
