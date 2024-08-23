@@ -96,6 +96,10 @@ def import_v5_amplicon_analyses(mgys: str):
     It connects to the legacy Mongo database server directly to copy data (it is big),
     but uses a TSV dump file of the legacy MySQL db (it is quite small).
     """
+
+    # TODO: import "download" files, either as per API v1 (serve some file content from fs)
+    # or import content into DB for things like QC
+
     logger = get_run_logger()
 
     study_id = int(mgys.upper().lstrip("MGYS"))
