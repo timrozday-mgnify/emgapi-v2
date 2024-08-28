@@ -74,7 +74,7 @@ def get_study_readruns_from_ena(
         query += f" AND library_strategy=%22{filter_library_strategy}%22"
     query += '"'
     portal = httpx.get(
-        f"{ENA_SEARCH_API}?result=read_run&dataPortal=metagenome&format={RESULT_FORMAT}&fields={fields}&{query}&limit={limit}"
+        f"{EMG_CONFIG.ena.portal_search_api}?result=read_run&dataPortal=metagenome&format={RESULT_FORMAT}&fields={fields}&{query}&limit={limit}"
     )
 
     if portal.status_code == httpx.codes.OK:
