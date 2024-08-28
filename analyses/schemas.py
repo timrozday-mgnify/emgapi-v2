@@ -74,7 +74,8 @@ class MGnifyFunctionalAnalysisAnnotationType(Enum):
     taxonomies_ssu: str = analyses.models.Analysis.TAXONOMIES_SSU
     taxonomies_lsu: str = analyses.models.Analysis.TAXONOMIES_LSU
     taxonomies_itsonedb: str = analyses.models.Analysis.TAXONOMIES_ITS_ONE_DB
-    taxonomies_units: str = analyses.models.Analysis.TAXONOMIES_UNITE
+    taxonomies_unite: str = analyses.models.Analysis.TAXONOMIES_UNITE
+    taxonomies_pr2: str = analyses.models.Analysis.TAXONOMIES_PR2
     antismash_gene_clusters: str = analyses.models.Analysis.ANTISMASH_GENE_CLUSTERS
     pfams: str = analyses.models.Analysis.PFAMS
 

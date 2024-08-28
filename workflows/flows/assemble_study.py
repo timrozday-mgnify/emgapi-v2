@@ -21,6 +21,10 @@ from workflows.nextflow_utils.samplesheets import (
     SamplesheetColumnSource,
 )
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
+from workflows.ena_utils.ena_api_requests import (
+    get_study_from_ena,
+    get_study_readruns_from_ena,
+)
 from workflows.prefect_utils.slurm_flow import (
     run_cluster_job,
     ClusterJobFailedException,
@@ -50,36 +54,6 @@ def get_memory_for_assembler(
         heuristic = assembler_heuristics.filter(biome=biome_to_try).first()
         if heuristic:
             return heuristic.memory_gb
-
-
-@task(
-    retries=2,
-    cache_key_fn=context_agnostic_task_input_hash,
-    task_run_name="Get study from ENA: {accession}",
-    log_prints=True,
-)
-def get_study_from_ena(accession: str) -> ena.models.Study:
-    if ena.models.Study.objects.filter(accession=accession).exists():
-        return ena.models.Study.objects.get(accession=accession)
-    print(f"Will fetch from ENA Portal API Study {accession}")
-    portal = httpx.get(
-        f"https://www.ebi.ac.uk/ena/portal/api/search?result=study&query=study_accession%3D{accession}%20OR%20secondary_study_accession%3D{accession}&limit=10&format=json&fields=study_title,secondary_study_accession"
-    )
-    if portal.status_code == httpx.codes.OK:
-        s = portal.json()[0]
-        primary_accession: str = s["study_accession"]
-        secondary_accession: str = s["secondary_study_accession"]
-        study, created = ena.models.Study.objects.get_or_create(
-            accession=primary_accession,
-            defaults={
-                "title": portal.json()[0]["study_title"],
-                "additional_accessions": [secondary_accession],
-                # TODO: more metadata
-            },
-        )
-        return study
-    else:
-        print(f"Bad status! {portal.status_code} {portal}")
 
 
 @task(log_prints=True)

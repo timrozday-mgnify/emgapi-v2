@@ -219,99 +219,6 @@ class AnalysisManagerIncludingAnnotations(models.Manager):
         return super().get_queryset()
 
 
-class Analysis(MGnifyAutomatedModel, TimeStampedModel, VisibilityControlledModel):
-    objects = AnalysisManagerDeferringAnnotations()
-    objects_and_annotations = AnalysisManagerIncludingAnnotations()
-
-    accession = MGnifyAccessionField(accession_prefix="MGYA", accession_length=8)
-
-    GENOME_PROPERTIES = "genome_properties"
-    GO_TERMS = "go_terms"
-    GO_SLIMS = "go_slims"
-    INTERPRO_IDENTIFIERS = "interpro_identifiers"
-    KEGG_MODULES = "kegg_modules"
-    KEGG_ORTHOLOGS = "kegg_orthologs"
-    ANTISMASH_GENE_CLUSTERS = "antismash_gene_clusters"
-    PFAMS = "pfams"
-
-    TAXONOMIES = "taxonomies"
-
-    class TaxonomySources(Enum):
-        SSU: str = "ssu"
-        LSU: str = "lsu"
-        ITS_ONE_DB: str = "its_one_db"
-        UNITE: str = "unite"
-
-    TAXONOMIES_SSU = f"{TAXONOMIES}__{TaxonomySources.SSU.value}"
-    TAXONOMIES_LSU = f"{TAXONOMIES}__{TaxonomySources.LSU.value}"
-    TAXONOMIES_ITS_ONE_DB = f"{TAXONOMIES}__{TaxonomySources.ITS_ONE_DB.value}"
-    TAXONOMIES_UNITE = f"{TAXONOMIES}__{TaxonomySources.UNITE.value}"
-
-    suppression_following_fields = ["sample"]
-    study = models.ForeignKey(Study, on_delete=models.CASCADE, to_field="accession")
-    results_dir = models.CharField(max_length=100)
-    sample = models.ForeignKey(
-        Sample, on_delete=models.CASCADE, related_name="analyses"
-    )
-
-    @staticmethod
-    def default_annotations():
-        return {
-            Analysis.GENOME_PROPERTIES: [],
-            Analysis.GO_TERMS: [],
-            Analysis.GO_SLIMS: [],
-            Analysis.INTERPRO_IDENTIFIERS: [],
-            Analysis.KEGG_MODULES: [],
-            Analysis.KEGG_ORTHOLOGS: [],
-            Analysis.TAXONOMIES: [],
-            Analysis.ANTISMASH_GENE_CLUSTERS: [],
-            Analysis.PFAMS: [],
-        }
-
-    annotations = models.JSONField(default=default_annotations.__func__)
-
-    class PipelineVersions(models.TextChoices):
-        v5 = "V5", "v5.0"
-        v6 = "V6", "v6.0"
-
-    pipeline_version = models.CharField(
-        choices=PipelineVersions, max_length=5, default=PipelineVersions.v6
-    )
-
-    class Meta:
-        verbose_name_plural = "Analyses"
-
-    def __str__(self):
-        return f"{self.accession} ({self.pipeline_version})"
-
-
-class AnalysedContig(TimeStampedModel):
-    analysis = models.ForeignKey(Analysis, on_delete=models.CASCADE)
-    contig_id = models.CharField(max_length=255)
-    coverage = models.FloatField()
-    length = models.IntegerField()
-
-    PFAMS = "pfams"
-    KEGGS = "keggs"
-    INTERPROS = "interpros"
-    COGS = "cogs"
-    GOS = "gos"
-    ANTISMASH_GENE_CLUSTERS = "antismash_gene_clusters"
-
-    @staticmethod
-    def default_annotations():
-        return {
-            AnalysedContig.PFAMS: [],
-            AnalysedContig.KEGGS: [],
-            AnalysedContig.INTERPROS: [],
-            AnalysedContig.COGS: [],
-            AnalysedContig.GOS: [],
-            AnalysedContig.ANTISMASH_GENE_CLUSTERS: [],
-        }
-
-    annotations = models.JSONField(default=default_annotations.__func__)
-
-
 class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
     class CommonMetadataKeys:
         INSTRUMENT_PLATFORM = "instrument_platform"
@@ -336,22 +243,15 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
     study = models.ForeignKey(Study, on_delete=models.CASCADE, related_name="runs")
     sample = models.ForeignKey(Sample, on_delete=models.CASCADE, related_name="runs")
 
-    class RunStates:
-        ANALYSIS_STARTED = "analysis_started"
-        ANALYSIS_COMPLETED = "analysis_completed"
+    @property
+    def latest_analysis(self) -> "Analysis":
+        latest_analysis: Analysis = self.analyses.order_by("-updated_at").first()
+        return latest_analysis
 
-        @classmethod
-        def default_status(cls):
-            return {
-                cls.ANALYSIS_STARTED: False,
-                cls.ANALYSIS_COMPLETED: False,
-            }
-
-    status = models.JSONField(default=RunStates.default_status, null=True, blank=True)
-
-    def mark_status(self, status: RunStates, set_status_as: bool = True):
-        self.status[status] = set_status_as
-        return self.save()
+    @property
+    def latest_analysis_status(self) -> dict["Analysis.AnalysisStates", bool]:
+        latest_analysis: Analysis = self.latest_analysis
+        return latest_analysis.status
 
     def set_experiment_type_by_ena_library_strategy(self, ena_library_strategy: str):
         if ena_library_strategy.lower() == "rna-seq":
@@ -441,8 +341,6 @@ class Assembly(TimeStampedModel, ENADerivedModel):
         ASSEMBLY_UPLOADED = "assembly_uploaded"
         ASSEMBLY_UPLOAD_FAILED = "assembly_upload_failed"
         ASSEMBLY_UPLOAD_BLOCKED = "assembly_upload_blocked"
-        ANALYSIS_STARTED = "analysis_started"
-        ANALYSIS_COMPLETED = "analysis_completed"
 
         @classmethod
         def default_status(cls):
@@ -451,8 +349,6 @@ class Assembly(TimeStampedModel, ENADerivedModel):
                 cls.ASSEMBLY_FAILED: False,
                 cls.ASSEMBLY_COMPLETED: False,
                 cls.ASSEMBLY_BLOCKED: False,
-                cls.ANALYSIS_STARTED: False,
-                cls.ANALYSIS_COMPLETED: False,
                 cls.ASSEMBLY_UPLOADED: False,
                 cls.ASSEMBLY_UPLOAD_FAILED: False,
                 cls.ASSEMBLY_UPLOAD_BLOCKED: False,
@@ -473,7 +369,6 @@ class Assembly(TimeStampedModel, ENADerivedModel):
 
     class Meta:
         verbose_name_plural = "Assemblies"
-
         constraints = [
             models.CheckConstraint(
                 check=Q(reads_study__isnull=False) | Q(assembly_study__isnull=False),
@@ -565,3 +460,133 @@ class ComputeResourceHeuristic(TimeStampedModel):
             return f"ComputeResourceHeuristic {self.id} (Use {self.memory_gb:.0f} GB to assemble {self.biome} with {self.assembler})"
         else:
             return f"ComputeResourceHeuristic {self.id ({self.process})}"
+
+
+class Analysis(MGnifyAutomatedModel, TimeStampedModel, VisibilityControlledModel):
+    objects = AnalysisManagerDeferringAnnotations()
+    objects_and_annotations = AnalysisManagerIncludingAnnotations()
+
+    accession = MGnifyAccessionField(accession_prefix="MGYA", accession_length=8)
+
+    suppression_following_fields = ["sample"]
+    study = models.ForeignKey(
+        Study, on_delete=models.CASCADE, to_field="accession", related_name="analyses"
+    )
+    results_dir = models.CharField(max_length=100)
+    sample = models.ForeignKey(
+        Sample, on_delete=models.CASCADE, related_name="analyses"
+    )
+    run = models.ForeignKey(
+        Run, on_delete=models.CASCADE, null=True, blank=True, related_name="analyses"
+    )
+    assembly = models.ForeignKey(
+        Assembly,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="analyses",
+    )
+
+    GENOME_PROPERTIES = "genome_properties"
+    GO_TERMS = "go_terms"
+    GO_SLIMS = "go_slims"
+    INTERPRO_IDENTIFIERS = "interpro_identifiers"
+    KEGG_MODULES = "kegg_modules"
+    KEGG_ORTHOLOGS = "kegg_orthologs"
+    ANTISMASH_GENE_CLUSTERS = "antismash_gene_clusters"
+    PFAMS = "pfams"
+
+    TAXONOMIES = "taxonomies"
+
+    class TaxonomySources(Enum):
+        SSU: str = "ssu"
+        LSU: str = "lsu"
+        ITS_ONE_DB: str = "its_one_db"
+        UNITE: str = "unite"
+        PR2: str = "pr2"
+
+    TAXONOMIES_SSU = f"{TAXONOMIES}__{TaxonomySources.SSU.value}"
+    TAXONOMIES_LSU = f"{TAXONOMIES}__{TaxonomySources.LSU.value}"
+    TAXONOMIES_ITS_ONE_DB = f"{TAXONOMIES}__{TaxonomySources.ITS_ONE_DB.value}"
+    TAXONOMIES_UNITE = f"{TAXONOMIES}__{TaxonomySources.UNITE.value}"
+    TAXONOMIES_PR2 = f"{TAXONOMIES}__{TaxonomySources.PR2.value}"
+
+    @staticmethod
+    def default_annotations():
+        return {
+            Analysis.GENOME_PROPERTIES: [],
+            Analysis.GO_TERMS: [],
+            Analysis.GO_SLIMS: [],
+            Analysis.INTERPRO_IDENTIFIERS: [],
+            Analysis.KEGG_MODULES: [],
+            Analysis.KEGG_ORTHOLOGS: [],
+            Analysis.TAXONOMIES: [],
+            Analysis.ANTISMASH_GENE_CLUSTERS: [],
+            Analysis.PFAMS: [],
+        }
+
+    annotations = models.JSONField(default=default_annotations.__func__)
+
+    class PipelineVersions(models.TextChoices):
+        v5 = "V5", "v5.0"
+        v6 = "V6", "v6.0"
+
+    pipeline_version = models.CharField(
+        choices=PipelineVersions, max_length=5, default=PipelineVersions.v6
+    )
+
+    class AnalysisStates:
+        ANALYSIS_STARTED = "analysis_started"
+        ANALYSIS_COMPLETED = "analysis_completed"
+        ANALYSIS_BLOCKED = "analysis_blocked"
+        ANALYSIS_FAILED = "analysis_failed"
+
+        @classmethod
+        def default_status(cls):
+            return {
+                cls.ANALYSIS_STARTED: False,
+                cls.ANALYSIS_COMPLETED: False,
+                cls.ANALYSIS_BLOCKED: False,
+                cls.ANALYSIS_FAILED: False,
+            }
+
+    status = models.JSONField(
+        default=AnalysisStates.default_status, null=True, blank=True
+    )
+
+    def mark_status(self, status: AnalysisStates, set_status_as: bool = True):
+        self.status[status] = set_status_as
+        return self.save()
+
+    class Meta:
+        verbose_name_plural = "Analyses"
+
+    def __str__(self):
+        return f"{self.accession} ({self.pipeline_version})"
+
+
+class AnalysedContig(TimeStampedModel):
+    analysis = models.ForeignKey(Analysis, on_delete=models.CASCADE)
+    contig_id = models.CharField(max_length=255)
+    coverage = models.FloatField()
+    length = models.IntegerField()
+
+    PFAMS = "pfams"
+    KEGGS = "keggs"
+    INTERPROS = "interpros"
+    COGS = "cogs"
+    GOS = "gos"
+    ANTISMASH_GENE_CLUSTERS = "antismash_gene_clusters"
+
+    @staticmethod
+    def default_annotations():
+        return {
+            AnalysedContig.PFAMS: [],
+            AnalysedContig.KEGGS: [],
+            AnalysedContig.INTERPROS: [],
+            AnalysedContig.COGS: [],
+            AnalysedContig.GOS: [],
+            AnalysedContig.ANTISMASH_GENE_CLUSTERS: [],
+        }
+
+    annotations = models.JSONField(default=default_annotations.__func__)

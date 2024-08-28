@@ -69,8 +69,10 @@ tasks:
 
   make-dev-data:
     desc: "Populate the app database with some demo data for development purposes"
-    prompt: "This will delete all data in the database! Are you sure?"
     cmds:
-      - docker compose run app flush
-      - docker compose run app make_dev_data
+      - docker compose --profile all down
+      - docker volume rm -f emgapiv2_appdb  # force so that no error if volume doesn't exist.
+      - docker compose run --entrypoint /bin/bash app -c "pytest -m dev_data_maker"  # dumps a json to dev-db.json
+      - docker compose run app migrate
+      - docker compose run app loaddata dev-db.json
       - docker compose run app createsuperuser --username emgdev --email emg@example.org

@@ -82,6 +82,7 @@ def test_prefect_import_v5_amplicon_analyses_flow(
         ],
         "its_one_db": None,
         "unite": None,
+        "pr2": None,
     }
 
     response = ninja_api_client.get("/analyses/MGYA00012345")

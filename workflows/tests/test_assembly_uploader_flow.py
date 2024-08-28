@@ -2,10 +2,8 @@ import os
 import pytest
 from unittest.mock import patch
 import analyses.models as mg_models
-import ena.models as ena_models
 from workflows.flows.assembly_uploader import assembly_uploader
 from workflows.prefect_utils.testing_utils import (
-    run_flow_and_capture_logs,
     run_async_flow_and_capture_logs,
 )
 
@@ -25,25 +23,25 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
     mock_cluster_can_accept_jobs_yes,
     mock_start_cluster_job,
     mock_check_cluster_job_all_completed,
+    raw_read_ena_study,
     raw_reads_mgnify_study,
     raw_read_run,
     mgnify_assembly_completed,
     assemblers,
-    mgnify_study,
-    raw_read_ena_study,
 ):
     """
     This test mocks all assembly_uploader functions and just checks steps execution.
-    All fixtures are implemented in the test.
-    Flow is running 1 metaspades assembly
+    Flow is running 1 metaspades assembly upload
     """
 
     erz_assigned_accession = "ERZ24815338"
     study_accession = raw_read_ena_study.accession
-    run_accession = raw_read_run.first_accession
+    run_accession = "SRR6180434"
+
+    registered_study = "PRJNA567089"
 
     assembler_name = "metaspades"
-    assembler_version = "v0"
+    assembler_version = "3.15.3"
 
     async def mock_create_study_xml_func(*args, **kwargs):
         upload_dir = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload"
@@ -57,7 +55,7 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
             os.mknod(submission_xml)
 
     async def mock_submit_study_xml_func(*args, **kwargs):
-        return mgnify_study.accession
+        return registered_study
 
     async def mock_mock_generate_assembly_xml_func(*args, **kwargs):
         run_manifest = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/{run_accession}.manifest"
@@ -96,7 +94,7 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
     )
     # submit study
     assert (
-        f"Study submitted successfully under {mgnify_study.accession}"
+        f"Study submitted successfully under {registered_study}"
         in captured_logging
     )
     # assembly manifest
@@ -124,55 +122,23 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
 @pytest.mark.asyncio
 async def test_prefect_assembly_upload_flow_post_assembly_sanity_check_not_passed(
     prefect_harness,
+    raw_reads_mgnify_study,
+    raw_read_run,
+    mgnify_assembly_completed_uploader_sanity_check,
+    assemblers,
+    raw_read_ena_study
 ):
     """
     This test mocks all assembly_uploader functions and just checks steps execution.
-    All fixtures are implemented in the test.
     Flow is running 1 metaspades assembly
     """
 
-    study_accession = "PRJNA398089"
-    run_accession = "SRR6180435"
-    sample_accession = "SAMN07793787"
     assembler_name = "metaspades"
     assembler_version = "3.15.3"
 
-    # create DB records for tests
-    # TODO: move to fixtures
-    ena_study = await ena_models.Study.objects.acreate(
-        accession=study_accession, title="Project 1"
-    )
-    ena_sample = await ena_models.Sample.objects.acreate(
-        study=ena_study,
-        metadata={"accession": sample_accession, "description": "Sample 1"},
-    )
+    study_accession = raw_read_ena_study.accession
+    run_accession = "SRR6180435"
 
-    mgnify_study = await mg_models.Study.objects.acreate(
-        ena_study=ena_study,
-        title="Project 1",
-    )
-    mgnify_sample = await mg_models.Sample.objects.acreate(
-        ena_sample=ena_sample, ena_study=ena_sample.study
-    )
-    mgnify_run = await mg_models.Run.objects.acreate(
-        ena_accessions=[run_accession],
-        study=mgnify_study,
-        ena_study=mgnify_sample.ena_study,
-        sample=mgnify_sample,
-        experiment_type=mg_models.Run.ExperimentTypes.METAGENOMIC,
-    )
-    assembler = await mg_models.Assembler.objects.acreate(
-        name=assembler_name, version=assembler_version
-    )
-    mgnify_assembly = await mg_models.Assembly.objects.acreate(
-        run=mgnify_run,
-        reads_study=mgnify_study,
-        ena_study=mgnify_run.ena_study,
-        assembler=assembler,
-        dir="slurm/fs/hps/tests/assembly_uploader",
-        metadata={"coverage": 20},
-        status={"status": "assembly_completed"},
-    )
     with pytest.raises(Exception) as excinfo:
         await assembly_uploader(
             study_accession=study_accession,
@@ -202,12 +168,3 @@ async def test_prefect_assembly_upload_flow_post_assembly_sanity_check_not_passe
 
 
 # TODO test with only Shell mock
-
-# TODO fix fixtures usage
-"""
-async def test_fixtures_usage(prefect_harness, ena_study_fixture):
-    study_accession = "PRJ1"
-    run_accession = "ERR1"
-
-    await assembly_uploader(study_accession=study_accession, run_accession=run_accession, dry_run=True)
-"""

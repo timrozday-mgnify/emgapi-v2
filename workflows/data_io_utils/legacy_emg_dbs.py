@@ -117,6 +117,7 @@ def get_taxonomy_from_api_v1_mongo(
         Analysis.TaxonomySources.LSU.value: mgya_taxonomies.get("taxonomy_lsu"),
         Analysis.TaxonomySources.ITS_ONE_DB.value: mgya_taxonomies.get("itsonedb"),
         Analysis.TaxonomySources.UNITE.value: mgya_taxonomies.get("unite"),
+        Analysis.TaxonomySources.PR2.value: None,  # not implemented in v5 pipeline
     }
 
 
