@@ -113,7 +113,7 @@ async def create_study_xml(study_accession, library, output_dir):
     if EMG_CONFIG.slurm.assembly_uploader_root_dir:
         # take from root_dir installation
         launcher = (
-            f"{EMG_CONFIG.slurm.assembler_uploader_python_executable} "
+            f"{EMG_CONFIG.slurm.assembly_uploader_python_executable} "
             f"{os.path.join(EMG_CONFIG.slurm.assembly_uploader_root_dir, 'assembly_uploader', 'study_xmls.py')}"
         )
     else:
@@ -160,7 +160,7 @@ async def submit_study_xml(study_accession, upload_dir, dry_run):
     if EMG_CONFIG.slurm.assembly_uploader_root_dir:
         # take from root_dir installation
         launcher = (
-            f"{EMG_CONFIG.slurm.assembler_uploader_python_executable} "
+            f"{EMG_CONFIG.slurm.assembly_uploader_python_executable} "
             f"{os.path.join(EMG_CONFIG.slurm.assembly_uploader_root_dir, 'assembly_uploader', 'submit_study.py')}"
         )
     else:
@@ -274,7 +274,7 @@ async def generate_assembly_xml(
     if EMG_CONFIG.slurm.assembly_uploader_root_dir:
         # take from root_dir installation
         launcher = (
-            f"{EMG_CONFIG.slurm.assembler_uploader_python_executable} "
+            f"{EMG_CONFIG.slurm.assembly_uploader_python_executable} "
             f"{os.path.join(EMG_CONFIG.slurm.assembly_uploader_root_dir, 'assembly_uploader', 'assembly_manifest.py')}"
         )
     else:

@@ -13,14 +13,14 @@ from workflows.nextflow_utils.samplesheets import (
 )
 
 
-@pytest.mark.django_db
-def test_queryset_to_samplesheet(mgnify_study):
+@pytest.mark.django_db(transaction=True,  reset_sequences=True)
+def test_queryset_to_samplesheet(raw_reads_mgnify_study):
     for i in range(10):
         ena_sample = ena.models.Sample.objects.create(
-            study=mgnify_study.ena_study, accession=f"SAM{i}"
+            study=raw_reads_mgnify_study.ena_study, accession=f"SAM{i}"
         )
         analyses.models.Sample.objects.create(
-            ena_sample=ena_sample, ena_study=mgnify_study.ena_study
+            ena_sample=ena_sample, ena_study=raw_reads_mgnify_study.ena_study
         )
 
     qs = analyses.models.Sample.objects.all()
@@ -54,7 +54,7 @@ def test_queryset_to_samplesheet(mgnify_study):
         assert next(csv_reader) == {
             "mgnify_sample_id": "1",
             "ena_accession": "SAM0",
-            "ena_study_accession": "PRJ1",
+            "ena_study_accession": raw_reads_mgnify_study.ena_study.accession,
         }
 
     # should now fail because file exists
@@ -107,7 +107,7 @@ def test_queryset_to_samplesheet(mgnify_study):
     run = analyses.models.Run.objects.create(
         sample=sample,
         ena_study=sample.ena_study,
-        study=mgnify_study,
+        study=raw_reads_mgnify_study,
         metadata={
             "fastqs": ["/path/to/fastq_1.fastq.gz", "/path/to/fastq_2.fastq.gz"],
         },
@@ -135,8 +135,8 @@ def test_queryset_to_samplesheet(mgnify_study):
     samplesheet_ret.unlink(missing_ok=True)
 
 
-@pytest.mark.django_db
-def test_queryset_hash(mgnify_study):
+@pytest.mark.django_db(transaction=True)
+def test_queryset_hash(raw_reads_mgnify_study):
     studies = analyses.models.Study.objects.all()
     hash = queryset_hash(studies, "ena_study__title")
     assert hash == "3b387536d51e5c045256364275533aa4"  # md5 of "Project 1"

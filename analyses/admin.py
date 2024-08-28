@@ -1,3 +1,5 @@
+import json
+
 from django.contrib import admin
 from django.db import models
 from django import forms
@@ -21,19 +23,27 @@ from unfold.admin import ModelAdmin, TabularInline
 class StudyRunsInline(TabularInline):
     model = Run
     show_change_link = True
-    fields = ["first_accession", "experiment_type", "sample", "status"]
-    readonly_fields = ["first_accession"]
+    fields = [
+        "first_accession",
+        "experiment_type",
+        "sample",
+        "latest_analysis_status_display",
+    ]
+    readonly_fields = ["first_accession", "latest_analysis_status_display"]
     max_num = 0
-    formfield_overrides = {
-        models.JSONField: {
-            "widget": StatusPathwayWidget(
+
+    def latest_analysis_status_display(self, obj: Run):
+        if obj.latest_analysis_status:
+            widget = StatusPathwayWidget(
                 pathway=[
-                    Run.RunStates.ANALYSIS_STARTED,
-                    Run.RunStates.ANALYSIS_COMPLETED,
+                    Analysis.AnalysisStates.ANALYSIS_STARTED,
+                    Analysis.AnalysisStates.ANALYSIS_COMPLETED,
                 ]
             )
-        },
-    }
+            return widget.render(
+                "latest_analysis_status", json.dumps(obj.latest_analysis_status)
+            )
+        return "No Status"
 
 
 class StudyAssembliesInline(TabularInline):
@@ -54,8 +64,6 @@ class StudyAssembliesInline(TabularInline):
                     Assembly.AssemblyStates.ASSEMBLY_UPLOADED,
                     Assembly.AssemblyStates.ASSEMBLY_UPLOAD_FAILED,
                     Assembly.AssemblyStates.ASSEMBLY_UPLOAD_BLOCKED,
-                    Assembly.AssemblyStates.ANALYSIS_STARTED,
-                    Assembly.AssemblyStates.ANALYSIS_COMPLETED,
                 ]
             )
         },
@@ -80,8 +88,6 @@ class StudyReadsInline(TabularInline):
                     Assembly.AssemblyStates.ASSEMBLY_UPLOADED,
                     Assembly.AssemblyStates.ASSEMBLY_UPLOAD_FAILED,
                     Assembly.AssemblyStates.ASSEMBLY_UPLOAD_BLOCKED,
-                    Assembly.AssemblyStates.ANALYSIS_STARTED,
-                    Assembly.AssemblyStates.ANALYSIS_COMPLETED,
                 ]
             )
         },
