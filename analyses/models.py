@@ -238,6 +238,17 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
         latest_analysis: Analysis = self.latest_analysis
         return latest_analysis.status
 
+    def set_experiment_type_by_ena_library_strategy(self, ena_library_strategy: str):
+        if ena_library_strategy.lower() == "rna-seq":
+            self.experiment_type = Run.ExperimentTypes.METATRANSCRIPTOMIC
+        elif ena_library_strategy.lower() == "wgs":
+            self.experiment_type = Run.ExperimentTypes.METAGENOMIC
+        elif ena_library_strategy.lower() == "amplicon":
+            self.experiment_type = Run.ExperimentTypes.AMPLICON
+        else:
+            self.experiment_type = Run.ExperimentTypes.UNKNOWN
+        self.save()
+
     def __str__(self):
         return f"Run {self.id}: {self.first_accession}"
 
