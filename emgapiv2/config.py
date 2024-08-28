@@ -1,7 +1,5 @@
-from pydantic import BaseModel, Field
-from pydantic.v1 import AnyHttpUrl
+from pydantic import BaseModel, AnyHttpUrl
 from pydantic_settings import BaseSettings
-from typing import List
 
 
 class SlurmConfig(BaseModel):
