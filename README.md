@@ -32,28 +32,27 @@ This is in the `slurm` directory: see [slurm/README.md](slurm/README.md) for mor
 
 ### Set up docker-compose
 E.g. following [the docker docs](https://docs.docker.com/compose/install/) or using Podman or Colima, as you prefer. In theory all should work.
-
-If you need to re-build a container:
-```commandline
-docker-compose build app
-```
+(There is a docker compose file rooted at `./docker-compose.yaml`,
+so later on you can do normal docker/compose things like rebuild a container with `docker-compose build app`.
+However, most common tasks are covered by the Taskfile, see below.)
 
 ### Create secrets-local.env
-That file is used in development (docker-compose.yml) to export variables into environment. 
+That file is used in development (docker-compose.yml) to export variables into environment.
 Currently, that file has mandatory variables: username and password for assembly uploader using [webin-cli](https://ena-docs.readthedocs.io/en/latest/submit/general-guide/webin-cli.html)
 ```commandline
 export EMG_WEBIN__EMG_WEBIN_ACCOUNT="Webin-XXX"
 export EMG_WEBIN__EMG_WEBIN_PASSWORD="password"
 ```
 
-### The taskfile
+### The Taskfile
 The project has a taskfile to simplify some common activities. So, [install Task](https://taskfile.dev/installation/).
 
-### Make the Django DB
+### Make the Django DB and populate it with some data for dev purposes
 ```shell
-task manage -- migrate
+task make-dev-data
 ```
-This will have created a Django-managed DB on a dockerized Postgres host.
+This will have created a Django-managed DB on a dockerized Postgres host, and put some fixtures into.
+You could also just create/migrate the DB, without the fixture placement, using `task manage -- migrate`.
 
 ### Run everything (the databases, the Django app, the Prefect workflow server, a Prefect work egent, and a small Slurm cluster with associated controllers+dbs.)
 ```shell

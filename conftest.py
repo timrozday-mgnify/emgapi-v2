@@ -3,6 +3,7 @@ from unittest.mock import patch, AsyncMock
 from prefect.testing.utilities import prefect_test_harness
 
 import django
+
 django.setup()
 
 from workflows.prefect_utils.slurm_flow import SlurmStatus
@@ -12,6 +13,7 @@ from workflows.prefect_utils.slurm_flow import SlurmStatus
 pytest_plugins = [
     "ena.fixtures.sample.conftest",
     "ena.fixtures.study.conftest",
+    "analyses.fixtures.analysis.conftest",
     "analyses.fixtures.assembler.conftest",
     "analyses.fixtures.assembly.conftest",
     "analyses.fixtures.biome.conftest",
@@ -19,6 +21,7 @@ pytest_plugins = [
     "analyses.fixtures.sample.conftest",
     "analyses.fixtures.study.conftest",
 ]
+
 
 @pytest.fixture
 def prefect_harness():

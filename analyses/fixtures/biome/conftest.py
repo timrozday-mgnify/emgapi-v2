@@ -1,6 +1,7 @@
 import pytest
 
 import django
+
 django.setup()
 
 import analyses.models as mg_models
@@ -16,7 +17,10 @@ def top_level_biomes():
     ]
     biomes_objects = []
     for biome in biomes_list:
+        print(f"creating biome {biome['path']}")
         biomes_objects.append(
-            mg_models.Biome.objects.get_or_create(path=biome["path"], biome_name=biome["biome_name"])
+            mg_models.Biome.objects.get_or_create(
+                path=biome["path"], biome_name=biome["biome_name"]
+            )
         )
     return biomes_objects

@@ -1,3 +1,5 @@
+import json
+
 from django.contrib import admin
 from django.db import models
 from django import forms
@@ -18,30 +20,30 @@ from .models import (
 from unfold.admin import ModelAdmin, TabularInline
 
 
-def get_analysis_statuses():
-    # Fetch unique statuses from the JSON field in the Analysis model
-    analyses = Analysis.objects.exclude(status__isnull=True).exclude(status__exact='').values_list('status', flat=True)
-    statuses = set()
-
-    for analysis in analyses:
-        for status in analysis.get('statuses', []):
-            statuses.add(status)
-
-    return list(statuses)
-
 class StudyRunsInline(TabularInline):
     model = Run
     show_change_link = True
-    fields = ["first_accession", "experiment_type", "sample", "status"]
-    readonly_fields = ["first_accession"]
+    fields = [
+        "first_accession",
+        "experiment_type",
+        "sample",
+        "latest_analysis_status_display",
+    ]
+    readonly_fields = ["first_accession", "latest_analysis_status_display"]
     max_num = 0
 
-    def formfield_for_dbfield(self, db_field, request, **kwargs):
-        if db_field.name == 'status':
-            kwargs['widget'] = StatusPathwayWidget(
-                pathway=get_analysis_statuses()
+    def latest_analysis_status_display(self, obj: Run):
+        if obj.latest_analysis_status:
+            widget = StatusPathwayWidget(
+                pathway=[
+                    Analysis.AnalysisStates.ANALYSIS_STARTED,
+                    Analysis.AnalysisStates.ANALYSIS_COMPLETED,
+                ]
             )
-        return super().formfield_for_dbfield(db_field, request, **kwargs)
+            return widget.render(
+                "latest_analysis_status", json.dumps(obj.latest_analysis_status)
+            )
+        return "No Status"
 
 
 class StudyAssembliesInline(TabularInline):

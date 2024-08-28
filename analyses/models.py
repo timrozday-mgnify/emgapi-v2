@@ -228,6 +228,16 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
     study = models.ForeignKey(Study, on_delete=models.CASCADE, related_name="runs")
     sample = models.ForeignKey(Sample, on_delete=models.CASCADE, related_name="runs")
 
+    @property
+    def latest_analysis(self) -> "Analysis":
+        latest_analysis: Analysis = self.analyses.order_by("-updated_at").first()
+        return latest_analysis
+
+    @property
+    def latest_analysis_status(self) -> dict["Analysis.AnalysisStates", bool]:
+        latest_analysis: Analysis = self.latest_analysis
+        return latest_analysis.status
+
     def __str__(self):
         return f"Run {self.id}: {self.first_accession}"
 
@@ -458,14 +468,24 @@ class Analysis(MGnifyAutomatedModel, TimeStampedModel, VisibilityControlledModel
     PFAMS = "pfams"
 
     suppression_following_fields = ["sample"]
-    study = models.ForeignKey(Study, on_delete=models.CASCADE, to_field="accession", related_name="analyses")
+    study = models.ForeignKey(
+        Study, on_delete=models.CASCADE, to_field="accession", related_name="analyses"
+    )
     results_dir = models.CharField(max_length=100)
     sample = models.ForeignKey(
         Sample, on_delete=models.CASCADE, related_name="analyses"
     )
     # link to Run or Assembly
-    run = models.ForeignKey(Run, on_delete=models.CASCADE, null=True, blank=True, related_name="analyses")
-    assembly = models.ForeignKey(Assembly, on_delete=models.CASCADE, null=True, blank=True, related_name="analyses")
+    run = models.ForeignKey(
+        Run, on_delete=models.CASCADE, null=True, blank=True, related_name="analyses"
+    )
+    assembly = models.ForeignKey(
+        Assembly,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="analyses",
+    )
 
     @staticmethod
     def default_annotations():
