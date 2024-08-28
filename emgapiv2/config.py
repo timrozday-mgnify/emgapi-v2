@@ -1,6 +1,8 @@
 from pydantic import BaseModel, Field
+from pydantic.v1 import AnyHttpUrl
 from pydantic_settings import BaseSettings
 from typing import List
+
 
 class SlurmConfig(BaseModel):
     default_job_status_checks_limit: int = 10
@@ -50,6 +52,7 @@ class WebinConfig(BaseModel):
 class ENAConfig(BaseModel):
     primary_study_accession_re: str = "(PRJ[EDN][A-Z][0-9]+)"
     assembly_accession_re: str = "([EDS]RZ[0-9]{6,})"
+    portal_search_api: AnyHttpUrl = "https://www.ebi.ac.uk/ena/portal/api/search"
 
 
 class EMGConfig(BaseSettings):
