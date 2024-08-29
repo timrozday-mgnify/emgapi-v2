@@ -3,14 +3,14 @@ import os
 import time
 import uuid
 from collections import Counter
-from datetime import timedelta, datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from textwrap import dedent as _
-from typing import Union, List, Optional, Callable
+from typing import Callable, List, Optional, Union
 
 from django.utils.text import slugify
-from prefect import task, flow, get_run_logger, Flow, State
+from prefect import Flow, State, flow, get_run_logger, task
 from prefect.artifacts import create_markdown_artifact, create_table_artifact
 from prefect.client.schemas import FlowRun
 from prefect.context import TaskRunContext
@@ -235,7 +235,7 @@ def start_cluster_job(
 
     script = _(
         f"""\
-        #!/bin/bash
+        #!/bin/bash -euo pipefail
         {command}
         """
     )
@@ -303,12 +303,10 @@ def cancel_cluster_job(name: str):
         )
 
 
-class ClusterJobFailedException(Exception):
-    ...
+class ClusterJobFailedException(Exception): ...
 
 
-class ClusterPendingJobsLimitReachedException(Exception):
-    ...
+class ClusterPendingJobsLimitReachedException(Exception): ...
 
 
 def _cluster_delay_key(context: TaskRunContext, parameters: dict) -> str:

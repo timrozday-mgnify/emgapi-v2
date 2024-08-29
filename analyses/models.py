@@ -9,12 +9,11 @@ from django.core.exceptions import (
     ValidationError,
 )
 from django.db import models
-from django.db.models import Q, F, Value, CharField, JSONField, AutoField
-from django.db.models.functions import LPad, Cast
+from django.db.models import AutoField, CharField, F, JSONField, Q, Value
+from django.db.models.functions import Cast, LPad
 from django_ltree.models import TreeModel
 
 import ena.models
-
 
 # Some models associated with MGnify Analyses (MGYS, MGYA etc).
 
@@ -319,6 +318,7 @@ class Assembly(TimeStampedModel, ENADerivedModel):
         ENA_METADATA_SANITY_CHECK_FAILED = "ena_metadata_sanity_check_failed"
         ENA_DATA_QC_CHECK_FAILED = "ena_data_qc_check_failed"
         ASSEMBLY_STARTED = "assembly_started"
+        PRE_ASSEMBLY_QC_FAILED = "pre_assembly_qc_failed"
         POST_ASSEMBLY_QC_FAILED = "post_assembly_qc_failed"
         ASSEMBLY_FAILED = "assembly_failed"
         ASSEMBLY_COMPLETED = "assembly_completed"
@@ -343,8 +343,13 @@ class Assembly(TimeStampedModel, ENADerivedModel):
         default=AssemblyStates.default_status, null=True, blank=True
     )
 
-    def mark_status(self, status: AssemblyStates, set_status_as: bool = True):
+    def mark_status(
+        self, status: AssemblyStates, set_status_as: bool = True, reason: str = None
+    ):
+        """Updates the assembly's status. If a reason is provided, it will be saved as '{status}_reason'."""
         self.status[status] = set_status_as
+        if reason:
+            self.status[f"{status}_reason"] = reason
         return self.save()
 
     def add_erz_accession(self, erz_accession):

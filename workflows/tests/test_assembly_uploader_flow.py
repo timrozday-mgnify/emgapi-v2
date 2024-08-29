@@ -1,10 +1,14 @@
 import os
-import pytest
+import shutil
 from unittest.mock import patch
+
+import pytest
+
 import analyses.models as mg_models
 from workflows.flows.assembly_uploader import assembly_uploader
 from workflows.prefect_utils.testing_utils import (
     run_async_flow_and_capture_logs,
+    run_flow_and_capture_logs,
 )
 
 
@@ -43,12 +47,14 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
     assembler_name = "metaspades"
     assembler_version = "3.15.3"
 
+    # FS required bits
+    upload_dir = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload"
+    reg_xml = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/reg.xml"
+    submission_xml = (
+        f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/submission.xml"
+    )
+
     async def mock_create_study_xml_func(*args, **kwargs):
-        upload_dir = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload"
-        reg_xml = (
-            f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/reg.xml"
-        )
-        submission_xml = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/submission.xml"
         if not os.path.exists(upload_dir):
             os.mkdir(upload_dir)
             os.mknod(reg_xml)
@@ -93,14 +99,15 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
         f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload"
     )
     # submit study
-    assert (
-        f"Study submitted successfully under {registered_study}"
-        in captured_logging
-    )
+    assert f"Study submitted successfully under {registered_study}" in captured_logging
     # assembly manifest
     assert os.path.exists(
         f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/{run_accession}.manifest"
     )
+
+    # Clean up
+    shutil.rmtree(upload_dir, ignore_errors=True)
+
     # webin-cli cluster job
     mock_start_cluster_job.assert_called()
     mock_check_cluster_job_all_completed.assert_called()
@@ -126,7 +133,7 @@ async def test_prefect_assembly_upload_flow_post_assembly_sanity_check_not_passe
     raw_read_run,
     mgnify_assembly_completed_uploader_sanity_check,
     assemblers,
-    raw_read_ena_study
+    raw_read_ena_study,
 ):
     """
     This test mocks all assembly_uploader functions and just checks steps execution.
