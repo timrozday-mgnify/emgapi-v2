@@ -1,42 +1,42 @@
 import csv
 from datetime import timedelta
 from enum import Enum
-
-from asgiref.sync import sync_to_async
-from django.utils.text import slugify
 from pathlib import Path
-from typing import List, Any, Union
+from typing import Any, List, Union
 
 import django
+import pandas as pd
+from asgiref.sync import sync_to_async
 from django.conf import settings
+from django.utils.text import slugify
 from prefect.artifacts import create_table_artifact
 from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
-import pandas as pd
 
 from emgapiv2.settings import EMG_CONFIG
-from workflows.nextflow_utils.samplesheets import (
-    queryset_to_samplesheet,
-    queryset_hash,
-    SamplesheetColumnSource,
-)
-from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 from workflows.ena_utils.ena_api_requests import (
     get_study_from_ena,
     get_study_readruns_from_ena,
 )
+from workflows.nextflow_utils.samplesheets import (
+    SamplesheetColumnSource,
+    queryset_hash,
+    queryset_to_samplesheet,
+)
+from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 from workflows.prefect_utils.slurm_flow import (
-    run_cluster_job,
     ClusterJobFailedException,
+    run_cluster_job,
 )
 
 django.setup()
 
 import httpx
+from prefect import flow, suspend_flow_run, task
 
-import ena.models
 import analyses.models
-from prefect import flow, task, suspend_flow_run
+import ena.models
+from workflows.prefect_utils.analyses_models_helpers import task_mark_assembly_status
 
 
 @task()
@@ -56,24 +56,8 @@ def get_memory_for_assembler(
             return heuristic.memory_gb
 
 
-@task(log_prints=True)
-def mark_assembly_as_completed(assembly: analyses.models.Assembly):
-    print(f"Assembly {assembly} (run {assembly.run}) is now assembled")
-    assembly.mark_status(assembly.AssemblyStates.ASSEMBLY_COMPLETED)
-
-
-@task(log_prints=True)
-def mark_assembly_as_started(assembly: analyses.models.Assembly):
-    assembly.mark_status(assembly.AssemblyStates.ASSEMBLY_STARTED)
-
-
-@task(log_prints=True)
-def mark_assembly_as_failed(assembly: analyses.models.Assembly):
-    print(f"Assembly {assembly} (run {assembly.run}) has been marked as failed")
-    assembly.mark_status(assembly.AssemblyStates.ASSEMBLY_FAILED)
-
-
 class AssemblerChoices(str, Enum):
+    # IDEA: it would be nice to sniff this from the pipeline schema
     pipeline_default = "pipeline_default"
     megahit = "megahit"
     metaspades = "metaspades"
@@ -86,6 +70,7 @@ class AssemblerInput(RunInput):
 
 
 def get_biomes_as_choices():
+    # IDEA: move this one to a helper of some sorts
     biomes = {
         str(biome.path): biome.pretty_lineage
         for biome in analyses.models.Biome.objects.all()
@@ -283,6 +268,11 @@ def make_samplesheets_for_runs_to_assemble(
     return sheets
 
 
+###################
+# Assembler flow #
+##################
+
+
 @flow
 async def run_assembler_for_samplesheet(
     mgnify_study: analyses.models.Study,
@@ -292,19 +282,22 @@ async def run_assembler_for_samplesheet(
     memory_gb: int,
 ):
     samplesheet_df = pd.read_csv(samplesheet_tsv, sep="\t")
-    assemblies = mgnify_study.assemblies_reads.filter(
+    assemblies: list[analyses.models.Assembly] = mgnify_study.assemblies_reads.filter(
         run__ena_accessions__0__in=samplesheet_df["reads_accession"]
     )
 
     async for assembly in assemblies:
-        mark_assembly_as_started(assembly)
+        task_mark_assembly_status(
+            assembly, status=assembly.AssemblyStates.ASSEMBLY_STARTED
+        )
 
     command = (
         f"nextflow run ebi-metagenomics/miassembler "
+        f"-r main "  # From the main branch (which is the stable one)
         f"-profile {miassembler_profile} "
         f"-resume "
         f"--samplesheet {samplesheet_tsv} "
-        f"--outdir {mgnify_study.ena_study.accession}_miassembler "
+        f"--outdir {EMG_CONFIG.slurm.default_workdir}/{mgnify_study.ena_study.accession}_miassembler "
         f"--assembler {assembler.name.lower()} "
         f"{'-with-tower' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''} "
         f"-name mi-assembler-for-samplesheet-{slugify(samplesheet_tsv)[-30:]} "
@@ -320,12 +313,67 @@ async def run_assembler_for_samplesheet(
         )
     except ClusterJobFailedException:
         for assembly in assemblies:
-            mark_assembly_as_failed(assembly)
+            task_mark_assembly_status(
+                assembly, status=analyses.models.Assembly.AssemblyStates.ASSEMBLY_FAILED
+            )
     else:
-        # assume that if job finished, all assemblies finished...
-        # todo: integrate per-run error handling
+        # The pipeline produces top level end of execution reports, which contain
+        # the list of the runs that were assembled, and those that were not.
+        # For more information: https://github.com/EBI-Metagenomics/miassembler?tab=readme-ov-file#top-level-reports
+
+        # QC failed / not assembled runs: qc_failed_runs.csv
+        # Assembled runs: assembled_runs.csv
+
+        qc_failed_csv = Path(
+            f"{EMG_CONFIG.slurm.default_workdir}/{mgnify_study.ena_study.accession}_miassembler/qc_failed_runs.csv"
+        )
+        qc_failed_runs = {}  # Stores {run_accession, qc_fail_reason}
+
+        if qc_failed_csv.is_file():
+            with qc_failed_csv.open(mode="r") as file_handle:
+                for row in csv.reader(file_handle, delimiter=","):
+                    run_accession, fail_reason = row
+                    qc_failed_runs[run_accession] = fail_reason
+
+        assembled_runs_csv = Path(
+            f"{EMG_CONFIG.slurm.default_workdir}/{mgnify_study.ena_study.accession}_miassembler/assembled_runs.csv"
+        )
+        assembled_runs = set()
+
+        if not assembled_runs_csv.is_file():
+            for assembly in assemblies:
+                task_mark_assembly_status(
+                    assembly,
+                    status=analyses.models.Assembly.AssemblyStates.ASSEMBLY_FAILED,
+                    reason=f"The miassembler output is missing the {assembled_runs_csv} file.",
+                )
+            raise Exception(
+                f"Missing end of execution assembled runs csv file. Expected path {assembled_runs_csv}."
+            )
+
+        with assembled_runs_csv.open(mode="r") as file_handle:
+            for row in csv.reader(file_handle, delimiter=","):
+                run_accession, assembler_software, assembler_version = row
+                assembled_runs.add(run_accession)
+
         for assembly in assemblies:
-            mark_assembly_as_completed(assembly)
+            if assembly.run.first_accession in qc_failed_runs:
+                task_mark_assembly_status(
+                    assembly,
+                    status=analyses.models.Assembly.AssemblyStates.PRE_ASSEMBLY_QC_FAILED,
+                    reason=qc_failed_runs[assembly.run.first_accession],
+                )
+            elif assembly.run.first_accession in assembled_runs:
+                task_mark_assembly_status(
+                    assembly,
+                    status=analyses.models.Assembly.AssemblyStates.ASSEMBLY_COMPLETED,
+                )
+            else:
+                task_mark_assembly_status(
+                    assembly,
+                    status=analyses.models.Assembly.AssemblyStates.ASSEMBLY_FAILED,
+                    reason="The assembly is missing from the pipeline end-of-run reports",
+                )
 
 
 @flow(
