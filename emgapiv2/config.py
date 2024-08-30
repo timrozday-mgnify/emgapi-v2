@@ -1,4 +1,5 @@
 from pydantic import BaseModel, AnyHttpUrl
+from pydantic.networks import MongoDsn, MySQLDsn
 from pydantic_settings import BaseSettings
 
 
@@ -53,12 +54,25 @@ class ENAConfig(BaseModel):
     portal_search_api: AnyHttpUrl = "https://www.ebi.ac.uk/ena/portal/api/search"
 
 
+class LegacyServiceConfig(BaseModel):
+    emg_mongo_dsn: MongoDsn = "mongodb://mongo.not.here/db"
+    emg_mongo_db: str = "emgapi"
+
+    emg_mysql_dsn: MySQLDsn = "mysql+mysqlconnector://mysql.not.here/emg"
+
+    emg_analysis_download_url_pattern: str = (
+        "https://www.ebi.ac.uk/metagenomics/api/v1/analyses/{id}/file/{alias}"
+    )
+
+
 class EMGConfig(BaseSettings):
     slurm: SlurmConfig = SlurmConfig()
     environment: str = "development"
     webin: WebinConfig = WebinConfig()
     ena: ENAConfig = ENAConfig()
     assembler: AssemblerConfig = AssemblerConfig()
+    legacy_service: LegacyServiceConfig = LegacyServiceConfig()
+
     model_config = {
         "env_prefix": "emg_",
         "env_nested_delimiter": "__",

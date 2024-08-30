@@ -9,7 +9,7 @@ from .models import Study, Biome, ComputeResourceHeuristic, Assembler
 from ena.models import Study as ENAStudy
 
 
-@pytest.mark.django_db(transaction=True)
+@pytest.mark.django_db(transaction=True, reset_sequences=True)
 def test_study():
     # Test accessioning
     ena_study = ENAStudy.objects.create(accession="PRJ1", title="Project 1")
