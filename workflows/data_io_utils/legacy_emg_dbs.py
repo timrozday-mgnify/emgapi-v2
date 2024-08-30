@@ -208,7 +208,7 @@ def get_taxonomy_from_api_v1_mongo(
     }
 
 
-legacy_emg_engine = create_engine(settings.EMG_CONFIG.legacy_service.emg_mysql_dsn)
+legacy_emg_engine = create_engine(str(settings.EMG_CONFIG.legacy_service.emg_mysql_dsn))
 LegacyEmgSession = sessionmaker(bind=legacy_emg_engine)
 
 
