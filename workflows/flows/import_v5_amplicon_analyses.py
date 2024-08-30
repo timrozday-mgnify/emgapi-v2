@@ -143,9 +143,12 @@ def import_v5_amplicon_analyses(mgys: str):
                 logger.warning(f"Updated analysis {analysis}")
 
             for legacy_download in legacy_analysis.downloads:
-                path = Path(legacy_download.subdir.subdir) / Path(
-                    legacy_download.real_name
-                )
+                basename = Path(legacy_download.real_name)
+
+                if legacy_download.subdir:
+                    path = Path(legacy_download.subdir.subdir) / basename
+                else:
+                    path = basename
 
                 analysis.add_download(
                     DownloadFile(
