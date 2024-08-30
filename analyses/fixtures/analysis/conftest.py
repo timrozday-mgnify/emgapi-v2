@@ -2,6 +2,12 @@ import pytest
 
 import django
 
+from analyses.base_models.with_downloads_models import (
+    DownloadFile,
+    DownloadFileType,
+    DownloadType,
+)
+
 django.setup()
 
 import analyses.models as mg_models
@@ -33,9 +39,9 @@ def raw_read_analyses(raw_read_run):
     mgyas[1].save()
 
     mgyas[0].add_download(
-        mg_models.Analysis.DownloadFile(
-            file_type=mg_models.Analysis.FileType.TSV,
-            download_type=mg_models.Analysis.DownloadType.FUNCTIONAL_ANALYSIS,
+        DownloadFile(
+            file_type=DownloadFileType.TSV,
+            download_type=DownloadType.FUNCTIONAL_ANALYSIS,
             long_description="Some PFAMs that were found",
             short_description="PFAM table",
             alias=f"PFAMS_{mgyas[0].accession}.tsv",

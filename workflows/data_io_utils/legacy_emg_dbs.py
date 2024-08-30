@@ -13,7 +13,7 @@ from sqlalchemy.orm import (
     sessionmaker,
 )
 
-from analyses.models import WithDownloadsModel
+from analyses.base_models.with_downloads_models import DownloadFileType, DownloadType
 
 
 class LegacyEMGBase(DeclarativeBase):
@@ -148,35 +148,35 @@ class LegacyAnalysisJobDownload(LegacyEMGBase):
 # Maps to convert legacy download metadata to new schema:
 
 LEGACY_FILE_FORMATS_MAP = {
-    1: WithDownloadsModel.FileType.TSV,
-    2: WithDownloadsModel.FileType.TSV,
-    3: WithDownloadsModel.FileType.CSV,
-    4: WithDownloadsModel.FileType.FASTA,
-    5: WithDownloadsModel.FileType.FASTA,
-    6: WithDownloadsModel.FileType.BIOM,
-    7: WithDownloadsModel.FileType.BIOM,
-    8: WithDownloadsModel.FileType.BIOM,
-    9: WithDownloadsModel.FileType.TREE,
-    10: WithDownloadsModel.FileType.SVG,
+    1: DownloadFileType.TSV,
+    2: DownloadFileType.TSV,
+    3: DownloadFileType.CSV,
+    4: DownloadFileType.FASTA,
+    5: DownloadFileType.FASTA,
+    6: DownloadFileType.BIOM,
+    7: DownloadFileType.BIOM,
+    8: DownloadFileType.BIOM,
+    9: DownloadFileType.TREE,
+    10: DownloadFileType.SVG,
 }
 
 LEGACY_DOWNLOAD_TYPE_MAP = {
-    1: WithDownloadsModel.DownloadType.SEQUENCE_DATA,
-    2: WithDownloadsModel.DownloadType.FUNCTIONAL_ANALYSIS,
-    3: WithDownloadsModel.DownloadType.TAXONOMIC_ANALYSIS,
-    4: WithDownloadsModel.DownloadType.TAXONOMIC_ANALYSIS,
-    5: WithDownloadsModel.DownloadType.TAXONOMIC_ANALYSIS,
-    6: WithDownloadsModel.DownloadType.STATISTICS,
-    7: WithDownloadsModel.DownloadType.NON_CODING_RNAS,
-    8: WithDownloadsModel.DownloadType.GENOME_ANALYSIS,
-    9: WithDownloadsModel.DownloadType.GENOME_ANALYSIS,  # pangenome in legacy db
+    1: DownloadType.SEQUENCE_DATA,
+    2: DownloadType.FUNCTIONAL_ANALYSIS,
+    3: DownloadType.TAXONOMIC_ANALYSIS,
+    4: DownloadType.TAXONOMIC_ANALYSIS,
+    5: DownloadType.TAXONOMIC_ANALYSIS,
+    6: DownloadType.STATISTICS,
+    7: DownloadType.NON_CODING_RNAS,
+    8: DownloadType.GENOME_ANALYSIS,
+    9: DownloadType.GENOME_ANALYSIS,  # pangenome in legacy db
     # 10: unused,
-    11: WithDownloadsModel.DownloadType.TAXONOMIC_ANALYSIS,
-    12: WithDownloadsModel.DownloadType.TAXONOMIC_ANALYSIS,
-    13: WithDownloadsModel.DownloadType.TAXONOMIC_ANALYSIS,
-    14: WithDownloadsModel.DownloadType.FUNCTIONAL_ANALYSIS,
-    15: WithDownloadsModel.DownloadType.TAXONOMIC_ANALYSIS,
-    16: WithDownloadsModel.DownloadType.RO_CRATE,
+    11: DownloadType.TAXONOMIC_ANALYSIS,
+    12: DownloadType.TAXONOMIC_ANALYSIS,
+    13: DownloadType.TAXONOMIC_ANALYSIS,
+    14: DownloadType.FUNCTIONAL_ANALYSIS,
+    15: DownloadType.TAXONOMIC_ANALYSIS,
+    16: DownloadType.RO_CRATE,
 }
 
 

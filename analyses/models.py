@@ -1,128 +1,31 @@
+from __future__ import annotations
+
 import logging
 import os
 import re
 from enum import Enum
-from typing import ClassVar, List, Union, Optional
+from typing import ClassVar
 
 from django.core.exceptions import (
     MultipleObjectsReturned,
     ObjectDoesNotExist,
 )
 from django.db import models
-from django.db.models import Q, F, Value, CharField, JSONField, AutoField
-from django.db.models.functions import LPad, Cast
+from django.db.models import Q, JSONField
 from django_ltree.models import TreeModel
-from pydantic import BaseModel
 
 import ena.models
+from analyses.base_models.base_models import (
+    MGnifyAutomatedModel,
+    VisibilityControlledModel,
+    ENADerivedModel,
+    TimeStampedModel,
+)
+from analyses.base_models.mgnify_accessioned_models import MGnifyAccessionField
+from analyses.base_models.with_downloads_models import WithDownloadsModel
 
 
 # Some models associated with MGnify Analyses (MGYS, MGYA etc).
-
-
-class ConcatOp(models.Func):
-    # TODO: remove after Django 5.1
-    arg_joiner = " || "
-    function = None
-    output_field = models.TextField()
-    template = "%(expressions)s"
-
-
-class MGnifyAccessionField(models.GeneratedField):
-    accession_prefix: str = None
-    accession_length: int = None
-
-    """
-    A special type of GeneratedField, that uses the models `id` to form a column of accessions.
-    The accessions are prefixed (e.g. MGYA) and zero padded (e.g. MGYA000001).
-    The accession are persisted to the DB (stored as a column) and unique and indexed (for use as lookups e.g. as a key).
-    """
-
-    def __init__(self, accession_prefix: str, accession_length: int, **kwargs):
-        self.accession_prefix = accession_prefix
-        self.accession_length = accession_length
-        for dont_pass in [
-            "expression",
-            "output_field",
-            "db_index",
-            "db_persist",
-            "unique",
-        ]:
-            kwargs.pop(dont_pass, None)
-
-        super().__init__(
-            expression=ConcatOp(
-                Value(accession_prefix),
-                LPad(Cast(F("id"), CharField()), accession_length, Value("0")),
-            ),
-            output_field=CharField(
-                max_length=(accession_length + len(accession_prefix) + 2)
-            ),
-            db_persist=True,
-            db_index=True,
-            unique=True,
-            **kwargs,
-        )
-
-    def deconstruct(self):
-        name, path, args, kwargs = super().deconstruct()
-        kwargs["accession_prefix"] = self.accession_prefix
-        kwargs["accession_length"] = self.accession_length
-        return name, path, args, kwargs
-
-
-class MGnifyAutomatedModel(models.Model):
-    """
-    Base class for models that have an autoincrementing ID (perhaps for use as an accession)
-    and an `is_ready` bool for when they should appear on website vs. in automation only.
-    """
-
-    id = AutoField(primary_key=True)
-    is_ready = models.BooleanField(default=False)
-
-    class Meta:
-        abstract = True
-
-
-class VisibilityControlledModel(models.Model):
-    """
-    Base class for models that should inherit their privacy status (so visibility) from an ENA Study.
-    """
-
-    is_private = models.BooleanField(default=False)
-    ena_study = models.ForeignKey(ena.models.Study, on_delete=models.CASCADE)
-    webin_submitter = CharField(null=True, blank=True, max_length=25, db_index=True)
-
-    class Meta:
-        abstract = True
-
-
-# TODO: suppression propagation
-
-
-class ENADerivedModel(VisibilityControlledModel):
-    ena_accessions = JSONField(default=list, db_index=True, blank=True)
-    is_suppressed = models.BooleanField(default=False)
-
-    @property
-    def first_accession(self):
-        if len(self.ena_accessions):
-            return self.ena_accessions[0]
-        return None
-
-    class Meta:
-        abstract = True
-
-
-#         TODO – postgres GIN index on accessions?
-
-
-class TimeStampedModel(models.Model):
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        abstract = True
 
 
 class Biome(TreeModel):
@@ -446,89 +349,6 @@ class ComputeResourceHeuristic(TimeStampedModel):
             return f"ComputeResourceHeuristic {self.id} (Use {self.memory_gb:.0f} GB to assemble {self.biome} with {self.assembler})"
         else:
             return f"ComputeResourceHeuristic {self.id} ({self.process})"
-
-
-class WithDownloadsModel(models.Model):
-    """
-    Abstract model providing a `downloads` field which is a list of lightly schema'd downloadable files.
-
-     e.g.
-
-        sequence_file = WithDownloadsModel.DownloadFile(
-            path='sequence_data/sequences.fasta',
-            alias='err1.fasta',
-            download_type=WithDownloadsModel.DownloadType.SEQUENCE_DATA,
-            file_type=WithDownloadsModel.FileType.FASTA
-        )
-
-        my_model.add_download(sequence_file)
-    """
-
-    DOWNLOAD_PARENT_IDENTIFIER_ATTR: str = None
-
-    class DownloadType(str, Enum):
-        SEQUENCE_DATA = "Sequence data"
-        FUNCTIONAL_ANALYSIS = "Functional analysis"
-        TAXONOMIC_ANALYSIS = "Taxonomic analysis"
-        STATISTICS = "Statistics"
-        NON_CODING_RNAS = "non-coding RNAs"
-        GENOME_ANALYSIS = "Genome analysis"
-        RO_CRATE = "Analysis RO Crate"
-        OTHER = "Other"
-
-    class FileType(str, Enum):
-        FASTA = "fasta"
-        TSV = "tsv"
-        BIOM = "biom"
-        CSV = "csv"
-        JSON = "json"
-        SVG = "svg"
-        TREE = "tree"  # e.g. newick
-        OTHER = "other"
-
-    class DownloadFile(BaseModel):
-        """
-        A download file schema for use in the `downloads` list.
-        """
-
-        path: str  # relative path from results dir of the object these downloads are for (e.g. the Analysis)
-        alias: str  # an alias for the file, unique within the downloads list
-        download_type: "WithDownloadsModel.DownloadType"
-        file_type: "WithDownloadsModel.FileType"
-        long_description: str
-        short_description: str
-
-        parent_identifier: Optional[
-            Union[str, int]
-        ] = None  # e.g. the accession of an Analysis this download is for
-
-    downloads = models.JSONField(blank=True, default=list)
-
-    def add_download(self, download: DownloadFile):
-        if download.alias in [dl.get("alias") for dl in self.downloads]:
-            raise Exception(
-                f"Duplicate download alias found in {self}.downloads list - not adding {download.path}"
-            )
-
-        self.downloads.append(download.model_dump(exclude={"parent_identifier"}))
-        self.save()
-
-    @property
-    def downloads_as_objects(self) -> List[DownloadFile]:
-        return [
-            self.DownloadFile.model_validate(
-                dict(
-                    **dl,
-                    parent_identifier=getattr(
-                        self, self.DOWNLOAD_PARENT_IDENTIFIER_ATTR
-                    ),
-                )
-            )
-            for dl in self.downloads
-        ]
-
-    class Meta:
-        abstract = True
 
 
 class AnalysisManagerDeferringAnnotations(models.Manager):

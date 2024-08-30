@@ -5,6 +5,12 @@ from prefect import flow, task, get_run_logger
 from prefect.task_runners import SequentialTaskRunner
 from sqlalchemy import select
 
+from analyses.base_models.with_downloads_models import (
+    DownloadType,
+    DownloadFileType,
+    DownloadFile,
+)
+
 django.setup()
 
 from workflows.data_io_utils.legacy_emg_dbs import (
@@ -142,16 +148,16 @@ def import_v5_amplicon_analyses(mgys: str):
                 )
 
                 analysis.add_download(
-                    Analysis.DownloadFile(
+                    DownloadFile(
                         path=str(path),
                         alias=legacy_download.alias,
                         long_description=legacy_download.description.description,
                         short_description=legacy_download.description.description_label,
                         download_type=LEGACY_DOWNLOAD_TYPE_MAP.get(
-                            legacy_download.group_id, Analysis.DownloadType.OTHER
+                            legacy_download.group_id, DownloadType.OTHER
                         ),
                         file_type=LEGACY_FILE_FORMATS_MAP.get(
-                            legacy_download.format_id, Analysis.FileType.OTHER
+                            legacy_download.format_id, DownloadFileType.OTHER
                         ),
                     )
                 )

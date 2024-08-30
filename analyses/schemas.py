@@ -7,7 +7,7 @@ from ninja import Schema, ModelSchema, Field
 from typing_extensions import Annotated
 
 import analyses.models
-from analyses.models import Analysis
+from analyses.base_models.with_downloads_models import DownloadFile
 from emgapiv2.settings import EMG_CONFIG
 
 
@@ -32,7 +32,7 @@ class MGnifySample(ModelSchema):
         fields = ["id", "ena_sample"]
 
 
-class MGnifyAnalysisDownloadFile(Schema, Analysis.DownloadFile):
+class MGnifyAnalysisDownloadFile(Schema, DownloadFile):
     path: Annotated[str, Field(exclude=True)]
     parent_identifier: Annotated[Union[int, str], Field(exclude=True)]
 
@@ -53,8 +53,7 @@ class MGnifyAnalysis(ModelSchema):
         fields = ["accession"]
 
 
-class MGnifyAnalysisDetail(ModelSchema):
-    study_accession: str = Field(..., alias="study_id")
+class MGnifyAnalysisDetail(MGnifyAnalysis):
     downloads: List[MGnifyAnalysisDownloadFile] = Field(
         ..., alias="downloads_as_objects"
     )
