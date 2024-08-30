@@ -41,6 +41,11 @@ tasks:
     cmds:
       - docker compose --profile all up {{.CLI_ARGS}}
 
+  run-api-only:
+    desc: "Run just the API (no slurm)"
+    cmds:
+      - docker compose --profile app up {{.CLI_ARGS}}
+
   stop:
     desc: "Stop everything"
     cmds:

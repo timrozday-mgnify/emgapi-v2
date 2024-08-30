@@ -20,3 +20,5 @@ deployment/**/auth
 /work/
 /coverage
 /staticfiles
+*env/
+dev-db.json
