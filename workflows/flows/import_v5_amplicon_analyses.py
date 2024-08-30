@@ -5,13 +5,13 @@ from prefect import flow, task, get_run_logger
 from prefect.task_runners import SequentialTaskRunner
 from sqlalchemy import select
 
+django.setup()
+
 from analyses.base_models.with_downloads_models import (
     DownloadType,
     DownloadFileType,
     DownloadFile,
 )
-
-django.setup()
 
 from workflows.data_io_utils.legacy_emg_dbs import (
     LegacyStudy,
