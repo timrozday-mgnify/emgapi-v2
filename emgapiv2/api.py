@@ -16,6 +16,7 @@ from analyses.schemas import (
     MGnifyAssemblyAnalysisRequestCreate,
     MGnifyAssemblyAnalysisRequest,
     MGnifyFunctionalAnalysisAnnotationType,
+    MGnifyAnalysisDetail,
 )
 from emgapiv2.schema_utils import (
     ApiSections,
@@ -117,7 +118,10 @@ def list_mgnify_studies(request):
 
 @api.get(
     "/analyses/{accession}",
-    response=MGnifyAnalysis,
+    response=MGnifyAnalysisDetail,
+    summary="Get MGnify analysis by accession",
+    description="MGnify analyses are accessioned with an MYGA-prefixed identifier "
+    "and correspond to an individual Run or Assembly analysed by a Pipeline.",
     tags=[ApiSections.ANALYSES.value],
     openapi_extra=make_links_section(
         make_related_detail_link(
@@ -136,6 +140,9 @@ def get_mgnify_analysis(request, accession: str):
 @api.get(
     "/analyses/{accession}/annotations",
     response=MGnifyAnalysisWithAnnotations,
+    summary="Get MGnify analysis by accession, with annotations and downloadable files",
+    description="MGnify analyses have annotations (taxonomic and functional assignments), "
+    "and downloadable files (outputs from the pipeline execution).",
     tags=[ApiSections.ANALYSES.value],
 )
 def get_mgnify_analysis_with_annotations(request, accession: str):

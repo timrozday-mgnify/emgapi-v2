@@ -85,11 +85,32 @@ def test_prefect_import_v5_amplicon_analyses_flow(
         "pr2": None,
     }
 
+    # check download files imported okay
+    assert len(imported_analysis.downloads) == 1
+    dl = imported_analysis.downloads[0]
+    assert dl.get("path") == "tax/ssu_tax/BUGS_SSU.fasta.mseq_hdf5.biom"
+    assert dl.get("alias") == "BUGS_SSU_OTU_TABLE_HDF5.biom"
+    assert (
+        dl.get("short_description")
+        == "OTUs, counts and taxonomic assignments for SSU rRNA"
+    )
+    assert dl.get("download_type") == "Taxonomic analysis"
+
+    # parsed schema object should work too
+    assert (
+        imported_analysis.downloads_as_objects[0].path
+        == "tax/ssu_tax/BUGS_SSU.fasta.mseq_hdf5.biom"
+    )
+
     response = ninja_api_client.get("/analyses/MGYA00012345")
     assert response.status_code == 200
 
     json_response = response.json()
     assert json_response["study_accession"] == "MGYS00005000"
+    assert (
+        json_response["downloads"][0]["url"]
+        == "https://www.ebi.ac.uk/metagenomics/api/v1/analyses/MGYA00012345/file/BUGS_SSU_OTU_TABLE_HDF5.biom"
+    )
 
     response = ninja_api_client.get(
         "/analyses/MGYA00012345/annotations/taxonomies__ssu"

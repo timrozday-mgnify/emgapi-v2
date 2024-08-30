@@ -13,6 +13,8 @@ from sqlalchemy.orm import (
     sessionmaker,
 )
 
+from analyses.models import WithDownloadsModel
+
 
 class LegacyEMGBase(DeclarativeBase):
     """
@@ -91,6 +93,91 @@ class LegacyAnalysisJob(LegacyEMGBase):
     sample: Mapped["LegacySample"] = relationship(
         "LegacySample", back_populates="analysis_jobs"
     )
+
+    downloads: Mapped[List["LegacyAnalysisJobDownload"]] = relationship(
+        back_populates="analysis_job"
+    )
+
+
+class LegacyDownloadSubdir(LegacyEMGBase):
+    __tablename__ = "DOWNLOAD_SUBDIR"
+
+    id: Mapped[int] = mapped_column("SUBDIR_ID", Integer, primary_key=True)
+    subdir: Mapped[str] = mapped_column("SUBDIR", String)
+
+
+class LegacyDownloadDescription(LegacyEMGBase):
+    __tablename__ = "DOWNLOAD_DESCRIPTION_LABEL"
+
+    id: Mapped[int] = mapped_column("DESCRIPTION_ID", Integer, primary_key=True)
+    description: Mapped[str] = mapped_column("DESCRIPTION", String)
+    description_label: Mapped[str] = mapped_column("DESCRIPTION_LABEL", String)
+
+
+class LegacyAnalysisJobDownload(LegacyEMGBase):
+    __tablename__ = "ANALYSIS_JOB_DOWNLOAD"
+
+    id: Mapped[int] = mapped_column("ID", Integer, primary_key=True)
+    real_name: Mapped[str] = mapped_column("REAL_NAME", String)
+    alias: Mapped[str] = mapped_column("ALIAS", String)
+
+    format_id: Mapped[int] = mapped_column("FORMAT_ID", Integer)
+    # no relationship implemented here but refers to LEGACY_FILE_FORMATS_MAP below
+
+    group_id: Mapped[int] = mapped_column("GROUP_ID", Integer)
+    # no relationship implemented here but refers to LEGACY_DOWNLOAD_TYPE_MAP below
+
+    job_id: Mapped[int] = mapped_column("JOB_ID", ForeignKey("ANALYSIS_JOB.JOB_ID"))
+    analysis_job: Mapped["LegacyAnalysisJob"] = relationship(
+        "LegacyAnalysisJob", back_populates="downloads"
+    )
+
+    subdir_id: Mapped[int] = mapped_column(
+        "SUBDIR_ID", ForeignKey("DOWNLOAD_SUBDIR.SUBDIR_ID")
+    )
+    subdir: Mapped["LegacyDownloadSubdir"] = relationship("LegacyDownloadSubdir")
+
+    description_id: Mapped[int] = mapped_column(
+        "DESCRIPTION_ID", ForeignKey("DOWNLOAD_DESCRIPTION_LABEL.DESCRIPTION_ID")
+    )
+    description: Mapped["LegacyDownloadDescription"] = relationship(
+        "LegacyDownloadDescription"
+    )
+
+
+# Maps to convert legacy download metadata to new schema:
+
+LEGACY_FILE_FORMATS_MAP = {
+    1: WithDownloadsModel.FileType.TSV,
+    2: WithDownloadsModel.FileType.TSV,
+    3: WithDownloadsModel.FileType.CSV,
+    4: WithDownloadsModel.FileType.FASTA,
+    5: WithDownloadsModel.FileType.FASTA,
+    6: WithDownloadsModel.FileType.BIOM,
+    7: WithDownloadsModel.FileType.BIOM,
+    8: WithDownloadsModel.FileType.BIOM,
+    9: WithDownloadsModel.FileType.TREE,
+    10: WithDownloadsModel.FileType.SVG,
+}
+
+LEGACY_DOWNLOAD_TYPE_MAP = {
+    1: WithDownloadsModel.DownloadType.SEQUENCE_DATA,
+    2: WithDownloadsModel.DownloadType.FUNCTIONAL_ANALYSIS,
+    3: WithDownloadsModel.DownloadType.TAXONOMIC_ANALYSIS,
+    4: WithDownloadsModel.DownloadType.TAXONOMIC_ANALYSIS,
+    5: WithDownloadsModel.DownloadType.TAXONOMIC_ANALYSIS,
+    6: WithDownloadsModel.DownloadType.STATISTICS,
+    7: WithDownloadsModel.DownloadType.NON_CODING_RNAS,
+    8: WithDownloadsModel.DownloadType.GENOME_ANALYSIS,
+    9: WithDownloadsModel.DownloadType.GENOME_ANALYSIS,  # pangenome in legacy db
+    # 10: unused,
+    11: WithDownloadsModel.DownloadType.TAXONOMIC_ANALYSIS,
+    12: WithDownloadsModel.DownloadType.TAXONOMIC_ANALYSIS,
+    13: WithDownloadsModel.DownloadType.TAXONOMIC_ANALYSIS,
+    14: WithDownloadsModel.DownloadType.FUNCTIONAL_ANALYSIS,
+    15: WithDownloadsModel.DownloadType.TAXONOMIC_ANALYSIS,
+    16: WithDownloadsModel.DownloadType.RO_CRATE,
+}
 
 
 @task(task_run_name="Get taxonomy for {mgya} from legacy mongo")

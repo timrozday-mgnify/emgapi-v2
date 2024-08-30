@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import django
 from prefect import flow, task, get_run_logger
 from prefect.task_runners import SequentialTaskRunner
@@ -11,6 +13,8 @@ from workflows.data_io_utils.legacy_emg_dbs import (
     get_taxonomy_from_api_v1_mongo,
     legacy_emg_db_session,
     LegacyBiome,
+    LEGACY_FILE_FORMATS_MAP,
+    LEGACY_DOWNLOAD_TYPE_MAP,
 )
 
 import ena.models
@@ -131,6 +135,26 @@ def import_v5_amplicon_analyses(mgys: str):
                 logger.info(f"Created analysis {analysis}")
             else:
                 logger.warning(f"Updated analysis {analysis}")
+
+            for legacy_download in legacy_analysis.downloads:
+                path = Path(legacy_download.subdir.subdir) / Path(
+                    legacy_download.real_name
+                )
+
+                analysis.add_download(
+                    Analysis.DownloadFile(
+                        path=str(path),
+                        alias=legacy_download.alias,
+                        long_description=legacy_download.description.description,
+                        short_description=legacy_download.description.description_label,
+                        download_type=LEGACY_DOWNLOAD_TYPE_MAP.get(
+                            legacy_download.group_id, Analysis.DownloadType.OTHER
+                        ),
+                        file_type=LEGACY_FILE_FORMATS_MAP.get(
+                            legacy_download.format_id, Analysis.FileType.OTHER
+                        ),
+                    )
+                )
 
             taxonomy = get_taxonomy_from_api_v1_mongo(analysis.accession)
             analysis.annotations[Analysis.TAXONOMIES] = taxonomy

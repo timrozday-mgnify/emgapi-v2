@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Optional, List
+from typing import Optional, List, Union
 
-from django.urls import reverse
 from ninja import Schema, ModelSchema, Field
+from typing_extensions import Annotated
 
 import analyses.models
+from analyses.models import Analysis
+from emgapiv2.settings import EMG_CONFIG
 
 
 class MGnifyStudy(ModelSchema):
@@ -30,12 +32,36 @@ class MGnifySample(ModelSchema):
         fields = ["id", "ena_sample"]
 
 
+class MGnifyAnalysisDownloadFile(Schema, Analysis.DownloadFile):
+    path: Annotated[str, Field(exclude=True)]
+    parent_identifier: Annotated[Union[int, str], Field(exclude=True)]
+
+    url: str = None
+
+    @staticmethod
+    def resolve_url(obj: MGnifyAnalysisDownloadFile):
+        return EMG_CONFIG.legacy_service.emg_analysis_download_url_pattern.format(
+            id=obj.parent_identifier, alias=obj.alias
+        )
+
+
 class MGnifyAnalysis(ModelSchema):
     study_accession: str = Field(..., alias="study_id")
 
     class Meta:
         model = analyses.models.Analysis
-        fields = ["accession", "results_dir"]
+        fields = ["accession"]
+
+
+class MGnifyAnalysisDetail(ModelSchema):
+    study_accession: str = Field(..., alias="study_id")
+    downloads: List[MGnifyAnalysisDownloadFile] = Field(
+        ..., alias="downloads_as_objects"
+    )
+
+    class Meta:
+        model = analyses.models.Analysis
+        fields = ["accession"]
 
 
 class MGnifyAnalysisTypedAnnotation(Schema):
@@ -44,12 +70,25 @@ class MGnifyAnalysisTypedAnnotation(Schema):
     organism: Optional[str] = None  # for taxonomic
 
 
-class MGnifyAnalysisWithAnnotations(MGnifyAnalysis):
-    annotations: dict[str, List[MGnifyAnalysisTypedAnnotation]]
+class MGnifyAnalysisWithAnnotations(MGnifyAnalysisDetail):
+    annotations: dict[str, List[MGnifyAnalysisTypedAnnotation]] = Field(
+        ...,
+        examples=[
+            {
+                "pfams": [
+                    {
+                        "count": 1,
+                        "description": "PFAM1",
+                        "organism": None,
+                    }
+                ]
+            }
+        ],
+    )
 
     class Meta:
         model = analyses.models.Analysis
-        fields = ["accession", "results_dir", "annotations"]
+        fields = ["accession", "annotations"]
 
 
 class MGnifyAssemblyAnalysisRequestCreate(ModelSchema):

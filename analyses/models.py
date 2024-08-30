@@ -2,7 +2,7 @@ import logging
 import os
 import re
 from enum import Enum
-from typing import ClassVar
+from typing import ClassVar, List, Union, Optional
 
 from django.core.exceptions import (
     MultipleObjectsReturned,
@@ -12,6 +12,7 @@ from django.db import models
 from django.db.models import Q, F, Value, CharField, JSONField, AutoField
 from django.db.models.functions import LPad, Cast
 from django_ltree.models import TreeModel
+from pydantic import BaseModel
 
 import ena.models
 
@@ -202,21 +203,6 @@ class Sample(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
 
     def __str__(self):
         return f"Sample {self.id}: {self.ena_sample}"
-
-
-class AnalysisManagerDeferringAnnotations(models.Manager):
-    """
-    The annotations field is a potentially large JSONB field.
-    Defer it by default, since most queries don't need to transfer this large dataset.
-    """
-
-    def get_queryset(self):
-        return super().get_queryset().defer("annotations")
-
-
-class AnalysisManagerIncludingAnnotations(models.Manager):
-    def get_queryset(self):
-        return super().get_queryset()
 
 
 class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
@@ -459,12 +445,117 @@ class ComputeResourceHeuristic(TimeStampedModel):
         if self.process == self.ProcessTypes.ASSEMBLY:
             return f"ComputeResourceHeuristic {self.id} (Use {self.memory_gb:.0f} GB to assemble {self.biome} with {self.assembler})"
         else:
-            return f"ComputeResourceHeuristic {self.id ({self.process})}"
+            return f"ComputeResourceHeuristic {self.id} ({self.process})"
 
 
-class Analysis(MGnifyAutomatedModel, TimeStampedModel, VisibilityControlledModel):
+class WithDownloadsModel(models.Model):
+    """
+    Abstract model providing a `downloads` field which is a list of lightly schema'd downloadable files.
+
+     e.g.
+
+        sequence_file = WithDownloadsModel.DownloadFile(
+            path='sequence_data/sequences.fasta',
+            alias='err1.fasta',
+            download_type=WithDownloadsModel.DownloadType.SEQUENCE_DATA,
+            file_type=WithDownloadsModel.FileType.FASTA
+        )
+
+        my_model.add_download(sequence_file)
+    """
+
+    DOWNLOAD_PARENT_IDENTIFIER_ATTR: str = None
+
+    class DownloadType(str, Enum):
+        SEQUENCE_DATA = "Sequence data"
+        FUNCTIONAL_ANALYSIS = "Functional analysis"
+        TAXONOMIC_ANALYSIS = "Taxonomic analysis"
+        STATISTICS = "Statistics"
+        NON_CODING_RNAS = "non-coding RNAs"
+        GENOME_ANALYSIS = "Genome analysis"
+        RO_CRATE = "Analysis RO Crate"
+        OTHER = "Other"
+
+    class FileType(str, Enum):
+        FASTA = "fasta"
+        TSV = "tsv"
+        BIOM = "biom"
+        CSV = "csv"
+        JSON = "json"
+        SVG = "svg"
+        TREE = "tree"  # e.g. newick
+        OTHER = "other"
+
+    class DownloadFile(BaseModel):
+        """
+        A download file schema for use in the `downloads` list.
+        """
+
+        path: str  # relative path from results dir of the object these downloads are for (e.g. the Analysis)
+        alias: str  # an alias for the file, unique within the downloads list
+        download_type: "WithDownloadsModel.DownloadType"
+        file_type: "WithDownloadsModel.FileType"
+        long_description: str
+        short_description: str
+
+        parent_identifier: Optional[
+            Union[str, int]
+        ] = None  # e.g. the accession of an Analysis this download is for
+
+    downloads = models.JSONField(blank=True, default=list)
+
+    def add_download(self, download: DownloadFile):
+        if download.alias in [dl.get("alias") for dl in self.downloads]:
+            raise Exception(
+                f"Duplicate download alias found in {self}.downloads list - not adding {download.path}"
+            )
+
+        self.downloads.append(download.model_dump(exclude={"parent_identifier"}))
+        self.save()
+
+    @property
+    def downloads_as_objects(self) -> List[DownloadFile]:
+        return [
+            self.DownloadFile.model_validate(
+                dict(
+                    **dl,
+                    parent_identifier=getattr(
+                        self, self.DOWNLOAD_PARENT_IDENTIFIER_ATTR
+                    ),
+                )
+            )
+            for dl in self.downloads
+        ]
+
+    class Meta:
+        abstract = True
+
+
+class AnalysisManagerDeferringAnnotations(models.Manager):
+    """
+    The annotations field is a potentially large JSONB field.
+    Defer it by default, since most queries don't need to transfer this large dataset.
+    """
+
+    def get_queryset(self):
+        return super().get_queryset().defer("annotations")
+
+
+class AnalysisManagerIncludingAnnotations(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset()
+
+
+class Analysis(
+    MGnifyAutomatedModel,
+    TimeStampedModel,
+    VisibilityControlledModel,
+    WithDownloadsModel,
+):
     objects = AnalysisManagerDeferringAnnotations()
     objects_and_annotations = AnalysisManagerIncludingAnnotations()
+
+    DOWNLOAD_PARENT_IDENTIFIER_ATTR = "accession"
 
     accession = MGnifyAccessionField(accession_prefix="MGYA", accession_length=8)
 

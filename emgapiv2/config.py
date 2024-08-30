@@ -60,6 +60,10 @@ class LegacyServiceConfig(BaseModel):
 
     emg_mysql_dsn: MySQLDsn = "mysql+mysqlconnector://mysql.not.here/emg"
 
+    emg_analysis_download_url_pattern: str = (
+        "https://www.ebi.ac.uk/metagenomics/api/v1/analyses/{id}/file/{alias}"
+    )
+
 
 class EMGConfig(BaseSettings):
     slurm: SlurmConfig = SlurmConfig()
