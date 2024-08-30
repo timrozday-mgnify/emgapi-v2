@@ -187,7 +187,7 @@ def get_taxonomy_from_api_v1_mongo(
     from analyses.models import Analysis  # prevent importing before apps ready
 
     logger = get_run_logger()
-    mongo_dsn = settings.EMG_CONFIG.legacy_service.emg_mongo_dsn
+    mongo_dsn = str(settings.EMG_CONFIG.legacy_service.emg_mongo_dsn)
     mongo_client = pymongo.MongoClient(mongo_dsn)
     db = mongo_client[settings.EMG_CONFIG.legacy_service.emg_mongo_db]
 
