@@ -340,16 +340,21 @@ async def run_assembler_for_samplesheet(
         )
         assembled_runs = set()
 
-        if assembled_runs_csv.is_file():
-            with assembled_runs_csv.open(mode="r") as file_handle:
-                for row in csv.reader(file_handle, delimiter=","):
-                    run_accession, assembler_software, assembler_version = row
-                    assembled_runs.add(run_accession)
-
-        if not assembled_runs_csv.is_file() and not qc_failed_csv.is_file():
+        if not assembled_runs_csv.is_file():
+            for assembly in assemblies:
+                task_mark_assembly_status(
+                    assembly,
+                    status=analyses.models.Assembly.AssemblyStates.ASSEMBLY_FAILED,
+                    reason=f"The miassembler output is missing the {assembled_runs_csv} file.",
+                )
             raise Exception(
-                f"Missing end of execution report csv files. Expected paths {assembled_runs_csv}, and {qc_failed_csv}"
+                f"Missing end of execution assembled runs csv file. Expected path {assembled_runs_csv}."
             )
+
+        with assembled_runs_csv.open(mode="r") as file_handle:
+            for row in csv.reader(file_handle, delimiter=","):
+                run_accession, assembler_software, assembler_version = row
+                assembled_runs.add(run_accession)
 
         for assembly in assemblies:
             if assembly.run.first_accession in qc_failed_runs:
