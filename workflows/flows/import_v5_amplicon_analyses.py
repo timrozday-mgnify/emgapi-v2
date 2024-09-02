@@ -14,6 +14,7 @@ from analyses.base_models.with_downloads_models import (
 )
 
 from workflows.data_io_utils.legacy_emg_dbs import (
+    LegacyRun,
     LegacyStudy,
     LegacySample,
     get_taxonomy_from_api_v1_mongo,
@@ -24,7 +25,7 @@ from workflows.data_io_utils.legacy_emg_dbs import (
 )
 
 import ena.models
-from analyses.models import Analysis, Study, Sample, Biome
+from analyses.models import Analysis, Study, Sample, Biome, Run
 
 
 @task
@@ -93,6 +94,36 @@ def make_sample_from_legacy_emg_db(legacy_sample: LegacySample, study: Study) ->
     return mg_sample
 
 
+@task
+def make_run_from_legacy_emg_db(legacy_run: LegacyRun, study: Study) -> Run:
+    assert (
+        legacy_run.experiment_type_id == 3
+    ), f"Legacy run {legacy_run.run_id} is not amplicon. Experiment type is {legacy_run.experiment_type_id}"
+
+    logger = get_run_logger()
+
+    sample = Sample.objects.get(
+        ena_accessions__contains=legacy_run.sample.primary_accession
+    )
+
+    run, created = Run.objects.get_or_create(
+        ena_study=study.ena_study,
+        study=study,
+        sample=sample,
+        experiment_type=Run.ExperimentTypes.AMPLICON,
+        ena_accessions=list(
+            {legacy_run.accession, legacy_run.secondary_accession}
+        ),  # dedupes
+        metadata={
+            Run.CommonMetadataKeys.INSTRUMENT_PLATFORM: legacy_run.instrument_platform,
+            Run.CommonMetadataKeys.INSTRUMENT_MODEL: legacy_run.instrument_model,
+        },
+    )
+    if created:
+        logger.info(f"Created new run object {run}")
+    return run
+
+
 @flow(
     name="Import V5 Amplicon Analyses",
     flow_run_name="Import V5 amplicon analyses from study: {mgys}",
@@ -106,9 +137,6 @@ def import_v5_amplicon_analyses(mgys: str):
     It connects to the legacy Mongo database server directly to copy data (it is big),
     but uses a TSV dump file of the legacy MySQL db (it is quite small).
     """
-
-    # TODO: import "download" files, either as per API v1 (serve some file content from fs)
-    # or import content into DB for things like QC
 
     logger = get_run_logger()
 
@@ -125,6 +153,7 @@ def import_v5_amplicon_analyses(mgys: str):
         for legacy_analysis in legacy_study.analysis_jobs:
             legacy_sample = legacy_analysis.sample
             sample = make_sample_from_legacy_emg_db(legacy_sample, study)
+            run = make_run_from_legacy_emg_db(legacy_analysis.run, study)
 
             analysis, created = Analysis.objects.update_or_create(
                 id=legacy_analysis.job_id,
@@ -134,6 +163,7 @@ def import_v5_amplicon_analyses(mgys: str):
                     "results_dir": legacy_analysis.result_directory,
                     "ena_study": study.ena_study,
                     "pipeline_version": Analysis.PipelineVersions.v5,
+                    "run": run,
                 },
             )
 
@@ -167,4 +197,6 @@ def import_v5_amplicon_analyses(mgys: str):
 
             taxonomy = get_taxonomy_from_api_v1_mongo(analysis.accession)
             analysis.annotations[Analysis.TAXONOMIES] = taxonomy
+            analysis.mark_status(analysis.AnalysisStates.ANALYSIS_STARTED)
+            analysis.mark_status(analysis.AnalysisStates.ANALYSIS_COMPLETED)
             analysis.save()

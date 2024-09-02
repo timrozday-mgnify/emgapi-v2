@@ -65,6 +65,7 @@ def test_prefect_import_v5_amplicon_analyses_flow(
     assert "SAMEA1" in imported_analysis.sample.ena_accessions
     assert "ERS1" in imported_analysis.sample.ena_accessions
     assert imported_analysis.study.biome.biome_name == "Martian soil"
+    assert ["ERR1000"] == imported_analysis.run.ena_accessions
 
     imported_analysis_with_annos: Analysis = Analysis.objects_and_annotations.get(
         accession="MGYA00012345"

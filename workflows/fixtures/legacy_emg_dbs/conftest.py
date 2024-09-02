@@ -17,6 +17,7 @@ from workflows.data_io_utils.legacy_emg_dbs import (
     LegacyDownloadDescription,
     LegacyDownloadSubdir,
     LegacyAnalysisJobDownload,
+    LegacyRun,
 )
 
 
@@ -56,9 +57,22 @@ def in_memory_legacy_emg_db():
     )
     session.add(sample)
 
+    run = LegacyRun(
+        run_id=1001,
+        sample_id=1000,
+        accession="ERR1000",
+        experiment_type_id=3,
+        secondary_accession="ERR1000",  # yes, they are usually duplicated in legacy db
+        instrument_platform="Sequencer",
+        instrument_model="Box",
+        study_id=5000,
+    )
+    session.add(run)
+
     analysis = LegacyAnalysisJob(
         job_id=12345,
         sample_id=1000,
+        run_id=1001,
         study_id=5000,
         pipeline_id=6,  # 6 is v6.0 in legacy EMG DB
         result_directory="some/dir/in/results",

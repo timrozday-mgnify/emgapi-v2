@@ -73,6 +73,23 @@ class LegacySample(LegacyEMGBase):
     )
 
 
+class LegacyRun(LegacyEMGBase):
+    __tablename__ = "RUN"
+    run_id: Mapped[int] = mapped_column("RUN_ID", Integer, primary_key=True)
+    accession: Mapped[str] = mapped_column("ACCESSION", String)
+    secondary_accession: Mapped[str] = mapped_column("SECONDARY_ACCESSION", String)
+    instrument_platform: Mapped[str] = mapped_column("INSTRUMENT_Platform", String)
+    instrument_model: Mapped[str] = mapped_column("INSTRUMENT_MODEL", String)
+
+    sample_id: Mapped[int] = mapped_column("SAMPLE_ID", ForeignKey("SAMPLE.SAMPLE_ID"))
+    sample: Mapped["LegacySample"] = relationship("LegacySample")
+
+    study_id: Mapped[int] = mapped_column("STUDY_ID", ForeignKey("STUDY.STUDY_ID"))
+    study: Mapped["LegacyStudy"] = relationship("LegacyStudy")
+
+    experiment_type_id: Mapped[int] = mapped_column("EXPERIMENT_TYPE_ID", Integer)
+
+
 class LegacyAnalysisJob(LegacyEMGBase):
     __tablename__ = "ANALYSIS_JOB"
 
@@ -93,6 +110,9 @@ class LegacyAnalysisJob(LegacyEMGBase):
     sample: Mapped["LegacySample"] = relationship(
         "LegacySample", back_populates="analysis_jobs"
     )
+
+    run_id: Mapped[int] = mapped_column("RUN_ID", ForeignKey("RUN.RUN_ID"))
+    run: Mapped["LegacyRun"] = relationship("LegacyRun")
 
     downloads: Mapped[List["LegacyAnalysisJobDownload"]] = relationship(
         back_populates="analysis_job"
