@@ -1,4 +1,6 @@
 import json
+import os
+import shutil
 from enum import Enum
 
 import pytest
@@ -7,11 +9,8 @@ from pydantic import BaseModel
 
 import analyses.models
 import ena.models
-from workflows.flows.assemble_study import (
-    assemble_study,
-    AssemblerInput,
-    AssemblerChoices,
-)
+from emgapiv2.settings import EMG_CONFIG
+from workflows.flows.assemble_study import AssemblerChoices, assemble_study
 
 
 @pytest.mark.django_db(transaction=True)
@@ -88,7 +87,15 @@ async def test_prefect_assemble_study_flow(
             )
 
     mock_suspend_flow_run.side_effect = suspend_side_effect
-    ## ----
+
+    assembly_folder = f"{EMG_CONFIG.slurm.default_workdir}/PRJNA1_miassembler"
+    os.mkdir(assembly_folder)
+
+    with open(f"{assembly_folder}/assembled_runs.csv", "w") as file:
+        file.write("SRR1,metaspades,3.15.5")
+
+    with open(f"{assembly_folder}/qc_failed_runs.csv", "w") as file:
+        file.write("SRR2,filter_ratio_threshold_exceeded")
 
     ### RUN WORKFLOW ###
     await assemble_study(accession)
@@ -119,5 +126,16 @@ async def test_prefect_assemble_study_flow(
         await analyses.models.Assembly.objects.filter(
             status__assembly_completed=True
         ).acount()
-        == 2
+        == 1
     )
+
+    failed_assembly: analyses.models.Assembly = (
+        await analyses.models.Assembly.objects.aget(status__pre_assembly_qc_failed=True)
+    )
+
+    assert (
+        failed_assembly.status["pre_assembly_qc_failed_reason"]
+        == "filter_ratio_threshold_exceeded"
+    )
+
+    shutil.rmtree(assembly_folder, ignore_errors=True)

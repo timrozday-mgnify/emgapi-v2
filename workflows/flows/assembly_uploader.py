@@ -1,26 +1,28 @@
-import os
 import gzip
+import os
 import re
 from datetime import timedelta
-from Bio import SeqIO
+
 import django
+from Bio import SeqIO
 
 django.setup()
 
-import analyses.models
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
-from prefect import flow, task, get_run_logger
+from prefect import flow, get_run_logger, task
 from prefect.task_runners import SequentialTaskRunner
-from workflows.prefect_utils.shell_task import run_shell_command
 
+import analyses.models
+from emgapiv2.settings import EMG_CONFIG
+from workflows.prefect_utils.analyses_models_helpers import task_mark_assembly_status
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
+from workflows.prefect_utils.shell_task import run_shell_command
 from workflows.prefect_utils.slurm_flow import (
-    run_cluster_jobs,
-    slurm_status_is_finished_successfully,
     FINAL_SLURM_STATE,
     SLURM_JOB_ID,
+    run_cluster_jobs,
+    slurm_status_is_finished_successfully,
 )
-from emgapiv2.settings import EMG_CONFIG
 
 OPTIONAL_SPADES_FILES = [
     ".assembly_graph.fastg.gz",
@@ -370,26 +372,6 @@ async def get_assigned_assembly_accession(run_accession, upload_dir):
 
 
 @task()
-def mark_assembly_as_uploaded(assembly: analyses.models.Assembly):
-    assembly.mark_status(assembly.AssemblyStates.ASSEMBLY_UPLOADED)
-
-
-@task()
-def mark_assembly_as_upload_failed(assembly: analyses.models.Assembly):
-    assembly.mark_status(assembly.AssemblyStates.ASSEMBLY_UPLOAD_FAILED)
-
-
-@task()
-def mark_assembly_as_upload_blocked(assembly: analyses.models.Assembly):
-    assembly.mark_status(assembly.AssemblyStates.ASSEMBLY_UPLOAD_BLOCKED)
-
-
-@task()
-def mark_assembly_as_post_assembly_qc_failed(assembly: analyses.models.Assembly):
-    assembly.mark_status(assembly.AssemblyStates.POST_ASSEMBLY_QC_FAILED)
-
-
-@task()
 def add_erz_accession(assembly: analyses.models.Assembly, erz_accession):
     assembly.add_erz_accession(erz_accession)
 
@@ -432,7 +414,9 @@ async def submit_assembly_slurm(
         logger.info(f"Successfully ran webin-cli upload for {run_accession}")
         if dry_run:
             # no webin.report generated
-            mark_assembly_as_uploaded(mgnify_assembly)
+            task_mark_assembly_status(
+                mgnify_assembly, status=mgnify_assembly.AssemblyStates.ASSEMBLY_UPLOADED
+            )
         else:
             # check webin.report for ERZ
             erz_accession = await get_assigned_assembly_accession(
@@ -441,22 +425,29 @@ async def submit_assembly_slurm(
             if erz_accession:
                 logger.info(f"Upload completed for {run_accession} as {erz_accession}")
                 add_erz_accession(mgnify_assembly, erz_accession)
-                mark_assembly_as_uploaded(mgnify_assembly)
+                task_mark_assembly_status(
+                    mgnify_assembly,
+                    status=mgnify_assembly.AssemblyStates.ASSEMBLY_UPLOADED,
+                )
             else:
                 logger.info(f"Upload failed for {run_accession}")
-                mark_assembly_as_upload_failed(mgnify_assembly)
+                task_mark_assembly_status(
+                    mgnify_assembly,
+                    status=mgnify_assembly.AssemblyStates.ASSEMBLY_UPLOAD_FAILED,
+                )
     else:
         logger.error(
             f"Something went wrong running webin-cli upload for {run_accession} in job {slurm_job_results[0][SLURM_JOB_ID]}"
         )
-        mark_assembly_as_upload_failed(mgnify_assembly)
+        task_mark_assembly_status(
+            mgnify_assembly,
+            status=mgnify_assembly.AssemblyStates.ASSEMBLY_UPLOAD_FAILED,
+        )
 
 
-"""
-The idea of that flow is to run assembly_uploader PER-RUN after assembly flow.
-All assembly_uploader scripts are running with prefect ShellOperation command.
-Assembly submission with webin-cli is launched as slurm cluster job.
-"""
+##########################
+# Assembly uploader flow #
+##########################
 
 
 @flow(
@@ -471,6 +462,13 @@ async def assembly_uploader(
     assembler_version: str = EMG_CONFIG.assembler.assembler_version_default,
     dry_run=True,
 ):
+    """
+    This flow performs a sanity check and uploads an assembly for a specific run to ENA.
+
+    It is intended to be executed *per run* after the assembly flow. The assembly uploader
+    scripts are executed using Prefect's `ShellOperation` command. The assembly submission
+    via `webin-cli` is launched as a SLURM cluster job.
+    """
     logger = get_run_logger()
     mgnify_study = await analyses.models.Study.objects.get_or_create_for_ena_study(
         study_accession
@@ -506,7 +504,10 @@ async def assembly_uploader(
     if check_assembly(run_accession, assembly_path, assembler):
         logger.info(f"Assembly for {run_accession} passed sanity check")
     else:
-        mark_assembly_as_post_assembly_qc_failed(mgnify_assembly)
+        task_mark_assembly_status(
+            mgnify_assembly,
+            status=mgnify_assembly.AssemblyStates.POST_ASSEMBLY_QC_FAILED,
+        )
         raise Exception(
             f"Assembly for {run_accession} did not pass sanity check. No further action."
         )

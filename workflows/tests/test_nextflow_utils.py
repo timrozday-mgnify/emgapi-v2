@@ -7,13 +7,13 @@ import pytest
 import analyses.models
 import ena.models
 from workflows.nextflow_utils.samplesheets import (
-    queryset_to_samplesheet,
-    queryset_hash,
     SamplesheetColumnSource,
+    queryset_hash,
+    queryset_to_samplesheet,
 )
 
 
-@pytest.mark.django_db(transaction=True,  reset_sequences=True)
+@pytest.mark.django_db(transaction=True, reset_sequences=True)
 def test_queryset_to_samplesheet(raw_reads_mgnify_study):
     for i in range(10):
         ena_sample = ena.models.Sample.objects.create(
