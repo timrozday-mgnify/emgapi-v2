@@ -9,14 +9,14 @@ from ninja.pagination import RouterPaginated
 
 import analyses.models
 from analyses.schemas import (
-    MGnifyStudy,
     MGnifyAnalysis,
-    MGnifyAnalysisWithAnnotations,
-    MGnifyAnalysisTypedAnnotation,
-    MGnifyAssemblyAnalysisRequestCreate,
-    MGnifyAssemblyAnalysisRequest,
-    MGnifyFunctionalAnalysisAnnotationType,
     MGnifyAnalysisDetail,
+    MGnifyAnalysisTypedAnnotation,
+    MGnifyAnalysisWithAnnotations,
+    MGnifyAssemblyAnalysisRequest,
+    MGnifyAssemblyAnalysisRequestCreate,
+    MGnifyFunctionalAnalysisAnnotationType,
+    MGnifyStudy,
 )
 from emgapiv2.schema_utils import (
     ApiSections,
@@ -174,7 +174,7 @@ def get_mgnify_analysis_with_annotations_of_type(
 
     if limit and annotations:
         return annotations[:limit]
-    return annotations
+    return annotations or []  # None -> []
 
 
 @api.get(

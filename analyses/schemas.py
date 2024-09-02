@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Optional, List, Union
+from typing import List, Optional, Union
 
-from ninja import Schema, ModelSchema, Field
+from ninja import Field, ModelSchema, Schema
 from typing_extensions import Annotated
 
 import analyses.models
@@ -70,7 +70,13 @@ class MGnifyAnalysisTypedAnnotation(Schema):
 
 
 class MGnifyAnalysisWithAnnotations(MGnifyAnalysisDetail):
-    annotations: dict[str, List[MGnifyAnalysisTypedAnnotation]] = Field(
+    annotations: dict[
+        str,
+        Union[
+            List[MGnifyAnalysisTypedAnnotation],
+            dict[str, Optional[List[MGnifyAnalysisTypedAnnotation]]],
+        ],
+    ] = Field(
         ...,
         examples=[
             {
@@ -80,7 +86,16 @@ class MGnifyAnalysisWithAnnotations(MGnifyAnalysisDetail):
                         "description": "PFAM1",
                         "organism": None,
                     }
-                ]
+                ],
+                "taxonomics": {
+                    "lsu": [
+                        {
+                            "count": 1,
+                            "description": None,
+                            "organism": "Bacteria",
+                        }
+                    ]
+                },
             }
         ],
     )
