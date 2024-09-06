@@ -1,31 +1,29 @@
 from pathlib import Path
 
 import django
-from prefect import flow, task, get_run_logger
+from prefect import flow, get_run_logger, task
 from prefect.task_runners import SequentialTaskRunner
 from sqlalchemy import select
 
 django.setup()
 
+import ena.models
 from analyses.base_models.with_downloads_models import (
-    DownloadType,
-    DownloadFileType,
     DownloadFile,
+    DownloadFileType,
+    DownloadType,
 )
-
+from analyses.models import Analysis, Biome, Run, Sample, Study
 from workflows.data_io_utils.legacy_emg_dbs import (
+    LEGACY_DOWNLOAD_TYPE_MAP,
+    LEGACY_FILE_FORMATS_MAP,
+    LegacyBiome,
     LegacyRun,
-    LegacyStudy,
     LegacySample,
+    LegacyStudy,
     get_taxonomy_from_api_v1_mongo,
     legacy_emg_db_session,
-    LegacyBiome,
-    LEGACY_FILE_FORMATS_MAP,
-    LEGACY_DOWNLOAD_TYPE_MAP,
 )
-
-import ena.models
-from analyses.models import Analysis, Study, Sample, Biome, Run
 
 
 @task

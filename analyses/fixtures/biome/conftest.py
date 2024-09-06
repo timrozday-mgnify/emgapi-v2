@@ -1,6 +1,5 @@
-import pytest
-
 import django
+import pytest
 
 django.setup()
 

@@ -1,8 +1,6 @@
 .DS_Store
-workflows/*.yaml
 db.sqlite3
 prefectdb/
 appdb/
-workflows/deployments/*.yaml
 prefectserver
 deployment/

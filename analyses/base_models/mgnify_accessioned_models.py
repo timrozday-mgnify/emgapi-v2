@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from django.db import models
-from django.db.models import Value, F, CharField
-from django.db.models.functions import LPad, Cast
+from django.db.models import CharField, F, Value
+from django.db.models.functions import Cast, LPad
 
 
 class ConcatOp(models.Func):

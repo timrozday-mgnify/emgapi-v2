@@ -3,10 +3,9 @@ import hashlib
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Union, Callable, Any
+from typing import Any, Callable, Union
 
 from django.db.models import QuerySet
-
 
 logger = logging.getLogger(__name__)
 

@@ -1,9 +1,10 @@
+import django
 import pytest
 
-import django
 django.setup()
 
 import analyses.models as mg_models
+
 
 @pytest.fixture
 def raw_reads_mgnify_study(raw_read_ena_study):

@@ -1,8 +1,8 @@
 from dataclasses import dataclass
-from typing import Callable, Any
+from typing import Any, Callable
 
 from asgiref.sync import async_to_sync
-from prefect import get_client, State
+from prefect import State, get_client
 from prefect.client.schemas.filters import LogFilter, LogFilterFlowRunId
 from pydantic import UUID4
 

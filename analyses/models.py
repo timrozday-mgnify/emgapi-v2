@@ -6,20 +6,17 @@ import re
 from enum import Enum
 from typing import ClassVar
 
-from django.core.exceptions import (
-    MultipleObjectsReturned,
-    ObjectDoesNotExist,
-)
+from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import models
 from django.db.models import JSONField, Q
 from django_ltree.models import TreeModel
 
 import ena.models
 from analyses.base_models.base_models import (
-    MGnifyAutomatedModel,
-    VisibilityControlledModel,
     ENADerivedModel,
+    MGnifyAutomatedModel,
     TimeStampedModel,
+    VisibilityControlledModel,
 )
 from analyses.base_models.mgnify_accessioned_models import MGnifyAccessionField
 from analyses.base_models.with_downloads_models import WithDownloadsModel

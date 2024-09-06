@@ -1,11 +1,12 @@
+import django
 import pytest
 
-import django
 django.setup()
 
 import analyses.models as mg_models
 
 versions = {"metaspades": "3.15.3", "spades": "3.15.3", "megahit": "1.2.9"}
+
 
 @pytest.fixture
 def assemblers():

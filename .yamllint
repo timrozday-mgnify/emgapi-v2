@@ -8,3 +8,5 @@ rules:
       Taskfile.yaml
       docker-compose.yaml
       slurm/docker-compose.yaml
+ignore:
+  prefect.yaml  # managed by prefect

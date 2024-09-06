@@ -1,10 +1,10 @@
 from datetime import timedelta
+from typing import List
 
 import django
-from django.conf import settings
-from prefect import flow, task, suspend_flow_run
-from typing import List
 import httpx
+from django.conf import settings
+from prefect import flow, suspend_flow_run, task
 from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 
@@ -12,12 +12,12 @@ from workflows.prefect_utils.cache_control import context_agnostic_task_input_ha
 
 django.setup()
 
-from ena.models import Study, Sample
+from ena.models import Sample, Study
 from workflows.prefect_utils.slurm_flow import (
-    run_cluster_jobs,
-    slurm_status_is_finished_successfully,
     FINAL_SLURM_STATE,
     SLURM_JOB_ID,
+    run_cluster_jobs,
+    slurm_status_is_finished_successfully,
 )
 
 

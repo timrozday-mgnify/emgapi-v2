@@ -1,12 +1,12 @@
 from typing import List
-from prefect import task
-
-from emgapiv2.settings import EMG_CONFIG
-from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 
 import httpx
-import ena.models
+from prefect import task
+
 import analyses.models
+import ena.models
+from emgapiv2.settings import EMG_CONFIG
+from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 
 RESULT_FORMAT = "json"
 

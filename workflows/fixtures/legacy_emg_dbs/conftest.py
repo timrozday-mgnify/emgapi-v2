@@ -1,23 +1,22 @@
 import sys
+from contextlib import contextmanager
 from unittest import mock
 
 import pymongo
 import pytest
-from contextlib import contextmanager
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from workflows.data_io_utils.legacy_emg_dbs import (
-    LegacyEMGBase,
-    LegacyBiome,
-    LegacyStudy,
-    LegacySample,
     LegacyAnalysisJob,
+    LegacyAnalysisJobDownload,
+    LegacyBiome,
     LegacyDownloadDescription,
     LegacyDownloadSubdir,
-    LegacyAnalysisJobDownload,
+    LegacyEMGBase,
     LegacyRun,
+    LegacySample,
+    LegacyStudy,
 )
 
 

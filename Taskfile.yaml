@@ -31,11 +31,6 @@ tasks:
     requires:
       vars: [FLOW]
 
-  deploy-utils:
-    desc: "Build and deploy the Prefect/Slurm util flows."
-    cmds:
-      - docker compose run app prefectcli deployment build workflows/prefect_utils/slurm_flow.py:run_cluster_job --name run_cluster_job_deployment --output workflows/deployments/run_cluster_job_deployment.yaml -p slurm --apply
-
   run:
     desc: "Run everything"
     cmds:

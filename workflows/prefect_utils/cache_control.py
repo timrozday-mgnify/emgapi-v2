@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from prefect.context import TaskRunContext
 from prefect.utilities.hashing import hash_objects

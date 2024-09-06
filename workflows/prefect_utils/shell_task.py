@@ -1,4 +1,4 @@
-from prefect import task, get_run_logger
+from prefect import get_run_logger, task
 from prefect_shell import ShellOperation
 
 
