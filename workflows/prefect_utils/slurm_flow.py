@@ -235,7 +235,8 @@ def start_cluster_job(
 
     script = _(
         f"""\
-        #!/bin/bash -euo pipefail
+        #!/bin/bash
+        set -euo pipefail
         {command}
         """
     )
