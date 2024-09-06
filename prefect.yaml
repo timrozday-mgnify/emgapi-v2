@@ -1,0 +1,31 @@
+name: emgapi
+prefect-version: 2.18.3
+
+# build section allows you to manage and build docker images
+build: null
+
+# push section allows you to manage if and how this project is uploaded to remote locations
+push: null
+
+# pull section allows you to provide instructions for cloning this project in remote locations
+pull:
+- prefect.deployments.steps.set_working_directory:
+    directory: /app
+
+# the deployments section allows you to provide configuration for deploying flows
+deployments:
+- name: assemble_study_deployment
+  version: null
+  tags: []
+  description: |-
+    Get a study from ENA, and input it to MGnify.
+    Kick off assembly pipeline.
+    :param accession: Study accession e.g. PRJxxxxxx
+    :param miassembler_profile: Name of the nextflow profile to use for MI Assembler.
+  entrypoint: workflows/flows/assemble_study.py:assemble_study
+  parameters: {}
+  work_pool:
+    name: slurm
+    work_queue_name: null
+    job_variables: {}
+  schedules: []
