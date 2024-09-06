@@ -13,6 +13,13 @@ from prefect.artifacts import create_table_artifact
 from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 
+django.setup()
+
+import httpx
+from prefect import flow, suspend_flow_run, task
+
+import analyses.models
+import ena.models
 from emgapiv2.settings import EMG_CONFIG
 from workflows.ena_utils.ena_api_requests import (
     get_study_from_ena,
@@ -23,20 +30,12 @@ from workflows.nextflow_utils.samplesheets import (
     queryset_hash,
     queryset_to_samplesheet,
 )
+from workflows.prefect_utils.analyses_models_helpers import task_mark_assembly_status
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 from workflows.prefect_utils.slurm_flow import (
     ClusterJobFailedException,
     run_cluster_job,
 )
-
-django.setup()
-
-import httpx
-from prefect import flow, suspend_flow_run, task
-
-import analyses.models
-import ena.models
-from workflows.prefect_utils.analyses_models_helpers import task_mark_assembly_status
 
 
 @task()
