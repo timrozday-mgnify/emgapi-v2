@@ -1,23 +1,23 @@
 import json
 
+from django import forms
 from django.contrib import admin
 from django.db import models
-from django import forms
+from unfold.admin import ModelAdmin, TabularInline
 
 from emgapiv2.widgets import StatusPathwayWidget
+
 from .models import (
-    Study,
-    Sample,
     Analysis,
-    AssemblyAnalysisRequest,
-    Run,
-    Assembly,
     Assembler,
+    Assembly,
+    AssemblyAnalysisRequest,
     Biome,
     ComputeResourceHeuristic,
+    Run,
+    Sample,
+    Study,
 )
-
-from unfold.admin import ModelAdmin, TabularInline
 
 
 class StudyRunsInline(TabularInline):

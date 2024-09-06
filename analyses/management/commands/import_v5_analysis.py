@@ -3,12 +3,12 @@ import logging
 import time
 
 import numpy as np
+import pandas as pd
 import requests
 from django.core.management.base import BaseCommand, CommandError
 from requests import JSONDecodeError
-import pandas as pd
 
-from analyses.models import Analysis, Study, Sample, AnalysedContig
+from analyses.models import AnalysedContig, Analysis, Sample, Study
 from ena import models as ena_models
 
 logger = logging.getLogger(__name__)
@@ -69,9 +69,9 @@ class Command(BaseCommand):
                 self.assembly_accession_to_existing_analysis_accession[
                     assembly_accession
                 ] = analysis_accession
-                self.assembly_accession_to_sample_accession[
-                    assembly_accession
-                ] = sample_accession
+                self.assembly_accession_to_sample_accession[assembly_accession] = (
+                    sample_accession
+                )
             if page_url:
                 print("Throttling API calls for 1s...")
                 time.sleep(1)
@@ -156,45 +156,45 @@ class Command(BaseCommand):
         for functional_annotation in functional_annotations:
             print(f"Processing functional annotation for {functional_annotation}")
             if "ips" in functional_annotation:
-                analysis.annotations[
-                    Analysis.INTERPRO_IDENTIFIERS
-                ] = self.ingest_functional_annotations(
-                    functional_annotation,
-                    ["count", "ipr", "description"],
-                    accession_col="ipr",
+                analysis.annotations[Analysis.INTERPRO_IDENTIFIERS] = (
+                    self.ingest_functional_annotations(
+                        functional_annotation,
+                        ["count", "ipr", "description"],
+                        accession_col="ipr",
+                    )
                 )
             elif "go_slim" in functional_annotation:
-                analysis.annotations[
-                    Analysis.GO_SLIMS
-                ] = self.ingest_functional_annotations(
-                    functional_annotation,
-                    ["go", "description", "category", "count"],
-                    accession_col="go",
+                analysis.annotations[Analysis.GO_SLIMS] = (
+                    self.ingest_functional_annotations(
+                        functional_annotation,
+                        ["go", "description", "category", "count"],
+                        accession_col="go",
+                    )
                 )
             elif "go" in functional_annotation:
-                analysis.annotations[
-                    Analysis.GO_TERMS
-                ] = self.ingest_functional_annotations(
-                    functional_annotation,
-                    ["go", "description", "category", "count"],
-                    accession_col="go",
+                analysis.annotations[Analysis.GO_TERMS] = (
+                    self.ingest_functional_annotations(
+                        functional_annotation,
+                        ["go", "description", "category", "count"],
+                        accession_col="go",
+                    )
                 )
             elif "ko" in functional_annotation:
-                analysis.annotations[
-                    Analysis.KEGG_ORTHOLOGS
-                ] = self.ingest_functional_annotations(
-                    functional_annotation,
-                    ["count", "ko", "description"],
-                    accession_col="ko",
+                analysis.annotations[Analysis.KEGG_ORTHOLOGS] = (
+                    self.ingest_functional_annotations(
+                        functional_annotation,
+                        ["count", "ko", "description"],
+                        accession_col="ko",
+                    )
                 )
             #     TODO kegg modules
             elif "pfam" in functional_annotation:
-                analysis.annotations[
-                    Analysis.PFAMS
-                ] = self.ingest_functional_annotations(
-                    functional_annotation,
-                    ["count", "pfam", "description"],
-                    accession_col="pfam",
+                analysis.annotations[Analysis.PFAMS] = (
+                    self.ingest_functional_annotations(
+                        functional_annotation,
+                        ["count", "pfam", "description"],
+                        accession_col="pfam",
+                    )
                 )
         analysis.save()
 

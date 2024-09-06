@@ -1,5 +1,5 @@
-from os import getenv
 import base64
+from os import getenv
 
 from mitmproxy import http  # pip install mitmproxy
 

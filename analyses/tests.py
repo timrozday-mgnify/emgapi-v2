@@ -5,8 +5,9 @@ import tempfile
 import pytest
 from django.core.management import call_command
 
-from .models import Study, Biome, ComputeResourceHeuristic, Assembler
 from ena.models import Study as ENAStudy
+
+from .models import Assembler, Biome, ComputeResourceHeuristic, Study
 
 
 @pytest.mark.django_db(transaction=True, reset_sequences=True)

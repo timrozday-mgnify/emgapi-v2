@@ -1,6 +1,5 @@
 from django.db import models
 
-
 # Some models that mirror ENA objects, like Study, Sample, Run etc
 
 

@@ -1,6 +1,5 @@
-import pytest
-
 import django
+import pytest
 
 from analyses.base_models.with_downloads_models import (
     DownloadFile,

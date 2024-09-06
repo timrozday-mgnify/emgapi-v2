@@ -3,7 +3,7 @@ import logging
 
 from django.core.management.base import BaseCommand, CommandError
 
-from analyses.models import ComputeResourceHeuristic, Biome, Assembler
+from analyses.models import Assembler, Biome, ComputeResourceHeuristic
 
 
 class Command(BaseCommand):

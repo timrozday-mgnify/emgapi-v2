@@ -1,10 +1,10 @@
 from contextlib import contextmanager
-from typing import Optional, List
+from typing import List, Optional
 
 import pymongo
 from django.conf import settings
-from prefect import task, get_run_logger
-from sqlalchemy import Integer, String, Boolean, ForeignKey, create_engine
+from prefect import get_run_logger, task
+from sqlalchemy import Boolean, ForeignKey, Integer, String, create_engine
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,

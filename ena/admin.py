@@ -1,7 +1,7 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 
-from .models import Study, Sample
+from .models import Sample, Study
 
 
 @admin.register(Sample)

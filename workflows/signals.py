@@ -7,7 +7,6 @@ from prefect.deployments import run_deployment
 
 import analyses.models
 
-
 # Define signals (AKA hooks, AKA triggers) here, where they are needed to trigger Prefect work based on
 # Django model changes.
 # For example, if a flow should being running when a model instance is created.

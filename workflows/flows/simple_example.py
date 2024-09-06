@@ -1,6 +1,7 @@
-from prefect import flow, task, get_run_logger
 from typing import List
+
 import httpx
+from prefect import flow, get_run_logger, task
 
 
 @task()

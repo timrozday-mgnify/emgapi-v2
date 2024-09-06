@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Optional, Union, List
+from typing import List, Optional, Union
 
 from django.db import models
 from pydantic import BaseModel
@@ -41,9 +41,9 @@ class DownloadFile(BaseModel):
     long_description: str
     short_description: str
 
-    parent_identifier: Optional[
-        Union[str, int]
-    ] = None  # e.g. the accession of an Analysis this download is for
+    parent_identifier: Optional[Union[str, int]] = (
+        None  # e.g. the accession of an Analysis this download is for
+    )
 
 
 class WithDownloadsModel(models.Model):
