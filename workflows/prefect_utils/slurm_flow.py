@@ -265,7 +265,7 @@ def start_cluster_job(
             <<SCRIPT>>
             ~~~
             It will be terminated by Slurm if not done in {slurm_timedelta(expected_time)}.
-            Slurm working dir is {job_workdir}.
+            Slurm working dir is `{job_workdir}`.
             {nf_link_markdown}
             """
         ).replace("<<SCRIPT>>", script),

@@ -26,7 +26,7 @@ class SlurmConfig(BaseModel):
     # how many lines of slurm log to send to prefect each time we check it
 
     use_nextflow_tower: bool = True
-    nextflow_tower_org: str = "EMBL"
+    nextflow_tower_org: str = "EMBL-EBI"
     nextflow_tower_workspace: str = "ebi-spws-dev-microbiome-info"
 
     datamover_paritition: str = "datamover"
