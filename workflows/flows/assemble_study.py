@@ -14,6 +14,8 @@ from prefect.artifacts import create_table_artifact
 from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 
+from workflows.ena_utils.ena_file_fetching import convert_ena_ftp_to_fire_fastq
+
 django.setup()
 
 import httpx
@@ -233,11 +235,14 @@ def make_samplesheet(
                 renderer=lambda layout: str(layout).lower(),
             ),
             "fastq_1": SamplesheetColumnSource(
-                lookup_string="run__metadata__fastq_ftps", renderer=lambda ftps: ftps[0]
+                lookup_string="run__metadata__fastq_ftps",
+                renderer=lambda ftps: convert_ena_ftp_to_fire_fastq(ftps[0]),
             ),
             "fastq_2": SamplesheetColumnSource(
                 lookup_string="run__metadata__fastq_ftps",
-                renderer=lambda ftps: ftps[1] if len(ftps) > 1 else "",
+                renderer=lambda ftps: (
+                    convert_ena_ftp_to_fire_fastq(ftps[1]) if len(ftps) > 1 else ""
+                ),
             ),
             "assembler": SamplesheetColumnSource(
                 lookup_string="id", renderer=lambda _: assembler.name.lower()

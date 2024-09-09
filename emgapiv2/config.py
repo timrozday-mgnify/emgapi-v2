@@ -53,6 +53,9 @@ class ENAConfig(BaseModel):
     assembly_accession_re: str = "([EDS]RZ[0-9]{6,})"
     portal_search_api: AnyHttpUrl = "https://www.ebi.ac.uk/ena/portal/api/search"
 
+    ftp_prefix: str = "ftp.sra.ebi.ac.uk/vol1/"
+    fire_prefix: str = "s3://era-public/"
+
 
 class LegacyServiceConfig(BaseModel):
     emg_mongo_dsn: MongoDsn = "mongodb://mongo.not.here/db"
