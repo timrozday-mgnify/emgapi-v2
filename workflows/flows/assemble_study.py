@@ -238,7 +238,7 @@ def make_samplesheet(
     )
 
     with open(sample_sheet_tsv) as f:
-        csv_reader = csv.DictReader(f, delimiter="\t")
+        csv_reader = csv.DictReader(f, delimiter=",")
         table = list(csv_reader)
 
     create_table_artifact(
@@ -275,12 +275,12 @@ def make_samplesheets_for_runs_to_assemble(
 @flow
 async def run_assembler_for_samplesheet(
     mgnify_study: analyses.models.Study,
-    samplesheet_tsv: Path,
+    samplesheet_csv: Path,
     miassembler_profile: str,
     assembler: analyses.models.Assembler,
     memory_gb: int,
 ):
-    samplesheet_df = pd.read_csv(samplesheet_tsv, sep="\t")
+    samplesheet_df = pd.read_csv(samplesheet_csv, sep=",")
     assemblies: list[analyses.models.Assembly] = mgnify_study.assemblies_reads.filter(
         run__ena_accessions__0__in=samplesheet_df["reads_accession"]
     )
@@ -295,16 +295,16 @@ async def run_assembler_for_samplesheet(
         f"-r main "  # From the main branch (which is the stable one)
         f"-profile {miassembler_profile} "
         f"-resume "
-        f"--samplesheet {samplesheet_tsv} "
+        f"--samplesheet {samplesheet_csv} "
         f"--outdir {EMG_CONFIG.slurm.default_workdir}/{mgnify_study.ena_study.accession}_miassembler "
         f"--assembler {assembler.name.lower()} "
         f"{'-with-tower' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''} "
-        f"-name mi-assembler-for-samplesheet-{slugify(samplesheet_tsv)[-30:]} "
+        f"-name mi-assembler-for-samplesheet-{slugify(samplesheet_csv)[-30:]} "
     )
 
     try:
         await run_cluster_job(
-            name=f"Assemble study {mgnify_study.ena_study.accession} via samplesheet {slugify(samplesheet_tsv)}",
+            name=f"Assemble study {mgnify_study.ena_study.accession} via samplesheet {slugify(samplesheet_csv)}",
             command=command,
             expected_time=timedelta(days=5),
             memory=f"{memory_gb}G",
