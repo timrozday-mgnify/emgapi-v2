@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings
 
 class SlurmConfig(BaseModel):
     default_job_status_checks_limit: int = 10
-    default_workdir: str = "/opt/jobs"
+    default_workdir: str = "/nfs/production/dev-slurm-work-dir"
     pipelines_root_dir: str = "/app/workflows/pipelines"
     user: str = "root"
 

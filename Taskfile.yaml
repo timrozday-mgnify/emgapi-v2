@@ -19,7 +19,6 @@ tasks:
     vars:
       TYPE: "process"
       NAME: "slurm"
-      TEMPLATE: "./slurm/base-job-templates/local-slurm-job-template.json"
 
   deploy-flow:
     desc: "Build and deploy a prefect flow. E.g. FLOW=mgnify_run_pipeline_flow task deploy-flow"

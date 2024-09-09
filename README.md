@@ -28,7 +28,7 @@ For local development, these are all run in a docker-compose environment.
 
 There is also a docker-compose setup of [Slurm](https://slurm.schedmd.com), so that automation of HPC scheduling can be developed.
 This creates a tiny slurm cluster called `donco` (not `codon`).
-This is in the `slurm` directory: see [slurm/README.md](slurm/README.md) for more.
+This is in the `slurm-dev-environment` directory: see [slurm-dev-environment/README.md](slurm-dev-environment/README.md) for more.
 
 ### Set up docker-compose
 E.g. following [the docker docs](https://docs.docker.com/compose/install/) or using Podman or Colima, as you prefer. In theory all should work.
@@ -111,7 +111,7 @@ task prefect -- deployment run "Download a study read-runs/realistic_example_dep
 (Note that you can't run this one in the same way as `simple_example.py`, because `realistic_example.py` does not have a `__main__`).
 
 ### Interacting with Slurm
-See [the slurm/README.md](slurm/README.md) for details. In short: `task slurm` and you're on a slurm node.
+See [the slurm-dev-environment/README.md](slurm-dev-environment/README.md) for details. In short: `task slurm` and you're on a slurm node.
 
 
 ## Writing flows
