@@ -32,9 +32,34 @@ def test_queryset_to_samplesheet(raw_reads_mgnify_study):
         )
         assert "not-a-folder does not exist" in str(e.value)
 
+    samplesheet = Path(tempfile.gettempdir()) / Path("samplesheet_test.tsv")
+
+    # should succeed with specified columns as TSV
+    samplesheet_tsv_ret = queryset_to_samplesheet(
+        queryset=qs,
+        filename=samplesheet,
+        column_map={
+            "mgnify_sample_id": SamplesheetColumnSource(lookup_string="id"),
+            "ena_accession": SamplesheetColumnSource(
+                lookup_string="ena_sample__accession"
+            ),
+            "ena_study_accession": SamplesheetColumnSource(
+                lookup_string="ena_study__accession"
+            ),
+        },
+    )
+
+    with open(samplesheet_tsv_ret) as f:
+        csv_reader = csv.DictReader(f, delimiter="\t")
+        assert next(csv_reader) == {
+            "mgnify_sample_id": "1",
+            "ena_accession": "SAM0",
+            "ena_study_accession": raw_reads_mgnify_study.ena_study.accession,
+        }
+
+    # should succeed with specified columns as CSV
     samplesheet = Path(tempfile.gettempdir()) / Path("samplesheet_test.csv")
 
-    # should succeed with specified columns
     samplesheet_ret = queryset_to_samplesheet(
         queryset=qs,
         filename=samplesheet,
@@ -50,7 +75,7 @@ def test_queryset_to_samplesheet(raw_reads_mgnify_study):
     )
 
     with open(samplesheet_ret) as f:
-        csv_reader = csv.DictReader(f, delimiter="\t")
+        csv_reader = csv.DictReader(f, delimiter=",")
         assert next(csv_reader) == {
             "mgnify_sample_id": "1",
             "ena_accession": "SAM0",
@@ -95,7 +120,7 @@ def test_queryset_to_samplesheet(raw_reads_mgnify_study):
     # should succeed with default columns
     samplesheet_ret = queryset_to_samplesheet(queryset=qs, filename=samplesheet)
     with open(samplesheet_ret) as f:
-        csv_reader = csv.DictReader(f, delimiter="\t")
+        csv_reader = csv.DictReader(f, delimiter=",")
         first_line = next(csv_reader)
         assert "updated_at" in first_line
         assert first_line["id"] == "1"
@@ -128,7 +153,7 @@ def test_queryset_to_samplesheet(raw_reads_mgnify_study):
         },
     )
     with open(samplesheet_ret) as f:
-        csv_reader = csv.DictReader(f, delimiter="\t")
+        csv_reader = csv.DictReader(f, delimiter=",")
         first_line = next(csv_reader)
         assert first_line["fastq1"] == "/path/to/fastq_1.fastq.gz"
         assert first_line["fastq2"] == "/path/to/fastq_2.fastq.gz"

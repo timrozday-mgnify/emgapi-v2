@@ -65,9 +65,11 @@ def queryset_to_samplesheet(
                 f"The file {_filename} already exists and bludgeon=False so will not overwrite"
             )
 
+    delimiter = "," if _filename.suffix == ".csv" else "\t"
+
     with open(_filename, "w", newline="") as samplesheet:
         writer = csv.DictWriter(
-            samplesheet, fieldnames=_column_map.keys(), delimiter="\t"
+            samplesheet, fieldnames=_column_map.keys(), delimiter=delimiter
         )
         writer.writeheader()
         values_qs = queryset.values(
