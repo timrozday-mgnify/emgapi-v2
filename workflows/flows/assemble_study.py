@@ -1,4 +1,5 @@
 import csv
+from collections import defaultdict
 from datetime import timedelta
 from enum import Enum
 from pathlib import Path
@@ -184,6 +185,15 @@ def chunk_list(items: List[Any], chunk_size: int) -> List[List[Any]]:
     return [items[j : j + chunk_size] for j in range(0, len(items), chunk_size)]
 
 
+EXPERIMENT_TYPES_TO_MIASSEMBLER_LIBRARY_STRATEGY = defaultdict(
+    lambda: "other",
+    **{
+        analyses.models.Run.ExperimentTypes.METAGENOMIC: "metagenomic",
+        analyses.models.Run.ExperimentTypes.METATRANSCRIPTOMIC: "metatranscriptomic",
+    },
+)
+
+
 @task(
     cache_key_fn=context_agnostic_task_input_hash,
 )
@@ -215,10 +225,12 @@ def make_samplesheet(
                 renderer=lambda accessions: accessions[0],
             ),
             "library_strategy": SamplesheetColumnSource(
-                lookup_string="run__metadata__library_strategy"
+                lookup_string="run__experiment_type",
+                renderer=EXPERIMENT_TYPES_TO_MIASSEMBLER_LIBRARY_STRATEGY.get,
             ),
             "library_layout": SamplesheetColumnSource(
-                lookup_string="run__metadata__library_layout"
+                lookup_string="run__metadata__library_layout",
+                renderer=lambda layout: str(layout).lower(),
             ),
             "fastq_1": SamplesheetColumnSource(
                 lookup_string="run__metadata__fastq_ftps", renderer=lambda ftps: ftps[0]
@@ -228,7 +240,7 @@ def make_samplesheet(
                 renderer=lambda ftps: ftps[1] if len(ftps) > 1 else "",
             ),
             "assembler": SamplesheetColumnSource(
-                lookup_string="id", renderer=lambda _: assembler
+                lookup_string="id", renderer=lambda _: assembler.name.lower()
             ),
             "assembler_memory": SamplesheetColumnSource(
                 lookup_string="id", renderer=lambda _: memory
