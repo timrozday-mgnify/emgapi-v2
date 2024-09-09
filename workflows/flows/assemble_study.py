@@ -247,7 +247,7 @@ def make_samplesheet(
             "assembler": SamplesheetColumnSource(
                 lookup_string="id", renderer=lambda _: assembler.name.lower()
             ),
-            "assembler_memory": SamplesheetColumnSource(
+            "assembly_memory": SamplesheetColumnSource(
                 lookup_string="id", renderer=lambda _: memory
             ),
         },

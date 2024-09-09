@@ -1,0 +1,60 @@
+{% extends "unfold/layouts/base.html" %}
+{% load i18n unfold %}
+
+{% block title %} Edit Samplesheet {{ filename }} {% endblock %}
+
+{% block content %}
+    {% component "unfold/components/title.html" %}
+        Edit Samplesheet: <code>{{ filename }}</code>
+    {% endcomponent %}
+    {% component "unfold/components/container.html" %}
+        <form method="POST" id="samplesheet-form">
+            {% csrf_token %}
+
+            <textarea id="csvData" name="csv_data" style="display:none;">{{ csv_data }}</textarea>
+
+            {% component "unfold/components/card.html" %}
+                <div style="height: 50vh; overflow-y: scroll">
+                    <div id="hanson-table"></div>
+                </div>
+                {% component "unfold/components/separator.html" %}{% endcomponent %}
+                {% component "unfold/components/button.html" with submit=True %}Save samplesheet{% endcomponent %}
+            {% endcomponent %}
+
+
+        </form>
+
+    {% endcomponent %}
+    <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css" />
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            var container = document.getElementById('hanson-table');
+            var csvData = document.getElementById('csvData').value;
+
+            var rows = csvData.split("\n").map(function(row) {
+                return row.split(",");
+            });
+
+            var hot = new Handsontable(container, {
+                data: rows,
+                rowHeaders: true,
+                colHeaders: true,
+                minSpareRows: 1,
+                contextMenu: true,
+                licenseKey: 'non-commercial-and-evaluation'
+            });
+
+            // Update the hidden textarea on form submission
+
+            document.getElementById("samplesheet-form").onsubmit = function() {
+                var csvData = hot.getData().map(function(row) {
+                    return row.join(",");
+                }).join("\n");
+                console.log("CSVDATA", csvData);
+                document.getElementById('csvData').value = csvData;
+            };
+        });
+    </script>
+{% endblock %}

@@ -23,5 +23,6 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/v2/", api.urls),
     path("__debug__/", include("debug_toolbar.urls")),
+    path("workflows/", include("workflows.urls")),
 ]
 admin.site.index_title = "EMG DB Administration"

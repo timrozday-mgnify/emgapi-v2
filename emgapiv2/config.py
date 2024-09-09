@@ -37,6 +37,10 @@ class SlurmConfig(BaseModel):
 
     amplicon_nextflow_master_job_memory: int = 5  # Gb
 
+    samplesheet_editing_allowed_inside: str = default_workdir
+    samplesheet_editing_temporary_dir: str = "/nfs/public/temporary_samplesheet_edits"
+    # allow django-admin access to edit csv/tsv files inside this dir
+
 
 class AssemblerConfig(BaseModel):
     assembler_default: str = "metaspades"
