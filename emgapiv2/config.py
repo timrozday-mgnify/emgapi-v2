@@ -37,8 +37,11 @@ class SlurmConfig(BaseModel):
 
     amplicon_nextflow_master_job_memory: int = 5  # Gb
 
+    shared_filesystem_root_on_slurm: str = "/nfs/public"
+    shared_filesystem_root_on_server: str = "/app/data"
+
     samplesheet_editing_allowed_inside: str = default_workdir
-    samplesheet_editing_temporary_dir: str = "/nfs/public/temporary_samplesheet_edits"
+    samplesheet_editing_path_from_shared_filesystem: str = "temporary_samplesheet_edits"
     # allow django-admin access to edit csv/tsv files inside this dir
 
 

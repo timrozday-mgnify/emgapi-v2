@@ -583,11 +583,14 @@ async def move_data(source: str, target: str, move_command: str = "cp", **kwargs
     expected_time = kwargs.pop("expected_time", timedelta(hours=2))
     memory = kwargs.pop("memory", "1G")
 
-    return run_cluster_job(
+    if not "environment" in kwargs:
+        kwargs["environment"] = {}
+
+    return await run_cluster_job(
         name=f"Move {source} to {target}",
         command=f"{move_command} {source} {target}",
         expected_time=expected_time,
         memory=memory,
         **kwargs,
-        partition=EMG_CONFIG.slurm.datamover_paritition,
+        partitions=[EMG_CONFIG.slurm.datamover_paritition],
     )

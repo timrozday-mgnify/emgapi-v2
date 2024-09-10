@@ -98,8 +98,8 @@ services:
       - logs:/var/log/slurm
       - jobdir:/opt/jobs
       - ./prefectserver:/root/.prefect
-      - "./slurm/fs/nfs/production:/nfs/production"
-      - "./slurm/fs/hps:/hps"
+      - "./slurm-dev-environment/fs/nfs/production:/nfs/production"
+      - "./slurm-dev-environment/fs/hps:/hps"
 
   app:
     build:

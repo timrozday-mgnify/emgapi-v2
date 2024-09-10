@@ -1,11 +1,16 @@
+from __future__ import annotations
+
 import csv
 import hashlib
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Union
+from typing import Any, Callable, Optional, Union
 
 from django.db.models import QuerySet
+from prefect.deployments import run_deployment
+
+from emgapiv2.settings import EMG_CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -98,3 +103,57 @@ def queryset_hash(queryset: QuerySet, field: str) -> str:
     vals = queryset.values_list(field, flat=True)
     vals_str = "".join(map(str, vals))
     return hashlib.md5(vals_str.encode()).hexdigest()
+
+
+def editable_location_for_samplesheet(
+    source: Path, shared_filesystem_root: str
+) -> Path:
+    source_relative = str(source).lstrip("/")
+    destination = (
+        Path(shared_filesystem_root)
+        / Path(EMG_CONFIG.slurm.samplesheet_editing_path_from_shared_filesystem)
+        / Path(source_relative)
+    )
+    return destination
+
+
+def move_samplesheet_to_editable_location(
+    source: str | Path, timeout=Optional[int]
+) -> Path:
+    destination = editable_location_for_samplesheet(
+        source, EMG_CONFIG.slurm.shared_filesystem_root_on_slurm
+    )
+    logger.info(f"Will move samplesheet to {destination}")
+    # copy samplesheet from source to editable location
+    flowrun = run_deployment(
+        name="move-data/move_data_deployment",
+        parameters={
+            "source": source,
+            "target": destination,
+        },
+        timeout=timeout,
+    )
+    logger.info(f"Mover flowrun is {flowrun}")
+
+    return destination
+
+
+def move_samplesheet_back_from_editable_location(
+    destination: str | Path, timeout=Optional[int]
+) -> Path:
+    source = editable_location_for_samplesheet(
+        destination, EMG_CONFIG.slurm.shared_filesystem_root_on_slurm
+    )
+    logger.info(f"Will move samplesheet from {source} to {destination}")
+    # copy samplesheet from source to editable location
+    flowrun = run_deployment(
+        name="move-data/move_data_deployment",
+        parameters={
+            "source": source,
+            "target": destination,
+        },
+        timeout=timeout,
+    )
+    logger.info(f"Mover flowrun is {flowrun}")
+
+    return destination

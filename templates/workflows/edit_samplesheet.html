@@ -8,21 +8,28 @@
         Edit Samplesheet: <code>{{ filename }}</code>
     {% endcomponent %}
     {% component "unfold/components/container.html" %}
-        <form method="POST" id="samplesheet-form">
-            {% csrf_token %}
 
-            <textarea id="csvData" name="csv_data" style="display:none;">{{ csv_data }}</textarea>
+        {% if loading %}
 
-            {% component "unfold/components/card.html" %}
-                <div style="height: 50vh; overflow-y: scroll">
-                    <div id="hanson-table"></div>
-                </div>
-                {% component "unfold/components/separator.html" %}{% endcomponent %}
-                {% component "unfold/components/button.html" with submit=True %}Save samplesheet{% endcomponent %}
-            {% endcomponent %}
+            {% component "unfold/components/progress.html" with value=50 title="Getting samplesheet" %}{% endcomponent %}
 
+        {% else %}
 
-        </form>
+            <form method="POST" id="samplesheet-form">
+                {% csrf_token %}
+
+                <textarea id="csvData" name="csv_data" style="display:none;">{{ csv_data }}</textarea>
+
+                {% component "unfold/components/card.html" %}
+                    <div style="height: 50vh; overflow-y: scroll">
+                        <div id="hanson-table"></div>
+                    </div>
+                    {% component "unfold/components/separator.html" %}{% endcomponent %}
+                    {% component "unfold/components/button.html" with submit=True %}Save samplesheet{% endcomponent %}
+                {% endcomponent %}
+            </form>
+
+        {% endif %}
 
     {% endcomponent %}
     <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
@@ -30,6 +37,13 @@
 
     <script>
         document.addEventListener("DOMContentLoaded", function() {
+            {% if loading %}
+                setTimeout(function(){
+                    window.location.reload(1);
+                }, 2000);
+                return;
+            {% endif %}
+
             var container = document.getElementById('hanson-table');
             var csvData = document.getElementById('csvData').value;
 

@@ -48,11 +48,11 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
     assembler_version = "3.15.3"
 
     # FS required bits
-    upload_dir = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload"
-    reg_xml = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/reg.xml"
-    submission_xml = (
-        f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/submission.xml"
+    upload_dir = (
+        f"slurm-dev-environment/fs/hps/tests/assembly_uploader/{study_accession}_upload"
     )
+    reg_xml = f"slurm-dev-environment/fs/hps/tests/assembly_uploader/{study_accession}_upload/reg.xml"
+    submission_xml = f"slurm-dev-environment/fs/hps/tests/assembly_uploader/{study_accession}_upload/submission.xml"
 
     async def mock_create_study_xml_func(*args, **kwargs):
         if not os.path.exists(upload_dir):
@@ -64,7 +64,7 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
         return registered_study
 
     async def mock_mock_generate_assembly_xml_func(*args, **kwargs):
-        run_manifest = f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/{run_accession}.manifest"
+        run_manifest = f"slurm-dev-environment/fs/hps/tests/assembly_uploader/{study_accession}_upload/{run_accession}.manifest"
         if not os.path.exists(run_manifest):
             os.mknod(run_manifest)
         return True
@@ -96,13 +96,13 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
     assert "params.txt does not exist" not in captured_logging
     # create study XML
     assert os.path.exists(
-        f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload"
+        f"slurm-dev-environment/fs/hps/tests/assembly_uploader/{study_accession}_upload"
     )
     # submit study
     assert f"Study submitted successfully under {registered_study}" in captured_logging
     # assembly manifest
     assert os.path.exists(
-        f"slurm/fs/hps/tests/assembly_uploader/{study_accession}_upload/{run_accession}.manifest"
+        f"slurm-dev-environment/fs/hps/tests/assembly_uploader/{study_accession}_upload/{run_accession}.manifest"
     )
 
     # Clean up

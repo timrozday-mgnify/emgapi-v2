@@ -2,10 +2,10 @@ name: emgapi
 prefect-version: 2.18.3
 
 # build section allows you to manage and build docker images
-build: null
+build:
 
 # push section allows you to manage if and how this project is uploaded to remote locations
-push: null
+push:
 
 # pull section allows you to provide instructions for cloning this project in remote locations
 pull:
@@ -15,7 +15,7 @@ pull:
 # the deployments section allows you to provide configuration for deploying flows
 deployments:
 - name: assemble_study_deployment
-  version: null
+  version:
   tags: []
   description: |-
     Get a study from ENA, and input it to MGnify.
@@ -26,6 +26,23 @@ deployments:
   parameters: {}
   work_pool:
     name: slurm
-    work_queue_name: null
+    work_queue_name:
+    job_variables: {}
+  schedules: []
+- name: move_data_deployment
+  version:
+  tags: []
+  description: "Move files on the cluster filesystem.\nThis uses a slurm job running
+    on the datamover partition.\n\n:param source: fully qualified path of the source
+    location (file or folder)\n:param target: fully qualified path of the target location
+    (file or folder)\n:param move_command: tool command for the move. Default is `cp`,
+    but could be `mv` or `rsync` etc.\n:param kwargs: Other keywords to pass to run_cluster_job\n\
+    \    (e.g. expected_time, memory, or other slurm job-description parameters)\n
+    :return: Job ID of the datamover job."
+  entrypoint: workflows/prefect_utils/slurm_flow.py:move_data
+  parameters: {}
+  work_pool:
+    name: slurm
+    work_queue_name:
     job_variables: {}
   schedules: []
