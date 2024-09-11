@@ -2,9 +2,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from django.contrib.auth.models import User
 from django.http import Http404
-from django.urls import reverse
+from django.urls import reverse_lazy
 
 from workflows.nextflow_utils.samplesheets import editable_location_for_samplesheet
 from workflows.views import encode_samplesheet_path, validate_samplesheet_path
@@ -52,7 +51,7 @@ def test_samplesheet_editor_paths_validation(settings):
 
 @pytest.mark.django_db
 @patch("workflows.views.move_samplesheet_to_editable_location")
-def test_samplesheet_fetch(mock_move_samplesheet, client, settings):
+def test_samplesheet_fetch(mock_move_samplesheet, client, admin_client, settings):
     mock_move_samplesheet.return_value = None
 
     settings.EMG_CONFIG.slurm.shared_filesystem_root_on_slurm = (
@@ -68,7 +67,7 @@ def test_samplesheet_fetch(mock_move_samplesheet, client, settings):
 
     samplesheet_encoded = encode_samplesheet_path("/nfs/production/edit/here/ss.csv")
 
-    fetch_view_url = reverse(
+    fetch_view_url = reverse_lazy(
         "workflows:edit_samplesheet_fetch",
         kwargs={"filepath_encoded": samplesheet_encoded},
     )
@@ -80,14 +79,10 @@ def test_samplesheet_fetch(mock_move_samplesheet, client, settings):
     assert "admin/login" in response.url
 
     # Staff can edit samplesheets
-    superuser = User.objects.create_superuser(
-        username="staff", password="password", email="staff@example.org"
-    )
-    client.login(username="staff", password="password")
-    response = client.get(fetch_view_url)
+    response = admin_client.get(fetch_view_url)
     assert mock_move_samplesheet.call_count == 1
     assert response.status_code == 302
-    assert response.url == reverse(
+    assert response.url == reverse_lazy(
         "workflows:edit_samplesheet_edit",
         kwargs={"filepath_encoded": samplesheet_encoded},
     )
