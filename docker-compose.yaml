@@ -2,7 +2,7 @@
 version: "3.9"
 
 include:
-  - slurm/docker-compose.yaml
+  - slurm-dev-environment/docker-compose.yaml
 
 services:
   prefect-database:
@@ -98,8 +98,8 @@ services:
       - logs:/var/log/slurm
       - jobdir:/opt/jobs
       - ./prefectserver:/root/.prefect
-      - "./slurm/fs/nfs/production:/nfs/production"
-      - "./slurm/fs/hps:/hps"
+      - "./slurm-dev-environment/fs/nfs/production:/nfs/production"
+      - "./slurm-dev-environment/fs/hps:/hps"
 
   app:
     build:
@@ -113,6 +113,7 @@ services:
       - DATABASE_URL=postgres://postgres:postgres@app-database:5432/emg
     volumes:
       - ".:/app"
+      - "./slurm-dev-environment/fs/nfs/public:/app/data"  # similar to the k8s volume mount in production
     depends_on:
       app-database:
         condition: service_started

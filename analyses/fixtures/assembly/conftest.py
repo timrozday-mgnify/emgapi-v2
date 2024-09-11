@@ -26,7 +26,7 @@ def mgnify_assemblies(raw_read_run, raw_reads_mgnify_study, assemblers):
             reads_study=raw_reads_mgnify_study,
             ena_study=raw_reads_mgnify_study.ena_study,
             assembler=assembler_metaspades,
-            dir="slurm/fs/hps/tests/assembly_uploader",
+            dir="slurm-dev-environment/fs/hps/tests/assembly_uploader",
             metadata={"coverage": 20},
         )
         assembly_objects.append(assembly_obj)

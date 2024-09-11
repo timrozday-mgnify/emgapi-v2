@@ -7,7 +7,7 @@ prefectdb/
 appdb/
 prefectserver
 logs/
-slurm/jobdir/
+slurm-dev-environment/jobdir/
 secret*.yaml
 secret*.yml
 secret*.env

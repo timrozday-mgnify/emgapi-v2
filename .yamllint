@@ -7,6 +7,6 @@ rules:
     ignore: |
       Taskfile.yaml
       docker-compose.yaml
-      slurm/docker-compose.yaml
+      slurm-dev-environment/docker-compose.yaml
 ignore:
   workflows/prefect_deployments/*.yaml  # managed by prefect

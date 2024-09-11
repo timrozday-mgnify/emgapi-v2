@@ -1,3 +1,4 @@
+import os
 from unittest.mock import AsyncMock, patch
 
 import django
@@ -41,3 +42,9 @@ def mock_suspend_flow_run(request):
 @pytest.fixture(scope="session")
 def ninja_api_client():
     yield TestClient(api)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def ninja_namespace_workaround():
+    # https://github.com/vitalik/django-ninja/issues/1195#issuecomment-2307007575
+    os.environ["NINJA_SKIP_REGISTRY"] = "yes"

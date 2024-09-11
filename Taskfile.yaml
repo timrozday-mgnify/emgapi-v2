@@ -19,13 +19,12 @@ tasks:
     vars:
       TYPE: "process"
       NAME: "slurm"
-      TEMPLATE: "./slurm/base-job-templates/local-slurm-job-template.json"
 
   deploy-flow:
     desc: "Build and deploy a prefect flow. E.g. FLOW=mgnify_run_pipeline_flow task deploy-flow"
     cmds:
       - docker compose --profile prefect up -d
-      - docker compose run app prefectcli deploy workflows/flows/{{.FLOW}}.py:{{.FLOW}} --name {{.FLOW}}_deployment -p {{.POOL}} --prefect-file /workflows/prefect_deployments/prefect-dev-donco.yaml
+      - docker compose run app prefectcli deploy {{.FILE | default "workflows/flows/{{.FLOW}}.py"}}:{{.FLOW}} --name {{.FLOW}}_deployment -p {{.POOL}} --prefect-file workflows/prefect_deployments/prefect-dev-donco.yaml
     vars:
       POOL: "slurm"
     requires:

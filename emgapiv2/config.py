@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings
 
 class SlurmConfig(BaseModel):
     default_job_status_checks_limit: int = 10
-    default_workdir: str = "/opt/jobs"
+    default_workdir: str = "/nfs/production/dev-slurm-work-dir"
     pipelines_root_dir: str = "/app/workflows/pipelines"
     user: str = "root"
 
@@ -36,6 +36,13 @@ class SlurmConfig(BaseModel):
     webin_cli_executor: str = "/usr/bin/webin-cli/webin-cli.jar"
 
     amplicon_nextflow_master_job_memory: int = 5  # Gb
+
+    shared_filesystem_root_on_slurm: str = "/nfs/public"
+    shared_filesystem_root_on_server: str = "/app/data"
+
+    samplesheet_editing_allowed_inside: str = default_workdir
+    samplesheet_editing_path_from_shared_filesystem: str = "temporary_samplesheet_edits"
+    # allow django-admin access to edit csv/tsv files inside this dir
 
 
 class AssemblerConfig(BaseModel):
@@ -68,6 +75,11 @@ class LegacyServiceConfig(BaseModel):
     )
 
 
+class ServiceURLsConfig(BaseModel):
+    app_root: str = "http://localhost:8000"
+    prefect_root: str = "http://localhost:4200"
+
+
 class EMGConfig(BaseSettings):
     slurm: SlurmConfig = SlurmConfig()
     environment: str = "development"
@@ -75,6 +87,7 @@ class EMGConfig(BaseSettings):
     ena: ENAConfig = ENAConfig()
     assembler: AssemblerConfig = AssemblerConfig()
     legacy_service: LegacyServiceConfig = LegacyServiceConfig()
+    service_urls: ServiceURLsConfig = ServiceURLsConfig()
 
     model_config = {
         "env_prefix": "emg_",

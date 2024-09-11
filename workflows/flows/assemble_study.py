@@ -15,6 +15,7 @@ from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 
 from workflows.ena_utils.ena_file_fetching import convert_ena_ftp_to_fire_fastq
+from workflows.views import encode_samplesheet_path
 
 django.setup()
 
@@ -247,7 +248,7 @@ def make_samplesheet(
             "assembler": SamplesheetColumnSource(
                 lookup_string="id", renderer=lambda _: assembler.name.lower()
             ),
-            "assembler_memory": SamplesheetColumnSource(
+            "assembly_memory": SamplesheetColumnSource(
                 lookup_string="id", renderer=lambda _: memory
             ),
         },
@@ -261,7 +262,11 @@ def make_samplesheet(
     create_table_artifact(
         key="miassembler-initial-sample-sheet",
         table=table,
-        description="Sample sheet created for run of MIAssembler",
+        description=f"""
+        Sample sheet created for run of MIAssembler.
+        Saved to `{sample_sheet_tsv}`
+        [Edit it]({EMG_CONFIG.service_urls.app_root}/workflows/edit-samplesheet/fetch/{encode_samplesheet_path(sample_sheet_tsv)})
+        """,
     )
     return sample_sheet_tsv
 
