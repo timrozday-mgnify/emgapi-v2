@@ -1,8 +1,10 @@
+import re
 from datetime import timedelta
 
 import pytest
 from prefect import flow
 from prefect.runtime import flow_run
+from prefect.variables import Variable
 
 from workflows.prefect_utils.slurm_flow import run_cluster_job
 from workflows.prefect_utils.testing_utils import run_async_flow_and_capture_logs
@@ -12,13 +14,13 @@ from workflows.prefect_utils.testing_utils import run_async_flow_and_capture_log
 async def intermittently_buggy_flow_that_includes_a_cluster_job_subflow():
     print("starting flow")
     job_id = await run_cluster_job(
-        name="test job",
+        name="test job in buggy flow",
         command="echo 'test'",
         expected_time=timedelta(minutes=1),
         memory="100M",
         environment={},
     )
-
+    print(f"JOB ID = {job_id}")
     if flow_run.run_count == 1:
         raise Exception("Failing first time")
 
@@ -44,8 +46,9 @@ async def test_run_cluster_job_state_persistence(
     )
     assert mock_start_cluster_job.call_count == 1
 
-    # exactly the same inputs should still make a new job, because run_cluster_job is flow-aware,
-    # i.e. results are not persisted between different flow runs
+    # exactly the same inputs should NOT start another cluster job
+    # we assume identical calls should not usually start identical another job
+
     job_id_repeat_call = await run_cluster_job(
         name="test job",
         command="echo 'test'",
@@ -53,17 +56,46 @@ async def test_run_cluster_job_state_persistence(
         memory="100M",
         environment={},
     )
-    assert job_id_initial != job_id_repeat_call  # different job ID to before
+    assert job_id_initial == job_id_repeat_call  # same job ID as before
     assert (
-        mock_start_cluster_job.call_count == 2
-    )  # start cluster job called an extra time
+        mock_start_cluster_job.call_count
+        == 2  # technically the task was called again to get same result
+    )
 
-    # if cluster job subflow is part of a bigger flow,
-    # retrying it should use persisted cluster job
+    # a change to the params should start a new job
+    job_id_altered_call = await run_cluster_job(
+        name="test job",
+        command="echo 'test but different'",
+        expected_time=timedelta(minutes=1),
+        memory="100M",
+        environment={},
+    )
+    assert job_id_initial != job_id_altered_call  # different job ID to before
+    assert mock_start_cluster_job.call_count == 3
 
+    # we can use Variables to do some (clumsy) explicit cache control
+    await Variable.set(f"restart_{job_id_initial}", "true")
+    job_id_explicitly_resubmitted_call = await run_cluster_job(
+        name="test job",
+        command="echo 'test'",
+        expected_time=timedelta(minutes=1),
+        memory="100M",
+        environment={},
+    )
+    assert job_id_initial != job_id_explicitly_resubmitted_call  # different job id
+    assert (
+        mock_start_cluster_job.call_count
+        == 5  ## once for the initial cached version, once for resubmitted version
+    )
+
+    # automatic retries of a buggy flow that fails after a cluster job should not resubmit cluster job
     logged_buggy_flow = await run_async_flow_and_capture_logs(
         intermittently_buggy_flow_that_includes_a_cluster_job_subflow
     )
     assert "Failing first time" in logged_buggy_flow.logs
     assert "Not failing because on flow_run.run_count = 2" in logged_buggy_flow.logs
-    assert mock_start_cluster_job.call_count == 3
+
+    job_ids_mentioned = re.findall(r"JOB ID\s*=\s*(\d+)", logged_buggy_flow.logs)
+    unique_job_ids = set(job_ids_mentioned)
+    assert len(unique_job_ids) == 1
+    # (flow ran twice, job started once)

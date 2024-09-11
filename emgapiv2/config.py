@@ -75,6 +75,11 @@ class LegacyServiceConfig(BaseModel):
     )
 
 
+class ServiceURLsConfig(BaseModel):
+    app_root: str = "http://localhost:8000"
+    prefect_root: str = "http://localhost:4200"
+
+
 class EMGConfig(BaseSettings):
     slurm: SlurmConfig = SlurmConfig()
     environment: str = "development"
@@ -82,6 +87,7 @@ class EMGConfig(BaseSettings):
     ena: ENAConfig = ENAConfig()
     assembler: AssemblerConfig = AssemblerConfig()
     legacy_service: LegacyServiceConfig = LegacyServiceConfig()
+    service_urls: ServiceURLsConfig = ServiceURLsConfig()
 
     model_config = {
         "env_prefix": "emg_",

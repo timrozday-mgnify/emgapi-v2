@@ -14,6 +14,7 @@ from prefect import Flow, State, flow, get_run_logger, task
 from prefect.artifacts import create_markdown_artifact, create_table_artifact
 from prefect.client.schemas import FlowRun
 from prefect.context import TaskRunContext
+from prefect.variables import Variable
 from pydantic import AnyUrl
 from pydantic_core import Url
 
@@ -367,6 +368,7 @@ async def run_cluster_job(
     expected_time: timedelta,
     memory: Union[int, str],
     environment: Union[dict, str],
+    resubmit_even_if_identical: bool = False,
     **kwargs,
 ) -> str:
     """
@@ -378,6 +380,8 @@ async def run_cluster_job(
     :param memory: Max memory the job may use. In MB, or with a suffix. E.g. `100` or `10G`.
     :param environment: Dictionary of environment variables to pass to job, or string in format of sbatch --export
         (see https://slurm.schedmd.com/sbatch.html). E.g. `TOWER_ACCESSION_TOKEN`
+    :param resubmit_even_if_identical: Boolean which if True, will force a new cluster job to be created even if
+        an identical one was already run and still exists in the cache.
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
     :return: Slurm job ID once finished.
     """
@@ -389,15 +393,45 @@ async def run_cluster_job(
     # Submit the job to cluster.
     # This is a cached result, so if this flow is retried, a new job will *not* be submitted.
     # Rather, the original job_id will be returned.
-    job_id = start_cluster_job(
-        name=name,
-        command=command,
-        expected_time=expected_time,
-        memory=memory,
-        wait_for=space_on_cluster,
-        environment=environment,
+
+    cluster_job_start_args = {
+        "name": name,
+        "command": command,
+        "expected_time": expected_time,
+        "memory": memory,
+        "environment": environment,
         **kwargs,
+    }
+
+    if resubmit_even_if_identical:
+        logger.warning(f"Ignoring any potentially cached previous runs of this job")
+        job_id = start_cluster_job(
+            **cluster_job_start_args, wait_for=space_on_cluster, refresh_cache=True
+        )
+    else:
+        job_id = start_cluster_job(
+            **cluster_job_start_args,
+            wait_for=space_on_cluster,
+        )
+    logger.info(f"{job_id=}")
+
+    restart_instruction: Variable = await Variable.get(f"restart_{job_id}")
+    logger.info(
+        f"Checked restart variable at restart_{job_id}: found {restart_instruction}"
     )
+    if restart_instruction and str(restart_instruction.value).lower() == "true":
+        # A user has explicitly marked this slurm job for restarting, so refresh the cache (resubmit it)
+        logger.warning(
+            f"Resubmitting slurm job `{name}`, because jobid {job_id} was marked for restart."
+        )
+        resubmit_job_id = start_cluster_job(
+            **cluster_job_start_args, wait_for=space_on_cluster, refresh_cache=True
+        )
+        logger.info(f"Resubmitted slurm job id {job_id} as {resubmit_job_id}")
+        await Variable.set(
+            f"restart_{job_id}", f"Resubmitted as {resubmit_job_id}", overwrite=True
+        )
+        job_id = resubmit_job_id
 
     # Wait for job completion
     # Resumability: if this flow was re-run / restarted for some reason, or the exact same cluster job was sent later,
@@ -591,6 +625,7 @@ async def move_data(source: str, target: str, move_command: str = "cp", **kwargs
         command=f"{move_command} {source} {target}",
         expected_time=expected_time,
         memory=memory,
+        resubmit_even_if_identical=True,
         **kwargs,
         partitions=[EMG_CONFIG.slurm.datamover_paritition],
     )
