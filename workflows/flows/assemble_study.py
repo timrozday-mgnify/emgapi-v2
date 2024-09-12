@@ -297,7 +297,7 @@ def make_samplesheets_for_runs_to_assemble(
 ##################
 
 
-@flow
+@flow(flow_run_name="Assemble {samplesheet_csv}")
 async def run_assembler_for_samplesheet(
     mgnify_study: analyses.models.Study,
     samplesheet_csv: Path,
