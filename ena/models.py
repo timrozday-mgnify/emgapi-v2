@@ -19,6 +19,9 @@ class Study(ENAModel):
     class Meta:
         verbose_name_plural = "studies"
 
+    def __str__(self):
+        return self.accession
+
 
 class Sample(ENAModel):
     metadata = models.JSONField(default=dict)

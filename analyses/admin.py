@@ -97,6 +97,16 @@ class StudyReadsInline(TabularInline):
 @admin.register(Study)
 class StudyAdmin(ModelAdmin):
     inlines = [StudyRunsInline, StudyAssembliesInline, StudyReadsInline]
+    list_display = ["accession", "updated_at", "title", "ena_study"]
+    list_filter = ["updated_at", "created_at"]
+    search_fields = [
+        "accession",
+        "title",
+        "ena_study__title",
+        "ena_study__accession",
+        "ena_study__additional_accessions",
+        "biome",
+    ]
 
 
 @admin.register(Sample)
