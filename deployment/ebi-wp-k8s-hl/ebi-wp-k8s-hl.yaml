@@ -88,8 +88,10 @@ items:
       DJANGO_SETTINGS_MODULE: "emgapiv2.settings"
       PREFECT_API_URL: "http://prefect-server.emgapiv2-hl-exp.svc.cluster.local:4200/api"
       PREFECT_HOME: "/app/data/prefect"
-      # PREFECT_LOCAL_STORAGE_PATH: "/app/data/prefect/storage"
-
+      EMG_SLURM__SHARED_FILESYSTEM_ROOT_ON_SLURM: "/nfs/production/rdf/metagenomics/jenkins-slurm/slurm_work_dir"
+      EMG_SLURM__SHARED_FILESYSTEM_ROOT_ON_SERVER: "/app/data"
+      EMG_SLURM__SAMPLESHEET_EDITING_ALLOWED_INSIDE: "/nfs/production/rdf/metagenomics/jenkins-slurm/slurm_work_dir"
+      EMG_SLURM__SAMPLE_EDITING_PATH_FROM_SHARED_FILESYSTEM: "temporary_samplesheet_edits"
 
   - apiVersion: apps/v1
     kind: Deployment

@@ -10,11 +10,11 @@ import django
 import pandas as pd
 from asgiref.sync import sync_to_async
 from django.conf import settings
-from django.utils.text import slugify
 from prefect.artifacts import create_table_artifact
 from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 
+from workflows.data_io_utils.filenames import file_path_shortener
 from workflows.ena_utils.ena_file_fetching import convert_ena_ftp_to_fire_fastq
 from workflows.views import encode_samplesheet_path
 
@@ -324,12 +324,12 @@ async def run_assembler_for_samplesheet(
         f"--outdir {EMG_CONFIG.slurm.default_workdir}/{mgnify_study.ena_study.accession}_miassembler "
         f"--assembler {assembler.name.lower()} "
         f"{'-with-tower' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''} "
-        f"-name mi-assembler-for-samplesheet-{slugify(samplesheet_csv)[-30:]} "
+        f"-name mi-assembler-for-samplesheet-{file_path_shortener(samplesheet_csv, 1, 15, True)} "
     )
 
     try:
         await run_cluster_job(
-            name=f"Assemble study {mgnify_study.ena_study.accession} via samplesheet {slugify(samplesheet_csv)}",
+            name=f"Assemble study {mgnify_study.ena_study.accession} via samplesheet {file_path_shortener(samplesheet_csv, 1, 15, True)}",
             command=command,
             expected_time=timedelta(days=5),
             memory=f"{memory_gb}G",

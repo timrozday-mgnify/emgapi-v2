@@ -22,9 +22,9 @@ tasks:
       - kubectl --context=emgapiv2-hl-exp exec -it $(task get-api-pod-name) -- python manage.py prefectcli work-pool create 'slurm'
 
   deploy-flow:
-    desc: "Deploy a prefect flow that has already been built and has its YAML present on the k8s pods. E.g. FLOW=mgnify_run_pipeline_flow task deploy-flow"
+    desc: "Build and deploy a prefect flow. E.g. FLOW=mgnify_run_pipeline_flow task deploy-flow"
     cmds:
-      - kubectl --context=emgapiv2-hl-exp exec -it $(task get-api-pod-name) -- python manage.py prefectcli deploy workflows/flows/{{.FLOW}}.py:{{.FLOW}} --name {{.FLOW}}_deployment -p {{.POOL}} --prefect-file workflows/prefect_deployments/prefect-ebi-codon.yaml
+      - kubectl --context=emgapiv2-hl-exp exec -it $(task get-api-pod-name) -- python manage.py prefectcli deploy {{.FILE | default "workflows/flows/{{.FLOW}}.py"}}:{{.FLOW}} --name {{.FLOW}}_deployment -p {{.POOL}} --prefect-file workflows/prefect_deployments/prefect-ebi-codon.yaml
     vars:
       POOL: "slurm"
     requires:

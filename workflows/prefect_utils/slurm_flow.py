@@ -14,11 +14,13 @@ from prefect import Flow, State, flow, get_run_logger, task
 from prefect.artifacts import create_markdown_artifact, create_table_artifact
 from prefect.client.schemas import FlowRun
 from prefect.context import TaskRunContext
+from prefect.runtime import flow_run
 from prefect.variables import Variable
 from pydantic import AnyUrl
 from pydantic_core import Url
 
 from emgapiv2.settings import EMG_CONFIG
+from workflows.data_io_utils.filenames import file_path_shortener
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 
 try:
@@ -601,7 +603,13 @@ async def run_cluster_jobs(
     return results_table
 
 
-@flow(flow_run_name="Move data: {source} -> {target}")
+def move_data_flow_name() -> str:
+    source = flow_run.parameters["source"]
+    target = flow_run.parameters["target"]
+    return f"Move data: {file_path_shortener(source, 1, 10)} > {file_path_shortener(target, 1, 10)}"
+
+
+@flow(flow_run_name=move_data_flow_name)
 async def move_data(source: str, target: str, move_command: str = "cp", **kwargs):
     """
     Move files on the cluster filesystem.
