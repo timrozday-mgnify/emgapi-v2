@@ -3,6 +3,7 @@ from collections import defaultdict
 from datetime import timedelta
 from enum import Enum
 from pathlib import Path
+from textwrap import dedent as _
 from typing import Any, List, Union
 
 import django
@@ -262,11 +263,13 @@ def make_samplesheet(
     create_table_artifact(
         key="miassembler-initial-sample-sheet",
         table=table,
-        description=f"""
-        Sample sheet created for run of MIAssembler.
-        Saved to `{sample_sheet_tsv}`
-        [Edit it]({EMG_CONFIG.service_urls.app_root}/workflows/edit-samplesheet/fetch/{encode_samplesheet_path(sample_sheet_tsv)})
-        """,
+        description=_(
+            f"""\
+            Sample sheet created for run of MIAssembler.
+            Saved to `{sample_sheet_tsv}`
+            [Edit it]({EMG_CONFIG.service_urls.app_root}/workflows/edit-samplesheet/fetch/{encode_samplesheet_path(sample_sheet_tsv)})
+            """
+        ),
     )
     return sample_sheet_tsv
 
