@@ -77,7 +77,6 @@ class LegacyServiceConfig(BaseModel):
 
 class ServiceURLsConfig(BaseModel):
     app_root: str = "http://localhost:8000"
-    prefect_root: str = "http://localhost:4200"
 
 
 class EMGConfig(BaseSettings):
