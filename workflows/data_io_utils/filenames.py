@@ -43,6 +43,10 @@ def file_path_shortener(
     short_path += short_name
 
     if slugify:
-        return djangoslugify(short_path.replace("/", "_").replace(".", "_"))
+        slugified = djangoslugify(short_path.replace("/", "_").replace(".", "_"))
+        while "__" in slugified:
+            # recursively remove multiple-underscores because they upset nextflow regex
+            slugified = slugified.replace("__", "_")
+        return slugified
 
     return short_path

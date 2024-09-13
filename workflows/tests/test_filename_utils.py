@@ -17,5 +17,5 @@ def test_file_path_shortener():
     )
     assert (
         file_path_shortener("/path/to/my_very_long_file.csv", 3, 10, True)
-        == "pat_to_m__ile_csv"
+        == "pat_to_m_ile_csv"
     )

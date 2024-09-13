@@ -324,7 +324,7 @@ async def run_assembler_for_samplesheet(
         f"--outdir {EMG_CONFIG.slurm.default_workdir}/{mgnify_study.ena_study.accession}_miassembler "
         f"--assembler {assembler.name.lower()} "
         f"{'-with-tower' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''} "
-        f"-name mi-assembler-for-samplesheet-{file_path_shortener(samplesheet_csv, 1, 15, True)} "
+        f"-name miassembler-samplesheet-{file_path_shortener(samplesheet_csv, 1, 15, True)} "
     )
 
     try:
