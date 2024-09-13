@@ -1,5 +1,4 @@
 import logging
-import random
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -53,21 +52,32 @@ class db:
     Jobs = Jobs
 
 
+# Global job ID incrementor
+
+
+def job_id_incrementor():
+    for i in range(1, int(1e6)):
+        yield i
+
+
+JOB_IDS = job_id_incrementor()
+
+
 @dataclass
 class JobSubmitDescription:
     # https://pyslurm.github.io/23.2/reference/jobsubmitdescription/
-    # TODO add other attributes as dataclass fields
     time_limit: str
-    memory: str
+    memory_per_node: str
     script: str
     name: Optional[str] = ""
+    working_directory: Optional[str] = ""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args)
 
     def submit(self):
-        job_id = random.randint(1, 1000000)
+        job_id = next(JOB_IDS)
         logging.warning(
-            f"Submitting slurm job {self.name}, but there is no functioning PySlurm implementation. Job ID will be random {job_id}"
+            f"Submitting slurm job {self.name}, but there is no functioning PySlurm implementation. Job ID will be {job_id}"
         )
         return job_id

@@ -23,11 +23,15 @@ from emgapiv2.settings import EMG_CONFIG
 from workflows.data_io_utils.filenames import file_path_shortener
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 
-try:
-    import pyslurm
-except:
-    logging.warning("No PySlurm available. Patching.")
+if "PYTEST_CURRENT_TEST" in os.environ:
+    logging.warning("Unit testing, so patching pyslurm.")
     import workflows.prefect_utils.pyslurm_patch as pyslurm
+else:
+    try:
+        import pyslurm
+    except:
+        logging.warning("No PySlurm available. Patching.")
+        import workflows.prefect_utils.pyslurm_patch as pyslurm
 
 
 CLUSTER_WORKPOOL = "slurm"
@@ -407,8 +411,8 @@ async def run_cluster_job(
 
     if resubmit_even_if_identical:
         logger.warning(f"Ignoring any potentially cached previous runs of this job")
-        job_id = start_cluster_job(
-            **cluster_job_start_args, wait_for=space_on_cluster, refresh_cache=True
+        job_id = start_cluster_job.with_options(refresh_cache=True)(
+            **cluster_job_start_args, wait_for=space_on_cluster
         )
     else:
         job_id = start_cluster_job(
@@ -426,8 +430,8 @@ async def run_cluster_job(
         logger.warning(
             f"Resubmitting slurm job `{name}`, because jobid {job_id} was marked for restart."
         )
-        resubmit_job_id = start_cluster_job(
-            **cluster_job_start_args, wait_for=space_on_cluster, refresh_cache=True
+        resubmit_job_id = start_cluster_job.with_options(refresh_cache=True)(
+            **cluster_job_start_args, wait_for=space_on_cluster
         )
         logger.info(f"Resubmitted slurm job id {job_id} as {resubmit_job_id}")
         await Variable.set(

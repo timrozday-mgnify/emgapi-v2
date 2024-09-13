@@ -33,7 +33,6 @@ async def intermittently_buggy_flow_that_includes_a_cluster_job_subflow():
 @pytest.mark.asyncio
 async def test_run_cluster_job_state_persistence(
     prefect_harness,
-    mock_start_cluster_job,
     mock_cluster_can_accept_jobs_yes,
     mock_check_cluster_job_all_completed,
 ):
@@ -44,7 +43,6 @@ async def test_run_cluster_job_state_persistence(
         memory="100M",
         environment={},
     )
-    assert mock_start_cluster_job.call_count == 1
 
     # exactly the same inputs should NOT start another cluster job
     # we assume identical calls should not usually start identical another job
@@ -57,10 +55,6 @@ async def test_run_cluster_job_state_persistence(
         environment={},
     )
     assert job_id_initial == job_id_repeat_call  # same job ID as before
-    assert (
-        mock_start_cluster_job.call_count
-        == 2  # technically the task was called again to get same result
-    )
 
     # a change to the params should start a new job
     job_id_altered_call = await run_cluster_job(
@@ -70,8 +64,10 @@ async def test_run_cluster_job_state_persistence(
         memory="100M",
         environment={},
     )
-    assert job_id_initial != job_id_altered_call  # different job ID to before
-    assert mock_start_cluster_job.call_count == 3
+    assert (
+        int(job_id_altered_call) == int(job_id_initial) + 1
+    )  # different job ID to before
+    # assumes tests are not being run in parallel :)
 
     # we can use Variables to do some (clumsy) explicit cache control
     await Variable.set(f"restart_{job_id_initial}", "true")
@@ -83,10 +79,6 @@ async def test_run_cluster_job_state_persistence(
         environment={},
     )
     assert job_id_initial != job_id_explicitly_resubmitted_call  # different job id
-    assert (
-        mock_start_cluster_job.call_count
-        == 5  ## once for the initial cached version, once for resubmitted version
-    )
 
     # automatic retries of a buggy flow that fails after a cluster job should not resubmit cluster job
     logged_buggy_flow = await run_async_flow_and_capture_logs(
