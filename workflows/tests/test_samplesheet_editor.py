@@ -13,7 +13,7 @@ def test_samplesheet_editor_paths_validation(settings):
     settings.EMG_CONFIG.slurm.shared_filesystem_root_on_slurm = (
         "/nfs/production/edit/here"
     )
-    settings.EMG_CONFIG.slurm.shared_filesystem_root_on_server = "/nfs/public/edit/here"
+    settings.EMG_CONFIG.slurm.shared_filesystem_root_on_server = "/app/data/edit/here"
 
     settings.EMG_CONFIG.slurm.samplesheet_editing_allowed_inside = (
         "/nfs/production/edit/here"
@@ -44,9 +44,7 @@ def test_samplesheet_editor_paths_validation(settings):
     samplesheet = "/nfs/production/edit/here/yes.csv"
     assert editable_location_for_samplesheet(
         Path(samplesheet), settings.EMG_CONFIG.slurm.shared_filesystem_root_on_server
-    ) == Path(
-        "/nfs/public/edit/here/samplesheet_edits_here/nfs/production/edit/here/yes.csv"
-    )
+    ) == Path("/app/data/edit/here/samplesheet_edits_here/yes.csv")
 
 
 @pytest.mark.django_db

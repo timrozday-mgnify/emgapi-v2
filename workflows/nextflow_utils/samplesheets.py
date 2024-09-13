@@ -108,11 +108,24 @@ def queryset_hash(queryset: QuerySet, field: str) -> str:
 def editable_location_for_samplesheet(
     source: Path, shared_filesystem_root: str
 ) -> Path:
-    source_relative = str(source).lstrip("/")
+    """
+    Determine a path on the shared filesystem (an NFS locaiton available on both datamovers and k8s)
+    where a samplesheet can be temporarily saved for editing.
+    Parameters
+    ----------
+    source: e.g. /nfs/production/path/to/a/run/and/a/samplesheet123.csv
+    shared_filesystem_root: e.g. /nfs/public/rw/our/dir
+
+    Returns
+    -------
+    E.g. /nfs/public/rw/our/dir/temporary_samplesheet_edits/samplesheet123.csv
+
+    """
+    samplesheet_name = Path(source).name
     destination = (
         Path(shared_filesystem_root)
         / Path(EMG_CONFIG.slurm.samplesheet_editing_path_from_shared_filesystem)
-        / Path(source_relative)
+        / samplesheet_name
     )
     return destination
 
