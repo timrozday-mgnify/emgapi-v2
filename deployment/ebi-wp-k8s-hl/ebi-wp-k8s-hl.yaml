@@ -197,6 +197,10 @@ items:
           containers:
             - name: prefect-server
               image: prefecthq/prefect:2.18.3-python3.12
+              resources:
+                requests:
+                  memory: "1024Mi"
+                  cpu: "500m"
               imagePullPolicy: Always
               command: ["/opt/prefect/entrypoint.sh"]
               args: ["prefect", "server", "start"]
@@ -221,6 +225,8 @@ items:
                   value: httpx[cli] nextflowpy
                 - name: PREFECT_LOCAL_STORAGE_PATH
                   value: /app/data/prefect/storage
+                - name: PREFECT_LOGGING_LEVEL
+                  value: DEBUG
               ports:
                 - containerPort: 4200
 
