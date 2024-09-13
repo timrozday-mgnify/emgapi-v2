@@ -5,7 +5,11 @@ import pytest
 from django.http import Http404
 from django.urls import reverse_lazy
 
-from workflows.nextflow_utils.samplesheets import editable_location_for_samplesheet
+from emgapiv2.settings import EMG_CONFIG
+from workflows.nextflow_utils.samplesheets import (
+    location_for_samplesheet_to_be_edited,
+    location_where_samplesheet_was_edited,
+)
 from workflows.views import encode_samplesheet_path, validate_samplesheet_path
 
 
@@ -42,9 +46,19 @@ def test_samplesheet_editor_paths_validation(settings):
         "samplesheet_edits_here"
     )
     samplesheet = "/nfs/production/edit/here/yes.csv"
-    assert editable_location_for_samplesheet(
-        Path(samplesheet), settings.EMG_CONFIG.slurm.shared_filesystem_root_on_server
-    ) == Path("/app/data/edit/here/samplesheet_edits_here/yes.csv")
+    assert location_for_samplesheet_to_be_edited(
+        Path(samplesheet), EMG_CONFIG.slurm.shared_filesystem_root_on_server
+    ) == Path("/app/data/edit/here/samplesheet_edits_here/for_editing/yes.csv")
+
+    # and if it was written, it'd be to from_editing subdir
+    assert location_where_samplesheet_was_edited(
+        Path(samplesheet), EMG_CONFIG.slurm.shared_filesystem_root_on_server
+    ) == Path("/app/data/edit/here/samplesheet_edits_here/from_editing/yes.csv")
+
+    # but the cluster would see it on the datamover fs
+    assert location_where_samplesheet_was_edited(
+        Path(samplesheet), EMG_CONFIG.slurm.shared_filesystem_root_on_slurm
+    ) == Path("/nfs/production/edit/here/samplesheet_edits_here/from_editing/yes.csv")
 
 
 @pytest.mark.django_db

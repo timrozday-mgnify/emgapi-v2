@@ -105,26 +105,55 @@ def queryset_hash(queryset: QuerySet, field: str) -> str:
     return hashlib.md5(vals_str.encode()).hexdigest()
 
 
-def editable_location_for_samplesheet(
-    source: Path, shared_filesystem_root: str
+def location_for_samplesheet_to_be_edited(
+    cluster_location: Path, shared_filesystem_root: str
 ) -> Path:
     """
     Determine a path on the shared filesystem (an NFS locaiton available on both datamovers and k8s)
     where a samplesheet can be temporarily saved for editing.
     Parameters
     ----------
-    source: e.g. /nfs/production/path/to/a/run/and/a/samplesheet123.csv
-    shared_filesystem_root: e.g. /nfs/public/rw/our/dir
+    cluster_location: e.g. /nfs/production/path/to/a/run/and/a/samplesheet123.csv
+    shared_filesystem_root: e.g. /nfs/public/rw/our/dir or /app/data
 
     Returns
     -------
-    E.g. /nfs/public/rw/our/dir/temporary_samplesheet_edits/samplesheet123.csv
+    E.g. /nfs/public/rw/our/dir/temporary_samplesheet_edits/for_editing/samplesheet123.csv
+    (if samplesheet_editing_path_from_shared_filesystem config is set to `temporary_samplesheets_edits`)
 
     """
-    samplesheet_name = Path(source).name
+    samplesheet_name = Path(cluster_location).name
     destination = (
         Path(shared_filesystem_root)
         / Path(EMG_CONFIG.slurm.samplesheet_editing_path_from_shared_filesystem)
+        / Path("for_editing")
+        / samplesheet_name
+    )
+    return destination
+
+
+def location_where_samplesheet_was_edited(
+    cluster_location: Path, shared_filesystem_root: str
+) -> Path:
+    """
+    Determine a path on the shared filesystem (an NFS locaiton available on both datamovers and k8s)
+    where a samplesheet can be temporarily saved for editing.
+    Parameters
+    ----------
+    cluster_location: e.g. /nfs/production/path/to/a/run/and/a/samplesheet123.csv
+    shared_filesystem_root: e.g. /nfs/public/rw/our/dir or /app/data/
+
+    Returns
+    -------
+    E.g. /nfs/public/rw/our/dir/temporary_samplesheet_edits/from_editing/samplesheet123.csv
+    (if samplesheet_editing_path_from_shared_filesystem config is set to `temporary_samplesheets_edits`)
+
+    """
+    samplesheet_name = Path(cluster_location).name
+    destination = (
+        Path(shared_filesystem_root)
+        / Path(EMG_CONFIG.slurm.samplesheet_editing_path_from_shared_filesystem)
+        / Path("from_editing")
         / samplesheet_name
     )
     return destination
@@ -133,7 +162,7 @@ def editable_location_for_samplesheet(
 def move_samplesheet_to_editable_location(
     source: str | Path, timeout=Optional[int]
 ) -> Path:
-    destination = editable_location_for_samplesheet(
+    destination = location_for_samplesheet_to_be_edited(
         source, EMG_CONFIG.slurm.shared_filesystem_root_on_slurm
     )
     logger.info(f"Will move samplesheet to {destination}")
@@ -154,7 +183,7 @@ def move_samplesheet_to_editable_location(
 def move_samplesheet_back_from_editable_location(
     destination: str | Path, timeout=Optional[int]
 ) -> Path:
-    source = editable_location_for_samplesheet(
+    source = location_where_samplesheet_was_edited(
         destination, EMG_CONFIG.slurm.shared_filesystem_root_on_slurm
     )
     logger.info(f"Will move samplesheet from {source} to {destination}")
