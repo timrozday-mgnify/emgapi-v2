@@ -415,7 +415,9 @@ async def submit_assembly_slurm(
         if dry_run:
             # no webin.report generated
             task_mark_assembly_status(
-                mgnify_assembly, status=mgnify_assembly.AssemblyStates.ASSEMBLY_UPLOADED
+                mgnify_assembly,
+                status=mgnify_assembly.AssemblyStates.ASSEMBLY_UPLOADED,
+                unset_statuses=[mgnify_assembly.AssemblyStates.ASSEMBLY_UPLOAD_FAILED],
             )
         else:
             # check webin.report for ERZ
@@ -428,6 +430,9 @@ async def submit_assembly_slurm(
                 task_mark_assembly_status(
                     mgnify_assembly,
                     status=mgnify_assembly.AssemblyStates.ASSEMBLY_UPLOADED,
+                    unset_statuses=[
+                        mgnify_assembly.AssemblyStates.ASSEMBLY_UPLOAD_FAILED
+                    ],
                 )
             else:
                 logger.info(f"Upload failed for {run_accession}")

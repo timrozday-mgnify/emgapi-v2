@@ -215,7 +215,7 @@ class Assembly(TimeStampedModel, ENADerivedModel):
     # coverage,...
     metadata = JSONField(default=list, db_index=True, blank=True)
 
-    class AssemblyStates:
+    class AssemblyStates(str, Enum):
         ENA_METADATA_SANITY_CHECK_FAILED = "ena_metadata_sanity_check_failed"
         ENA_DATA_QC_CHECK_FAILED = "ena_data_qc_check_failed"
         ASSEMBLY_STARTED = "assembly_started"
@@ -268,7 +268,7 @@ class Assembly(TimeStampedModel, ENADerivedModel):
         ]
 
     def __str__(self):
-        return f"Assembly {self.id}  (Run {self.run.first_accession})"
+        return f"Assembly {self.id} | {self.first_accession or 'unaccessioned'} (Run {self.run.first_accession})"
 
 
 class AssemblyAnalysisRequest(TimeStampedModel):

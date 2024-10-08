@@ -312,7 +312,9 @@ async def run_assembler_for_samplesheet(
 
     async for assembly in assemblies:
         task_mark_assembly_status(
-            assembly, status=assembly.AssemblyStates.ASSEMBLY_STARTED
+            assembly,
+            status=assembly.AssemblyStates.ASSEMBLY_STARTED,
+            unset_statuses=[assembly.AssemblyStates.ASSEMBLY_BLOCKED],
         )
 
     command = (
@@ -391,6 +393,9 @@ async def run_assembler_for_samplesheet(
                 task_mark_assembly_status(
                     assembly,
                     status=analyses.models.Assembly.AssemblyStates.ASSEMBLY_COMPLETED,
+                    unset_statuses=[
+                        analyses.models.Assembly.AssemblyStates.ASSEMBLY_FAILED
+                    ],
                 )
             else:
                 task_mark_assembly_status(

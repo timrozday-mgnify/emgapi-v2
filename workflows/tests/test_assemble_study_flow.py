@@ -11,6 +11,7 @@ import analyses.models
 import ena.models
 from emgapiv2.settings import EMG_CONFIG
 from workflows.flows.assemble_study import AssemblerChoices, assemble_study
+from workflows.prefect_utils.analyses_models_helpers import task_mark_assembly_status
 
 
 @pytest.mark.django_db(transaction=True)
@@ -139,3 +140,40 @@ async def test_prefect_assemble_study_flow(
     )
 
     shutil.rmtree(assembly_folder, ignore_errors=True)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_assembly_statuses(prefect_harness, mgnify_assemblies):
+    assembly = mgnify_assemblies[0]
+    assert not any(assembly.status.values())
+
+    # marking as failed should work
+    task_mark_assembly_status(
+        assembly, assembly.AssemblyStates.ASSEMBLY_FAILED, reason="It broke"
+    )
+    assembly.refresh_from_db()
+    assert assembly.status[assembly.AssemblyStates.ASSEMBLY_FAILED]
+
+    # making as complete later (perhaps a retry) should work, and can unset failed at same time
+    task_mark_assembly_status(
+        assembly,
+        assembly.AssemblyStates.ASSEMBLY_COMPLETED,
+        unset_statuses=[
+            assembly.AssemblyStates.ASSEMBLY_FAILED,
+            assembly.AssemblyStates.ASSEMBLY_BLOCKED,
+        ],
+    )
+    assembly.refresh_from_db()
+
+    assert not assembly.status[assembly.AssemblyStates.ASSEMBLY_FAILED]
+    assert not assembly.status[assembly.AssemblyStates.ASSEMBLY_BLOCKED]
+    assert assembly.status[assembly.AssemblyStates.ASSEMBLY_COMPLETED]
+
+    # reason should have been updated too
+    assert (
+        assembly.status["assembly_failed_reason"]
+        == "Explicitly unset when setting assembly_completed"
+    )
+
+    # reason should not have been updated for a status that was not previously set
+    assert "assembly_blocked_reason" not in assembly.status
