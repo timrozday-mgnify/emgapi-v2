@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 import time
@@ -209,6 +210,7 @@ def start_cluster_job(
     memory: Union[int, str],
     workdir: Optional[Union[Path, str]] = None,
     make_workdir_first: bool = True,
+    hash: str = "",
     **kwargs,
 ) -> str:
     """
@@ -216,15 +218,20 @@ def start_cluster_job(
     :param name: Name for the job (both on Slurm and Prefect), e.g. "Run analysis pipeline for x"
     :param command: Shell-level command to run, e.g. "nextflow run my-pipeline.nf --sample x"
     :param expected_time: A timedelta after which the job will be killed if not done.
-    This affects Prefect's polling interval too. E.g.  `timedelta(minutes=5)`
+        This affects Prefect's polling interval too. E.g.  `timedelta(minutes=5)`
     :param memory: Maximum memory the job may use. In MB, or with a prefix. E.g. `100` or `10G`.
     :param workdir: Work dir for the job (pathlib.Path, or str). Otherwise, a default will be used based on the name.
     :param make_workdir_first: Make the work dir first, on the SUBMITTER machine.
-    Usually this is desirable, except in cases where you're launching a job to a slurm node which has diff. fs mounts.
+        Usually this is desirable, except in cases where you're launching a job to a slurm node which has diff fs mounts.
+    :param hash: A string hash, used along with other params to determine if this job is "new" or already been/being run.
+        Basically, this is a cache-buster.
+        Common use case: a hash of some input files referenced by 'command',
+        that might have changed even though the command itself has not.
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription
     :return: Job ID of the slurm job.
     """
     logger = get_run_logger()
+    logger.debug(f"Hash is {hash}")
 
     job_workdir = workdir
 
@@ -362,6 +369,25 @@ def cancel_cluster_jobs_if_flow_cancelled(
         cancel_cluster_job(job_name)
 
 
+@task
+def compute_hash_of_input_file(
+    input_files_to_hash: Optional[List[Union[Path, str]]] = None
+) -> str:
+    logger = get_run_logger()
+    input_files_hash = hashlib.new("blake2b")
+
+    for input_file in input_files_to_hash or []:
+        if not Path(input_file).is_file():
+            logger.warning(f"Did not find a file to hash at {input_file}. Ignoring it.")
+            continue
+        with open(input_file, "rb") as f:
+            for chunk in iter(
+                lambda: f.read(131072), b""
+            ):  # 131072 is rsize on EBI /nfs/production, so slightly optimised for that
+                input_files_hash.update(chunk)
+    return input_files_hash.hexdigest()
+
+
 @flow(
     flow_run_name="Cluster job: {name}",
     persist_result=True,
@@ -375,6 +401,7 @@ async def run_cluster_job(
     memory: Union[int, str],
     environment: Union[dict, str],
     resubmit_even_if_identical: bool = False,
+    input_files_to_hash: Optional[List[Union[Path, str]]] = None,
     **kwargs,
 ) -> str:
     """
@@ -388,6 +415,10 @@ async def run_cluster_job(
         (see https://slurm.schedmd.com/sbatch.html). E.g. `TOWER_ACCESSION_TOKEN`
     :param resubmit_even_if_identical: Boolean which if True, will force a new cluster job to be created even if
         an identical one was already run and still exists in the cache.
+    :param input_files_to_hash: Optional list of filepaths,
+        whose contents will be hashed to determine if this job is identical to another.
+        Note that the hash is done on the node where this flow runs, not the node where the job (may) run.
+        This means hashes can't be computed for files only accessible to certain partitions (like datamover nodes).
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
     :return: Slurm job ID once finished.
     """
@@ -400,12 +431,15 @@ async def run_cluster_job(
     # This is a cached result, so if this flow is retried, a new job will *not* be submitted.
     # Rather, the original job_id will be returned.
 
+    input_files_hash = compute_hash_of_input_file(input_files_to_hash)
+
     cluster_job_start_args = {
         "name": name,
         "command": command,
         "expected_time": expected_time,
         "memory": memory,
         "environment": environment,
+        "hash": input_files_hash,
         **kwargs,
     }
 
@@ -638,6 +672,6 @@ async def move_data(source: str, target: str, move_command: str = "cp", **kwargs
         expected_time=expected_time,
         memory=memory,
         resubmit_even_if_identical=True,
-        **kwargs,
         partitions=[EMG_CONFIG.slurm.datamover_paritition],
+        **kwargs,
     )

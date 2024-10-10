@@ -35,6 +35,7 @@ async def test_run_cluster_job_state_persistence(
     prefect_harness,
     mock_cluster_can_accept_jobs_yes,
     mock_check_cluster_job_all_completed,
+    tmp_path,
 ):
     job_id_initial = await run_cluster_job(
         name="test job",
@@ -91,3 +92,41 @@ async def test_run_cluster_job_state_persistence(
     unique_job_ids = set(job_ids_mentioned)
     assert len(unique_job_ids) == 1
     # (flow ran twice, job started once)
+
+    with open(f"{tmp_path}/my_inputs.csv", "w") as file:
+        file.write("my,initial,params")
+
+    # cluster jobs can accept a list of input files to hash
+    job_id_initial_with_hash = await run_cluster_job(
+        name="test job",
+        command="echo 'test'",
+        expected_time=timedelta(minutes=1),
+        memory="100M",
+        environment={},
+        input_files_to_hash=[tmp_path / "my_inputs.csv"],
+    )
+
+    # if input file unchanged, should be same job
+    job_id_repeat_with_hash = await run_cluster_job(
+        name="test job",
+        command="echo 'test'",
+        expected_time=timedelta(minutes=1),
+        memory="100M",
+        environment={},
+        input_files_to_hash=[tmp_path / "my_inputs.csv"],
+    )
+    assert job_id_initial_with_hash == job_id_repeat_with_hash
+
+    # if input file changes, should be new job
+    with open(f"{tmp_path}/my_inputs.csv", "w") as file:
+        file.write("my,altered,params")
+
+    job_id_repeat_with_hash = await run_cluster_job(
+        name="test job",
+        command="echo 'test'",
+        expected_time=timedelta(minutes=1),
+        memory="100M",
+        environment={},
+        input_files_to_hash=[tmp_path / "my_inputs.csv"],
+    )
+    assert job_id_initial_with_hash != job_id_repeat_with_hash

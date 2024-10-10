@@ -13,6 +13,7 @@ from django_ltree.models import TreeModel
 
 import ena.models
 from analyses.base_models.base_models import (
+    ENAAccessionManager,
     ENADerivedModel,
     MGnifyAutomatedModel,
     TimeStampedModel,
@@ -177,7 +178,7 @@ class Assembler(TimeStampedModel):
         return f"{self.name} {self.version}" if self.version is not None else self.name
 
 
-class AssemblyManager(models.Manager):
+class AssemblyManager(ENAAccessionManager):
     def get_queryset(self):
         return super().get_queryset().select_related("run")
 
@@ -212,8 +213,12 @@ class Assembly(TimeStampedModel, ENADerivedModel):
         null=True,
         blank=True,
     )
-    # coverage,...
-    metadata = JSONField(default=list, db_index=True, blank=True)
+
+    class CommonMetadataKeys:
+        COVERAGE = "coverage"
+        COVERAGE_DEPTH = "coverage_depth"
+
+    metadata = JSONField(default=dict, db_index=True, blank=True)
 
     class AssemblyStates(str, Enum):
         ENA_METADATA_SANITY_CHECK_FAILED = "ena_metadata_sanity_check_failed"

@@ -1,4 +1,5 @@
 import csv
+import json
 from collections import defaultdict
 from datetime import timedelta
 from enum import Enum
@@ -21,7 +22,7 @@ from workflows.views import encode_samplesheet_path
 django.setup()
 
 import httpx
-from prefect import flow, suspend_flow_run, task
+from prefect import flow, get_run_logger, suspend_flow_run, task
 
 import analyses.models
 import ena.models
@@ -297,6 +298,44 @@ def make_samplesheets_for_runs_to_assemble(
 ##################
 
 
+@task
+def update_assembly_metadata(
+    miassembler_outdir: Path,
+    assembly: analyses.models.Assembly,
+    assembler: analyses.models.Assembler,
+) -> None:
+    """
+    Update assembly with post-assembly metadata like assembler and coverage.
+    """
+    logger = get_run_logger()
+    run_accession = assembly.run.first_accession
+    study_accession = assembly.reads_study.ena_study.accession
+
+    assembly.assembler = assembler
+    assembly.save()
+
+    coverage_report_path = miassembler_outdir / Path(
+        f"{study_accession[:7]}/{study_accession}/multiqc/{run_accession[:7]}/{run_accession}/assembly/{assembly.assembler.name.lower()}/{assembly.assembler.version}/coverage/{run_accession}_coverage.json"
+    )
+    if not coverage_report_path.is_file():
+        raise Exception(f"Assembly coverage file not found at {coverage_report_path}")
+
+    with open(coverage_report_path, "r") as json_file:
+        coverage_report = json.load(json_file)
+
+    for key in [
+        assembly.CommonMetadataKeys.COVERAGE,
+        assembly.CommonMetadataKeys.COVERAGE_DEPTH,
+    ]:
+        if not key in coverage_report:
+            logger.warning(f"No '{key}' found in {coverage_report_path}")
+        assembly.metadata[key] = coverage_report.get(key)
+
+    logger.info(f"Assembly metadata of {assembly} is now {assembly.metadata}")
+
+    assembly.save()
+
+
 @flow(flow_run_name="Assemble {samplesheet_csv}")
 async def run_assembler_for_samplesheet(
     mgnify_study: analyses.models.Study,
@@ -317,13 +356,16 @@ async def run_assembler_for_samplesheet(
             unset_statuses=[assembly.AssemblyStates.ASSEMBLY_BLOCKED],
         )
 
+    miassembler_outdir = Path(
+        f"{EMG_CONFIG.slurm.default_workdir}/{mgnify_study.ena_study.accession}_miassembler"
+    )
     command = (
         f"nextflow run ebi-metagenomics/miassembler "
         f"-r main "  # From the main branch (which is the stable one)
         f"-profile {miassembler_profile} "
         f"-resume "
         f"--samplesheet {samplesheet_csv} "
-        f"--outdir {EMG_CONFIG.slurm.default_workdir}/{mgnify_study.ena_study.accession}_miassembler "
+        f"--outdir {miassembler_outdir} "
         f"--assembler {assembler.name.lower()} "
         f"{'-with-tower' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''} "
         f"-name miassembler-samplesheet-{file_path_shortener(samplesheet_csv, 1, 15, True)} "
@@ -336,6 +378,7 @@ async def run_assembler_for_samplesheet(
             expected_time=timedelta(days=5),
             memory=f"{memory_gb}G",
             environment="ALL,TOWER_ACCESS_TOKEN,TOWER_WORKSPACE_ID",
+            input_files_to_hash=[samplesheet_csv],
         )
     except ClusterJobFailedException:
         for assembly in assemblies:
@@ -350,9 +393,7 @@ async def run_assembler_for_samplesheet(
         # QC failed / not assembled runs: qc_failed_runs.csv
         # Assembled runs: assembled_runs.csv
 
-        qc_failed_csv = Path(
-            f"{EMG_CONFIG.slurm.default_workdir}/{mgnify_study.ena_study.accession}_miassembler/qc_failed_runs.csv"
-        )
+        qc_failed_csv = miassembler_outdir / Path("qc_failed_runs.csv")
         qc_failed_runs = {}  # Stores {run_accession, qc_fail_reason}
 
         if qc_failed_csv.is_file():
@@ -361,9 +402,7 @@ async def run_assembler_for_samplesheet(
                     run_accession, fail_reason = row
                     qc_failed_runs[run_accession] = fail_reason
 
-        assembled_runs_csv = Path(
-            f"{EMG_CONFIG.slurm.default_workdir}/{mgnify_study.ena_study.accession}_miassembler/assembled_runs.csv"
-        )
+        assembled_runs_csv = miassembler_outdir / Path("assembled_runs.csv")
         assembled_runs = set()
 
         if not assembled_runs_csv.is_file():
@@ -397,6 +436,7 @@ async def run_assembler_for_samplesheet(
                         analyses.models.Assembly.AssemblyStates.ASSEMBLY_FAILED
                     ],
                 )
+                update_assembly_metadata(miassembler_outdir, assembly, assembler)
             else:
                 task_mark_assembly_status(
                     assembly,

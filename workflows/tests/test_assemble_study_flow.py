@@ -93,10 +93,20 @@ async def test_prefect_assemble_study_flow(
     os.mkdir(assembly_folder)
 
     with open(f"{assembly_folder}/assembled_runs.csv", "w") as file:
-        file.write("SRR1,metaspades,3.15.5")
+        file.write("SRR1,metaspades,3.15.3")
 
     with open(f"{assembly_folder}/qc_failed_runs.csv", "w") as file:
         file.write("SRR2,filter_ratio_threshold_exceeded")
+
+    os.makedirs(
+        f"{assembly_folder}/PRJNA1/PRJNA1/multiqc/SRR1/SRR1/assembly/metaspades/3.15.3/coverage/",
+        exist_ok=True,
+    )
+    with open(
+        f"{assembly_folder}/PRJNA1/PRJNA1/multiqc/SRR1/SRR1/assembly/metaspades/3.15.3/coverage/SRR1_coverage.json",
+        "w",
+    ) as file:
+        json.dump({"coverage": 0.04760503915318373, "coverage_depth": 273.694}, file)
 
     ### RUN WORKFLOW ###
     await assemble_study(accession)
@@ -122,6 +132,11 @@ async def test_prefect_assemble_study_flow(
     assert await analyses.models.Sample.objects.acount() == 2
     assert await analyses.models.Run.objects.acount() == 2
     assert await analyses.models.Assembly.objects.acount() == 2
+
+    assembly = await analyses.models.Assembly.objects.filter(
+        run__ena_accessions__contains="SRR1"
+    ).afirst()
+    assert 0.0475 < assembly.metadata.get("coverage") < 0.0477
 
     assert (
         await analyses.models.Assembly.objects.filter(

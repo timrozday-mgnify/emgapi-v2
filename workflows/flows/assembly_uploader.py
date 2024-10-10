@@ -18,10 +18,8 @@ from workflows.prefect_utils.analyses_models_helpers import task_mark_assembly_s
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 from workflows.prefect_utils.shell_task import run_shell_command
 from workflows.prefect_utils.slurm_flow import (
-    FINAL_SLURM_STATE,
-    SLURM_JOB_ID,
-    run_cluster_jobs,
-    slurm_status_is_finished_successfully,
+    ClusterJobFailedException,
+    run_cluster_job,
 )
 
 OPTIONAL_SPADES_FILES = [
@@ -401,16 +399,24 @@ async def submit_assembly_slurm(
     else:
         command += "-submit "
 
-    slurm_job_results = await run_cluster_jobs(
-        names=[f"Upload assembly for {run_accession} to ENA"],
-        commands=[command],
-        expected_time=timedelta(hours=1),
-        memory=f"500M",
-        environment="ALL",  # copy env vars from the prefect agent into the slurm job
-        raise_on_job_failure=False,  # allows some jobs to fail without failing everything
-    )
-
-    if slurm_status_is_finished_successfully(slurm_job_results[0][FINAL_SLURM_STATE]):
+    try:
+        await run_cluster_job(
+            name=f"Upload assembly for {run_accession} to ENA",
+            command=command,
+            expected_time=timedelta(hours=1),
+            memory=f"500M",
+            environment="ALL",  # copy env vars from the prefect agent into the slurm job
+            raise_on_job_failure=False,  # allows some jobs to fail without failing everything
+        )
+    except ClusterJobFailedException:
+        logger.error(
+            f"Something went wrong running webin-cli upload for {run_accession}"
+        )
+        task_mark_assembly_status(
+            mgnify_assembly,
+            status=mgnify_assembly.AssemblyStates.ASSEMBLY_UPLOAD_FAILED,
+        )
+    else:
         logger.info(f"Successfully ran webin-cli upload for {run_accession}")
         if dry_run:
             # no webin.report generated
@@ -440,14 +446,6 @@ async def submit_assembly_slurm(
                     mgnify_assembly,
                     status=mgnify_assembly.AssemblyStates.ASSEMBLY_UPLOAD_FAILED,
                 )
-    else:
-        logger.error(
-            f"Something went wrong running webin-cli upload for {run_accession} in job {slurm_job_results[0][SLURM_JOB_ID]}"
-        )
-        task_mark_assembly_status(
-            mgnify_assembly,
-            status=mgnify_assembly.AssemblyStates.ASSEMBLY_UPLOAD_FAILED,
-        )
 
 
 ##########################
