@@ -170,6 +170,7 @@ async def perform_amplicons_in_parallel(
             expected_time=timedelta(days=5),
             memory=f"{EMG_CONFIG.slurm.amplicon_nextflow_master_job_memory}G",
             environment="ALL,TOWER_ACCESS_TOKEN,TOWER_WORKSPACE_ID",
+            input_files_to_hash=[samplesheet],
         )
     except ClusterJobFailedException:
         for analysis in amplicon_analyses:

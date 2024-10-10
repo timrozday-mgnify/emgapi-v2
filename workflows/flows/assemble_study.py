@@ -378,6 +378,7 @@ async def run_assembler_for_samplesheet(
             expected_time=timedelta(days=5),
             memory=f"{memory_gb}G",
             environment="ALL,TOWER_ACCESS_TOKEN,TOWER_WORKSPACE_ID",
+            input_files_to_hash=[samplesheet_csv],
         )
     except ClusterJobFailedException:
         for assembly in assemblies:
