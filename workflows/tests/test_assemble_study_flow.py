@@ -72,19 +72,15 @@ async def test_prefect_assemble_study_flow(
     ## Pretend that a human resumed the flow with the biome picker, and then with the assembler selector.
     BiomeChoices = Enum("BiomeChoices", {"root.engineered": "Root:Engineered"})
 
-    class BiomeInputMock(BaseModel):
+    class BiomeAndAssemblerInputMock(BaseModel):
         biome: BiomeChoices
-
-    class AssemblerInputMock(BaseModel):
         assembler: AssemblerChoices
-        memory_gb: int
 
     def suspend_side_effect(wait_for_input=None):
-        if wait_for_input.__name__ == "BiomeInput":
-            return BiomeInputMock(biome=BiomeChoices["root.engineered"])
-        if wait_for_input.__name__ == "AssemblerInput":
-            return AssemblerInputMock(
-                assembler=AssemblerChoices.pipeline_default, memory_gb=8
+        if wait_for_input.__name__ == "BiomeAndAssemblerInput":
+            return BiomeAndAssemblerInputMock(
+                biome=BiomeChoices["root.engineered"],
+                assembler=AssemblerChoices.pipeline_default,
             )
 
     mock_suspend_flow_run.side_effect = suspend_side_effect
