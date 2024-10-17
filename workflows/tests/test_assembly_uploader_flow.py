@@ -6,10 +6,7 @@ import pytest
 
 import analyses.models as mg_models
 from workflows.flows.assembly_uploader import assembly_uploader
-from workflows.prefect_utils.testing_utils import (
-    run_async_flow_and_capture_logs,
-    run_flow_and_capture_logs,
-)
+from workflows.prefect_utils.testing_utils import run_async_flow_and_capture_logs
 
 
 @pytest.mark.django_db(transaction=True)

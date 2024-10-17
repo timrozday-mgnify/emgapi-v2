@@ -15,7 +15,7 @@ async def test_prefect_analyse_amplicon_flow(
     mock_cluster_can_accept_jobs_yes,
     mock_start_cluster_job,
     mock_check_cluster_job_all_completed,
-    raw_read_run
+    raw_read_run,
 ):
     """
     Test should create/get ENA and MGnify study into DB.
@@ -25,7 +25,7 @@ async def test_prefect_analyse_amplicon_flow(
     amplicon_run = "SRR6704248"
 
     httpx_mock.add_response(
-        url=f'https://www.ebi.ac.uk/ena/portal/api/search?result=read_run&dataPortal=metagenome&format=json&fields=sample_accession,sample_title,secondary_sample_accession,fastq_md5,fastq_ftp,library_layout,library_strategy&query="study_accession={study_accession} OR secondary_study_accession={study_accession} AND library_strategy=%22AMPLICON%22"&limit=5000',
+        url=f"https://www.ebi.ac.uk/ena/portal/api/search?result=read_run&dataPortal=metagenome&format=json&fields=sample_accession,sample_title,secondary_sample_accession,fastq_md5,fastq_ftp,library_layout,library_strategy&query=%22(study_accession={study_accession}%20OR%20secondary_study_accession={study_accession})%20AND%20library_strategy=AMPLICON%22&limit=5000",
         json=[
             {
                 "sample_accession": "SAMN08514017",

@@ -21,11 +21,9 @@ from workflows.views import encode_samplesheet_path
 
 django.setup()
 
-import httpx
 from prefect import flow, get_run_logger, suspend_flow_run, task
 
 import analyses.models
-import ena.models
 from emgapiv2.settings import EMG_CONFIG
 from workflows.ena_utils.ena_api_requests import (
     get_study_from_ena,
@@ -82,62 +80,6 @@ def get_biomes_as_choices():
     }
     BiomeChoices = Enum("BiomeChoices", biomes)
     return BiomeChoices
-
-
-@task(
-    retries=10,
-    retry_delay_seconds=60,
-    cache_key_fn=context_agnostic_task_input_hash,
-    task_run_name="Get study readruns from ENA: {accession}",
-    log_prints=True,
-)
-def get_study_readruns_from_ena(accession: str, limit: int = 20) -> List[str]:
-    print(f"Will fetch study {accession} read-runs from ENA portal API")
-    mgys_study = analyses.models.Study.objects.get(ena_study__accession=accession)
-    portal = httpx.get(
-        f'https://www.ebi.ac.uk/ena/portal/api/search?result=read_run&dataPortal=metagenome&format=json&fields=sample_accession,sample_title,secondary_sample_accession,fastq_md5,fastq_ftp,library_layout,library_strategy&query="study_accession={accession} OR secondary_study_accession={accession}"&limit={limit}&format=json'
-    )
-
-    if portal.status_code == httpx.codes.OK:
-        for read_run in portal.json():
-            ena_sample, _ = ena.models.Sample.objects.get_or_create(
-                accession=read_run["sample_accession"],
-                defaults={
-                    "metadata": {"sample_title": read_run["sample_title"]},
-                    "study": mgys_study.ena_study,
-                },
-            )
-
-            mgnify_sample, _ = analyses.models.Sample.objects.update_or_create(
-                ena_sample=ena_sample,
-                defaults={
-                    "ena_accessions": [
-                        read_run["sample_accession"],
-                        read_run["secondary_sample_accession"],
-                    ],
-                    "ena_study": mgys_study.ena_study,
-                },
-            )
-
-            run, _ = analyses.models.Run.objects.update_or_create(
-                ena_accessions=[read_run["run_accession"]],
-                study=mgys_study,
-                ena_study=mgys_study.ena_study,
-                sample=mgnify_sample,
-                defaults={
-                    "metadata": {
-                        "library_strategy": read_run["library_strategy"],
-                        "library_layout": read_run["library_layout"],
-                        "fastq_ftps": list(read_run["fastq_ftp"].split(";")),
-                    },
-                },
-            )
-            run.set_experiment_type_by_ena_library_strategy(
-                read_run["library_strategy"]
-            )
-
-    mgys_study.refresh_from_db()
-    return [run.ena_accessions[0] for run in mgys_study.runs.all()]
 
 
 @task(
@@ -447,7 +389,6 @@ async def run_assembler_for_samplesheet(
 
 @flow(
     name="Assemble a study",
-    log_prints=True,
     flow_run_name="Assemble: {accession}",
     task_runner=SequentialTaskRunner,
 )
@@ -458,12 +399,13 @@ async def assemble_study(accession: str, miassembler_profile: str = "codon_slurm
     :param accession: Study accession e.g. PRJxxxxxx
     :param miassembler_profile: Name of the nextflow profile to use for MI Assembler.
     """
+    logger = get_run_logger()
 
     # Create (or get) an ENA Study object, populating with metadata from ENA
     # Refresh from DB in case we get an old cached version.
     ena_study = get_study_from_ena(accession)
     await ena_study.arefresh_from_db()
-    print(f"ENA Study is {ena_study.accession}: {ena_study.title}")
+    logger.info(f"ENA Study is {ena_study.accession}: {ena_study.title}")
 
     # define this within flow because it dynamically creates options from DB.
     BiomeChoices = await sync_to_async(get_biomes_as_choices)()
@@ -490,12 +432,12 @@ The Biome is important metadata, and will also be used to guess how much memory 
     )
     mgnify_study.biome = biome
     await mgnify_study.asave()
-    print(
+    logger.info(
         f"MGnify study is {mgnify_study.accession}: {mgnify_study.title}. Biome: {biome.path}"
     )
 
     read_runs = get_study_readruns_from_ena(ena_study.accession, limit=5000)
-    print(f"Have {len(read_runs)} from ENA portal API")
+    logger.info(f"Have {len(read_runs)} from ENA portal API")
 
     assembler_input: AssemblerInput = await suspend_flow_run(
         wait_for_input=AssemblerInput.with_initial_data(
@@ -512,7 +454,7 @@ Also optionally select how much RAM (in GB) to allocate for each nextflow head j
             """,
         )
     )
-    print(f"Using assembler name: {assembler_input}")
+    logger.info(f"Using assembler name: {assembler_input}")
     assembler_name = assembler_input.assembler
     if assembler_name == AssemblerChoices.pipeline_default:
         assembler_name = analyses.models.Assembler.assembler_default

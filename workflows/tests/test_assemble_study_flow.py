@@ -44,7 +44,7 @@ async def test_prefect_assemble_study_flow(
     )
 
     httpx_mock.add_response(
-        url=f'https://www.ebi.ac.uk/ena/portal/api/search?result=read_run&dataPortal=metagenome&format=json&fields=sample_accession,sample_title,secondary_sample_accession,fastq_md5,fastq_ftp,library_layout,library_strategy&query="study_accession=PRJNA1 OR secondary_study_accession=PRJNA1"&limit=5000&format=json',
+        url=f"https://www.ebi.ac.uk/ena/portal/api/search?result=read_run&dataPortal=metagenome&format=json&fields=sample_accession,sample_title,secondary_sample_accession,fastq_md5,fastq_ftp,library_layout,library_strategy&query=%22(study_accession=PRJNA1%20OR%20secondary_study_accession=PRJNA1)%22&limit=5000",
         json=[
             {
                 "sample_accession": "SAMN01",

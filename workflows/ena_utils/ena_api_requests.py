@@ -67,50 +67,51 @@ def get_study_readruns_from_ena(
 
     print(f"Will fetch study {accession} read-runs from ENA portal API")
     mgys_study = analyses.models.Study.objects.get(ena_study__accession=accession)
-    query = (
-        f'query="study_accession={accession} OR secondary_study_accession={accession}'
-    )
+    query = f'query="(study_accession={accession} OR secondary_study_accession={accession})"'
     if filter_library_strategy:
-        query += f" AND library_strategy=%22{filter_library_strategy}%22"
-    query += '"'
-    portal = httpx.get(
-        f"{EMG_CONFIG.ena.portal_search_api}?result=read_run&dataPortal=metagenome&format={RESULT_FORMAT}&fields={fields}&{query}&limit={limit}"
-    )
+        query = f'{query[:-1]} AND library_strategy={filter_library_strategy}"'
+    query = query.replace('"', "%22")
+    url = f"{EMG_CONFIG.ena.portal_search_api}?result=read_run&dataPortal=metagenome&format={RESULT_FORMAT}&fields={fields}&{query}&limit={limit}"
+    portal = httpx.get(url)
+    if not portal.status_code == httpx.codes.OK:
+        raise Exception(f"Bad status! {portal.status_code} {portal}")
 
-    if portal.status_code == httpx.codes.OK:
-        for read_run in portal.json():
-            ena_sample, _ = ena.models.Sample.objects.get_or_create(
-                accession=read_run["sample_accession"],
-                defaults={
-                    "metadata": {"sample_title": read_run["sample_title"]},
-                    "study": mgys_study.ena_study,
-                },
-            )
+    print("ENA portal responded ok.")
+    for read_run in portal.json():
+        print(f"Creating objects for {read_run['run_accession']}")
+        ena_sample, _ = ena.models.Sample.objects.get_or_create(
+            accession=read_run["sample_accession"],
+            defaults={
+                "metadata": {"sample_title": read_run["sample_title"]},
+                "study": mgys_study.ena_study,
+            },
+        )
 
-            mgnify_sample, _ = analyses.models.Sample.objects.update_or_create(
-                ena_sample=ena_sample,
-                defaults={
-                    "ena_accessions": [
-                        read_run["sample_accession"],
-                        read_run["secondary_sample_accession"],
-                    ],
-                    "ena_study": mgys_study.ena_study,
-                },
-            )
+        mgnify_sample, _ = analyses.models.Sample.objects.update_or_create(
+            ena_sample=ena_sample,
+            defaults={
+                "ena_accessions": [
+                    read_run["sample_accession"],
+                    read_run["secondary_sample_accession"],
+                ],
+                "ena_study": mgys_study.ena_study,
+            },
+        )
 
-            analyses.models.Run.objects.update_or_create(
-                ena_accessions=[read_run["run_accession"]],
-                study=mgys_study,
-                ena_study=mgys_study.ena_study,
-                sample=mgnify_sample,
-                defaults={
-                    "metadata": {
-                        "library_strategy": read_run["library_strategy"],
-                        "library_layout": read_run["library_layout"],
-                        "fastq_ftps": list(read_run["fastq_ftp"].split(";")),
-                    }
-                },
-            )
+        run, _ = analyses.models.Run.objects.update_or_create(
+            ena_accessions=[read_run["run_accession"]],
+            study=mgys_study,
+            ena_study=mgys_study.ena_study,
+            sample=mgnify_sample,
+            defaults={
+                "metadata": {
+                    "library_strategy": read_run["library_strategy"],
+                    "library_layout": read_run["library_layout"],
+                    "fastq_ftps": list(read_run["fastq_ftp"].split(";")),
+                }
+            },
+        )
+        run.set_experiment_type_by_ena_library_strategy(read_run["library_strategy"])
 
     mgys_study.refresh_from_db()
     return [run.ena_accessions[0] for run in mgys_study.runs.all()]

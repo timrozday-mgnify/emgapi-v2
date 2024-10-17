@@ -54,9 +54,14 @@ task make-dev-data
 This will have created a Django-managed DB on a dockerized Postgres host, and put some fixtures into.
 You could also just create/migrate the DB, without the fixture placement, using `task manage -- migrate`.
 
+### Set up a couple of common flows for example
+```shell
+FLOW=assemble_study task deploy-flow  # assumes file is called assemble_study.py and flow is assembly_study()
+FILE=workflows/prefect_utils/slurm_flow.py FLOW=move_data task deploy-flow
+```
+
 ### Run everything (the databases, the Django app, the Prefect workflow server, a Prefect work egent, and a small Slurm cluster with associated controllers+dbs.)
 ```shell
-task deploy-utils
 task run
 ```
 > #### Details
