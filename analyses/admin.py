@@ -105,7 +105,7 @@ class StudyAdmin(ModelAdmin):
         "ena_study__title",
         "ena_study__accession",
         "ena_study__additional_accessions",
-        "biome",
+        "biome__biome_name",
     ]
 
 
