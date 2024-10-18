@@ -1,6 +1,11 @@
+from pathlib import Path
+
 import pytest
 
-from workflows.data_io_utils.filenames import file_path_shortener
+from workflows.data_io_utils.filenames import (
+    accession_prefix_separated_dir_path,
+    file_path_shortener,
+)
 
 
 def test_file_path_shortener():
@@ -18,4 +23,19 @@ def test_file_path_shortener():
     assert (
         file_path_shortener("/path/to/my_very_long_file.csv", 3, 10, True)
         == "pat_to_m_ile_csv"
+    )
+
+
+def test_accession_prefix_separated_dir_path():
+    assert accession_prefix_separated_dir_path("PRJ123456", 5, 6) == Path(
+        "PRJ12/PRJ123/PRJ123456"
+    )
+    assert accession_prefix_separated_dir_path("PRJ123456", 5, 6, 99) == Path(
+        "PRJ12/PRJ123/PRJ123456/PRJ123456"
+    )
+    assert accession_prefix_separated_dir_path("ERR1", 9, 9) == Path("ERR1/ERR1/ERR1")
+    with pytest.raises(AssertionError):
+        accession_prefix_separated_dir_path("PRJ1", 0, 5)
+    assert accession_prefix_separated_dir_path("PRJ123456", 3, 6, 7) == Path(
+        "PRJ/PRJ123/PRJ1234/PRJ123456"
     )

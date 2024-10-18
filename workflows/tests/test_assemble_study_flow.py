@@ -95,11 +95,11 @@ async def test_prefect_assemble_study_flow(
         file.write("SRR2,filter_ratio_threshold_exceeded")
 
     os.makedirs(
-        f"{assembly_folder}/PRJNA1/PRJNA1/multiqc/SRR1/SRR1/assembly/metaspades/3.15.5/coverage/",
+        f"{assembly_folder}/PRJNA1/PRJNA1/SRR1/SRR1/assembly/metaspades/3.15.5/coverage/",
         exist_ok=True,
     )
     with open(
-        f"{assembly_folder}/PRJNA1/PRJNA1/multiqc/SRR1/SRR1/assembly/metaspades/3.15.5/coverage/SRR1_coverage.json",
+        f"{assembly_folder}/PRJNA1/PRJNA1/SRR1/SRR1/assembly/metaspades/3.15.5/coverage/SRR1_coverage.json",
         "w",
     ) as file:
         json.dump({"coverage": 0.04760503915318373, "coverage_depth": 273.694}, file)
@@ -133,6 +133,8 @@ async def test_prefect_assemble_study_flow(
         run__ena_accessions__contains="SRR1"
     ).afirst()
     assert 0.0475 < assembly.metadata.get("coverage") < 0.0477
+
+    assert assembly.dir == f"{assembly_folder}/PRJNA1/PRJNA1/SRR1/SRR1"
 
     assert (
         await analyses.models.Assembly.objects.filter(

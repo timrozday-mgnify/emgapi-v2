@@ -50,3 +50,30 @@ def file_path_shortener(
         return slugified
 
     return short_path
+
+
+def accession_prefix_separated_dir_path(accession: str, *chars_per_dir_level: int):
+    """
+    Builds a multi-level directory path for an accession, where each level of the dir path is the accession
+    truncated to a certain number of characters.
+
+    E.g.: PRJ123456 -> PRJ123/PRJ1234/PRJ123456
+    This is commonly used to prevent any single dir having a large number of subdirs.
+
+    :param accession: the full accession e.g. PRJ123456
+    :*chars_per_dir_level: the number of characters to truncate to at each level, e.g. 6,7
+
+    Note that the full accession is ALWAYS to the end, as a dir, AFTER the levels specified.
+    E.g. accession_prefix_separated_dir_path(PRJ123456, 5, 6) -> PRJ12/PRJ123/PRJ123456
+    But also accession_prefix_separated_dir_path(PRJ123456, 5, 6, 999) -> PRJ12/PRJ123/PRJ123456/PRJ123456
+
+    Returns
+    -------
+    A non-pure path for the dir hierarchy.
+
+    """
+    path = Path()
+    for chars_at_level in chars_per_dir_level:
+        assert chars_at_level > 0
+        path = path / Path(accession[:chars_at_level])
+    return path / Path(accession)

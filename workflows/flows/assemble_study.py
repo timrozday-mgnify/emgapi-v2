@@ -16,7 +16,10 @@ from prefect.artifacts import create_table_artifact
 from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 
-from workflows.data_io_utils.filenames import file_path_shortener
+from workflows.data_io_utils.filenames import (
+    accession_prefix_separated_dir_path,
+    file_path_shortener,
+)
 from workflows.ena_utils.ena_file_fetching import convert_ena_ftp_to_fire_fastq
 from workflows.views import encode_samplesheet_path
 
@@ -250,10 +253,16 @@ def update_assembly_metadata(
     study_accession = assembly.reads_study.ena_study.accession
 
     assembly.assembler = assembler
+    assembly.dir = (
+        miassembler_outdir
+        / accession_prefix_separated_dir_path(study_accession, 7)
+        / accession_prefix_separated_dir_path(run_accession, 7)
+    )
     assembly.save()
+    logger.info(f"Assembly directory is {assembly.dir}")
 
-    coverage_report_path = miassembler_outdir / Path(
-        f"{study_accession[:7]}/{study_accession}/multiqc/{run_accession[:7]}/{run_accession}/assembly/{assembly.assembler.name.lower()}/{assembly.assembler.version}/coverage/{run_accession}_coverage.json"
+    coverage_report_path = Path(assembly.dir) / Path(
+        f"assembly/{assembly.assembler.name.lower()}/{assembly.assembler.version}/coverage/{run_accession}_coverage.json"
     )
     if not coverage_report_path.is_file():
         raise Exception(f"Assembly coverage file not found at {coverage_report_path}")
@@ -393,7 +402,6 @@ async def assemble_study(accession: str):
     Get a study from ENA, and input it to MGnify.
     Kick off assembly pipeline.
     :param accession: Study accession e.g. PRJxxxxxx
-    :param miassembler_profile: Name of the nextflow profile to use for MI Assembler.
     """
     logger = get_run_logger()
 
