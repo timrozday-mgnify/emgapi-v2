@@ -278,7 +278,6 @@ def update_assembly_metadata(
 async def run_assembler_for_samplesheet(
     mgnify_study: analyses.models.Study,
     samplesheet_csv: Path,
-    miassembler_profile: str,
     assembler: analyses.models.Assembler,
     memory_gb_for_head_job: int = 8,
 ):
@@ -299,8 +298,9 @@ async def run_assembler_for_samplesheet(
     )
     command = (
         f"nextflow run ebi-metagenomics/miassembler "
-        f"-r main "  # From the main branch (which is the stable one)
-        f"-profile {miassembler_profile} "
+        f"-r {EMG_CONFIG.assembler.miassemebler_git_revision} "
+        f"-latest "  # Pull changes from GitHub
+        f"-profile {EMG_CONFIG.assembler.miassembler_nf_profile} "
         f"-resume "
         f"--samplesheet {samplesheet_csv} "
         f"--outdir {miassembler_outdir} "
@@ -388,7 +388,7 @@ async def run_assembler_for_samplesheet(
     flow_run_name="Assemble: {accession}",
     task_runner=SequentialTaskRunner,
 )
-async def assemble_study(accession: str, miassembler_profile: str = "codon_slurm"):
+async def assemble_study(accession: str):
     """
     Get a study from ENA, and input it to MGnify.
     Kick off assembly pipeline.
@@ -468,6 +468,5 @@ which you can edit in the [admin panel]({EMG_CONFIG.service_urls.app_root}/{reve
         await run_assembler_for_samplesheet(
             mgnify_study,
             samplesheet,
-            miassembler_profile,
             assembler,
         )

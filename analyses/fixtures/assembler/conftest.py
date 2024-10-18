@@ -5,7 +5,7 @@ django.setup()
 
 import analyses.models as mg_models
 
-versions = {"metaspades": "3.15.3", "spades": "3.15.3", "megahit": "1.2.9"}
+versions = {"metaspades": "3.15.5", "spades": "3.15.5", "megahit": "1.2.9"}
 
 
 @pytest.fixture

@@ -47,7 +47,11 @@ class SlurmConfig(BaseModel):
 
 class AssemblerConfig(BaseModel):
     assembler_default: str = "metaspades"
-    assembler_version_default: str = "3.15.3"
+    assembler_version_default: str = "3.15.5"
+    miassemebler_git_revision: str = (
+        "main"  # branch or commit of ebi-metagenomics/mi-assembler
+    )
+    miassembler_nf_profile: str = "codon_slurm"
 
 
 class WebinConfig(BaseModel):

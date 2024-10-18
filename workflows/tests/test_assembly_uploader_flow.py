@@ -42,7 +42,7 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
     registered_study = "PRJNA567089"
 
     assembler_name = "metaspades"
-    assembler_version = "3.15.3"
+    assembler_version = "3.15.5"
 
     # FS required bits
     upload_dir = (
@@ -138,7 +138,7 @@ async def test_prefect_assembly_upload_flow_post_assembly_sanity_check_not_passe
     """
 
     assembler_name = "metaspades"
-    assembler_version = "3.15.3"
+    assembler_version = "3.15.5"
 
     study_accession = raw_read_ena_study.accession
     run_accession = "SRR6180435"

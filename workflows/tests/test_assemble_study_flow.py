@@ -89,17 +89,17 @@ async def test_prefect_assemble_study_flow(
     os.mkdir(assembly_folder)
 
     with open(f"{assembly_folder}/assembled_runs.csv", "w") as file:
-        file.write("SRR1,metaspades,3.15.3")
+        file.write("SRR1,metaspades,3.15.5")
 
     with open(f"{assembly_folder}/qc_failed_runs.csv", "w") as file:
         file.write("SRR2,filter_ratio_threshold_exceeded")
 
     os.makedirs(
-        f"{assembly_folder}/PRJNA1/PRJNA1/multiqc/SRR1/SRR1/assembly/metaspades/3.15.3/coverage/",
+        f"{assembly_folder}/PRJNA1/PRJNA1/multiqc/SRR1/SRR1/assembly/metaspades/3.15.5/coverage/",
         exist_ok=True,
     )
     with open(
-        f"{assembly_folder}/PRJNA1/PRJNA1/multiqc/SRR1/SRR1/assembly/metaspades/3.15.3/coverage/SRR1_coverage.json",
+        f"{assembly_folder}/PRJNA1/PRJNA1/multiqc/SRR1/SRR1/assembly/metaspades/3.15.5/coverage/SRR1_coverage.json",
         "w",
     ) as file:
         json.dump({"coverage": 0.04760503915318373, "coverage_depth": 273.694}, file)
