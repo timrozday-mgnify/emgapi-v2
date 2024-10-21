@@ -2,8 +2,19 @@ from django.db import models
 
 # Some models that mirror ENA objects, like Study, Sample, Run etc
 
+class ENAAccessionManager(models.Manager):
+    async def get_by_accession(self, ena_accession):
+        qs = self.get_queryset().filter(ena_accessions__contains=ena_accession)
+        if qs.count() > 1:
+            raise self.MultipleObjectsReturned()
+        elif not qs.exists():
+            raise self.ObjectDoesNotExist()
+        return qs.first()
+
 
 class ENAModel(models.Model):
+    objects = ENAAccessionManager()
+
     accession = models.CharField(primary_key=True, max_length=20)
     fetched_at = models.DateTimeField(auto_now=True)
     additional_accessions = models.JSONField(default=list)

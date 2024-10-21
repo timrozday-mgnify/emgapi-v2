@@ -143,7 +143,6 @@ def make_samplesheet_amplicon(
 async def perform_amplicons_in_parallel(
     mgnify_study: analyses.models.Study,
     amplicon_ids: List[Union[str, int]],
-    nextflow_profile: str,
 ):
     amplicon_analyses = analyses.models.Analysis.objects.select_related("run").filter(
         id__in=amplicon_ids
@@ -154,13 +153,15 @@ async def perform_amplicons_in_parallel(
         mark_analysis_as_started(run)
 
     command = (
-        f"nextflow run ebi-metagenomics/miassembler "
-        f"-profile {nextflow_profile} "
+        f"nextflow run {EMG_CONFIG.amplicon_pipeline.amplicon_pipeline_repo} "
+        f"-r {EMG_CONFIG.amplicon_pipeline.amplicon_pipeline_git_revision} "
+        f"-latest "  # Pull changes from GitHub
+        f"-profile {EMG_CONFIG.amplicon_pipeline.amplicon_pipeline_nf_profile} "
         f"-resume "
         f"--input {samplesheet} "
         f"--outdir {mgnify_study.ena_study.accession}_amplicon_v6 "
         f"{'-with-tower' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''} "
-        f"-name ampliocn-v6-for-samplesheet-{slugify(samplesheet)[-30:]} "
+        f"-name amplicon-v6-for-samplesheet-{slugify(samplesheet)[-30:]} "
     )
 
     try:
@@ -176,7 +177,7 @@ async def perform_amplicons_in_parallel(
         for analysis in amplicon_analyses:
             mark_analysis_as_failed(analysis)
     else:
-        # assume that if job finished, all assemblies finished...
+        # assume that if job finished, all finished...
         # todo: integrate per-run error handling
         for analysis in amplicon_analyses:
             mark_analysis_as_completed(analysis)
@@ -191,7 +192,7 @@ async def perform_amplicons_in_parallel(
     task_runner=SequentialTaskRunner,
 )
 async def analysis_amplicon_study(
-    study_accession: str, nextflow_profile: str = "codon_slurm"
+    study_accession: str
 ):
     """
     Get a study from ENA, and input it to MGnify.
@@ -228,4 +229,4 @@ async def analysis_amplicon_study(
     for runs_chunk in chunked_runs:
         # launch jobs for all runs in this chunk in a single flow
         print(f"Working on amplicons: {runs_chunk[0]}-{runs_chunk[len(runs_chunk)-1]}")
-        await perform_amplicons_in_parallel(mgnify_study, runs_chunk, nextflow_profile)
+        await perform_amplicons_in_parallel(mgnify_study, runs_chunk)

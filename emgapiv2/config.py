@@ -46,12 +46,21 @@ class SlurmConfig(BaseModel):
 
 
 class AssemblerConfig(BaseModel):
+    assembler_repo: str = "ebi-metagenomics/miassembler"
     assembler_default: str = "metaspades"
     assembler_version_default: str = "3.15.5"
     miassemebler_git_revision: str = (
-        "main"  # branch or commit of ebi-metagenomics/mi-assembler
+        "main"  # branch or commit of ebi-metagenomics/miassembler
     )
     miassembler_nf_profile: str = "codon_slurm"
+
+
+class AmpliconPipelineConfig(BaseModel):
+    amplicon_pipeline_repo: str = "ebi-metagenomics/amplicon-pipeline"
+    amplicon_pipeline_git_revision: str = (
+        "main"  # branch or commit of ebi-metagenomics/amplicon-pipeline
+    )
+    amplicon_pipeline_nf_profile: str = "codon_slurm"
 
 
 class WebinConfig(BaseModel):
@@ -87,11 +96,20 @@ class SlackConfig(BaseModel):
     slack_webhook_prefect_block_name: str = "slack-webhook"
 
 
+class SanityCheckConfig(BaseModel):
+    allowed_library_source: list = ["METAGENOMIC", "METATRANSCRIPTOMIC"]
+    single_end_library_layout: str = "SINGLE"
+    paired_end_library_layout: str = "PAIRED"
+    metagenome_scientific_name: str = "metagenome"
+
+
 class EMGConfig(BaseSettings):
+    amplicon_pipeline: AmpliconPipelineConfig = AmpliconPipelineConfig()
     assembler: AssemblerConfig = AssemblerConfig()
     ena: ENAConfig = ENAConfig()
     environment: str = "development"
     legacy_service: LegacyServiceConfig = LegacyServiceConfig()
+    sanity_check: SanityCheckConfig = SanityCheckConfig()
     service_urls: ServiceURLsConfig = ServiceURLsConfig()
     slack: SlackConfig = SlackConfig()
     slurm: SlurmConfig = SlurmConfig()

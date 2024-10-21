@@ -13,11 +13,13 @@ from django_ltree.models import TreeModel
 
 import ena.models
 from analyses.base_models.base_models import (
-    ENAAccessionManager,
     ENADerivedModel,
     MGnifyAutomatedModel,
     TimeStampedModel,
     VisibilityControlledModel,
+)
+from ena.models import (
+    ENAAccessionManager,
 )
 from analyses.base_models.mgnify_accessioned_models import MGnifyAccessionField
 from analyses.base_models.with_downloads_models import WithDownloadsModel

@@ -34,18 +34,8 @@ class VisibilityControlledModel(models.Model):
         abstract = True
 
 
-class ENAAccessionManager(models.Manager):
-    async def get_by_accession(self, ena_accession):
-        qs = self.get_queryset().filter(ena_accessions__contains=ena_accession)
-        if qs.count() > 1:
-            raise self.MultipleObjectsReturned()
-        elif not qs.exists():
-            raise self.ObjectDoesNotExist()
-        return qs.first()
-
-
 class ENADerivedModel(VisibilityControlledModel):
-    objects = ENAAccessionManager()
+    objects = ena.models.ENAAccessionManager()
 
     ena_accessions = JSONField(default=list, db_index=True, blank=True)
     is_suppressed = models.BooleanField(default=False)

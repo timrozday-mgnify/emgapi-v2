@@ -307,7 +307,7 @@ async def run_assembler_for_samplesheet(
         f"{EMG_CONFIG.slurm.default_workdir}/{mgnify_study.ena_study.accession}_miassembler"
     )
     command = (
-        f"nextflow run ebi-metagenomics/miassembler "
+        f"nextflow run {EMG_CONFIG.assembler.assembler_repo} "
         f"-r {EMG_CONFIG.assembler.miassemebler_git_revision} "
         f"-latest "  # Pull changes from GitHub
         f"-profile {EMG_CONFIG.assembler.miassembler_nf_profile} "
