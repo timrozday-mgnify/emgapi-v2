@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional, Union
 
 from django.db.models import QuerySet
+from prefect.client.schemas import FlowRun
 from prefect.deployments import run_deployment
 
 from emgapiv2.settings import EMG_CONFIG
@@ -161,7 +162,7 @@ def location_where_samplesheet_was_edited(
 
 def move_samplesheet_to_editable_location(
     source: str | Path, timeout=Optional[int]
-) -> Path:
+) -> (FlowRun, Path):
     destination = location_for_samplesheet_to_be_edited(
         source, EMG_CONFIG.slurm.shared_filesystem_root_on_slurm
     )
@@ -177,12 +178,12 @@ def move_samplesheet_to_editable_location(
     )
     logger.info(f"Mover flowrun is {flowrun}")
 
-    return destination
+    return flowrun, destination
 
 
 def move_samplesheet_back_from_editable_location(
     destination: str | Path, timeout=Optional[int]
-) -> Path:
+) -> (FlowRun, Path):
     source = location_where_samplesheet_was_edited(
         destination, EMG_CONFIG.slurm.shared_filesystem_root_on_slurm
     )
@@ -199,4 +200,4 @@ def move_samplesheet_back_from_editable_location(
     )
     logger.info(f"Mover flowrun is {flowrun}")
 
-    return destination
+    return flowrun, destination

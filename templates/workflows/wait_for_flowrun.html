@@ -1,0 +1,31 @@
+{% extends "unfold/layouts/base.html" %}
+{% load i18n unfold %}
+
+{% block title %} Waiting for flowrun {{ flowrun_id }} {% endblock %}
+
+{% block content %}
+    {% component "unfold/components/title.html" %}
+        Waiting for prefect flow: <code>{{ flowrun_id }}</code>
+    {% endcomponent %}
+    {% component "unfold/components/container.html" %}
+
+        {% if loading %}
+            {% component "unfold/components/progress.html" with value=50 title="Running" %}{% endcomponent %}
+        {% endif %}
+        {% if error %}
+            <h1>Something went wrong :(</h1>
+        {% endif %}
+
+    {% endcomponent %}
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            {% if loading %}
+                setTimeout(function(){
+                    window.location.reload();
+                }, 2000);
+                return;
+            {% endif %}
+        });
+    </script>
+{% endblock %}

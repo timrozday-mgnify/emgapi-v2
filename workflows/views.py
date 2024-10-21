@@ -4,11 +4,16 @@ import base64
 import csv
 import logging
 from pathlib import Path
+from urllib.parse import quote, unquote
 
+from asgiref.sync import async_to_sync
 from django.contrib.admin.views.decorators import staff_member_required
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from prefect.client.schemas import FlowRun
+from prefect.exceptions import FlowRunWaitTimeout, ObjectNotFound
+from prefect.flow_runs import wait_for_flow_run
 from unfold.sites import UnfoldAdminSite
 
 from emgapiv2.settings import EMG_CONFIG
@@ -55,15 +60,65 @@ def edit_samplesheet_fetch_view(request, filepath_encoded: str):
     # asked for a samplesheet in e.g. /nfs/production
     # start copying it to editable location
 
-    editable_location = move_samplesheet_to_editable_location(filepath, timeout=0)
+    mover_flowrun, editable_location = move_samplesheet_to_editable_location(
+        filepath, timeout=0
+    )
 
     logger.info(f"File will be moved to {editable_location}")
 
-    url = reverse(
+    edit_url = reverse(
         "workflows:edit_samplesheet_edit", kwargs={"filepath_encoded": filepath_encoded}
     )
-    logger.info(f"Will redirect to {url}")
-    return redirect(url)
+
+    job_waiter_url = reverse(
+        "workflows:wait_for_flowrun",
+        kwargs={
+            "flowrun_id": str(mover_flowrun.id),
+            "next_url": quote(edit_url, safe=""),
+        },
+    )
+
+    logger.info(f"Will redirect to {job_waiter_url} then {edit_url}")
+    return redirect(job_waiter_url)
+
+
+@staff_member_required
+def wait_for_flowrun_view(request, flowrun_id: str, next_url: str):
+    unfold_context = UnfoldAdminSite().each_context(request)
+    try:
+        flowrun: FlowRun = async_to_sync(wait_for_flow_run)(
+            flow_run_id=flowrun_id, timeout=5, poll_interval=1
+        )
+    except FlowRunWaitTimeout as e:
+        logger.info(f"Flowrun {flowrun_id} was not yet finished...")
+        return render(
+            request,
+            "workflows/wait_for_flowrun.html",
+            {
+                "flowrun_id": flowrun_id,
+                "error": False,
+                "loading": True,
+                **unfold_context,
+            },
+        )
+    except ObjectNotFound as e:
+        logger.error(f"Flowrun {flowrun_id} did not exist.")
+        raise Http404
+
+    if flowrun.state.is_final() and not flowrun.state.is_completed():
+        # it crashed
+        return render(
+            request,
+            "workflows/wait_for_flowrun.html",
+            {
+                "flowrun_id": flowrun_id,
+                "error": True,
+                "loading": False,
+                **unfold_context,
+            },
+        )
+    else:
+        return redirect(unquote(next_url))
 
 
 @staff_member_required
@@ -90,9 +145,19 @@ def edit_samplesheet_edit_view(request, filepath_encoded: str):
                 if any(row):  # do not write empty rows
                     csv_writer.writerow(row)
 
-        move_samplesheet_back_from_editable_location(filepath, timeout=0)
+        mover_flowrun, _ = move_samplesheet_back_from_editable_location(
+            filepath, timeout=0
+        )
 
-        return redirect("admin:index")
+        job_waiter_url = reverse(
+            "workflows:wait_for_flowrun",
+            kwargs={
+                "flowrun_id": str(mover_flowrun.id),
+                "next_url": quote(reverse("admin:index"), safe=""),
+            },
+        )
+
+        return redirect(job_waiter_url)
 
     unfold_context = UnfoldAdminSite().each_context(request)
 

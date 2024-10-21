@@ -1,9 +1,11 @@
+import uuid
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import quote
 
 import pytest
 from django.http import Http404
-from django.urls import reverse_lazy
+from django.urls import reverse
 
 from emgapiv2.settings import EMG_CONFIG
 from workflows.nextflow_utils.samplesheets import (
@@ -64,7 +66,11 @@ def test_samplesheet_editor_paths_validation(settings):
 @pytest.mark.django_db
 @patch("workflows.views.move_samplesheet_to_editable_location")
 def test_samplesheet_fetch(mock_move_samplesheet, client, admin_client, settings):
-    mock_move_samplesheet.return_value = None
+
+    class FakeFlowrun:
+        id: uuid.UUID = uuid.UUID("eec1f603-7d7f-40a3-9c11-1bc24dc0ff54")
+
+    mock_move_samplesheet.return_value = FakeFlowrun, Path("/")
 
     settings.EMG_CONFIG.slurm.shared_filesystem_root_on_slurm = (
         "/nfs/production/edit/here"
@@ -79,7 +85,7 @@ def test_samplesheet_fetch(mock_move_samplesheet, client, admin_client, settings
 
     samplesheet_encoded = encode_samplesheet_path("/nfs/production/edit/here/ss.csv")
 
-    fetch_view_url = reverse_lazy(
+    fetch_view_url = reverse(
         "workflows:edit_samplesheet_fetch",
         kwargs={"filepath_encoded": samplesheet_encoded},
     )
@@ -94,9 +100,19 @@ def test_samplesheet_fetch(mock_move_samplesheet, client, admin_client, settings
     response = admin_client.get(fetch_view_url)
     assert mock_move_samplesheet.call_count == 1
     assert response.status_code == 302
-    assert response.url == reverse_lazy(
+    # should be redirected to the page awaiting the datamover, and then to the edit view
+
+    edit_url = reverse(
         "workflows:edit_samplesheet_edit",
         kwargs={"filepath_encoded": samplesheet_encoded},
+    )
+
+    assert response.url == reverse(
+        "workflows:wait_for_flowrun",
+        kwargs={
+            "flowrun_id": str(FakeFlowrun.id),
+            "next_url": quote(edit_url, safe=""),
+        },
     )
 
 

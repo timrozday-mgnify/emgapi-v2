@@ -15,4 +15,9 @@ urlpatterns = [
         views.edit_samplesheet_edit_view,
         name="edit_samplesheet_edit",
     ),
+    path(
+        "await-flowrun/<str:flowrun_id>/<str:next_url>",
+        views.wait_for_flowrun_view,
+        name="wait_for_flowrun",
+    ),
 ]
