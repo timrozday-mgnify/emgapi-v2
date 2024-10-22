@@ -83,14 +83,19 @@ class ServiceURLsConfig(BaseModel):
     app_root: str = "http://localhost:8000"
 
 
+class SlackConfig(BaseModel):
+    slack_webhook_prefect_block_name: str = "slack-webhook"
+
+
 class EMGConfig(BaseSettings):
-    slurm: SlurmConfig = SlurmConfig()
-    environment: str = "development"
-    webin: WebinConfig = WebinConfig()
-    ena: ENAConfig = ENAConfig()
     assembler: AssemblerConfig = AssemblerConfig()
+    ena: ENAConfig = ENAConfig()
+    environment: str = "development"
     legacy_service: LegacyServiceConfig = LegacyServiceConfig()
     service_urls: ServiceURLsConfig = ServiceURLsConfig()
+    slack: SlackConfig = SlackConfig()
+    slurm: SlurmConfig = SlurmConfig()
+    webin: WebinConfig = WebinConfig()
 
     model_config = {
         "env_prefix": "emg_",

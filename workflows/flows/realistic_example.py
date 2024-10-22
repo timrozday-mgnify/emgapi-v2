@@ -4,11 +4,12 @@ from typing import List
 import django
 import httpx
 from django.conf import settings
-from prefect import flow, suspend_flow_run, task
+from prefect import flow, get_run_logger, suspend_flow_run, task
 from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
+from workflows.prefect_utils.slack_notification import notify_via_slack
 
 django.setup()
 
@@ -24,7 +25,6 @@ from workflows.prefect_utils.slurm_flow import (
 @task(
     name="Sample fetcher",
     task_run_name="Get samples for {study_accession}",
-    log_prints=True,
     retries=2,
     cache_key_fn=context_agnostic_task_input_hash,
     persist_result=True,
@@ -42,7 +42,8 @@ def fetch_samples(study_accession: str, limit: int) -> List[str]:
     :param limit: The max number of samples to fetch
     :return: List of sample accession
     """
-    print(f"Will fetch study {study_accession} samples from ENA portal API")
+    logger = get_run_logger()
+    logger.info(f"Will fetch study {study_accession} samples from ENA portal API")
     study = Study.objects.get(accession=study_accession)
     portal = httpx.get(
         f"https://www.ebi.ac.uk/ena/portal/api/links/study?accession={study_accession}&result=sample&limit={limit}&format=json"
@@ -52,7 +53,8 @@ def fetch_samples(study_accession: str, limit: int) -> List[str]:
             Sample.objects.get_or_create(
                 accession=sample["sample_accession"], study=study
             )
-    return [sample["sample_accession"] for sample in portal.json()]
+    accessions = [sample["sample_accession"] for sample in portal.json()]
+    return accessions
 
 
 class DownloadOptionsInput(RunInput):
@@ -133,6 +135,7 @@ Please pick how many samples (the max limit) to download for the study {study.ac
     for sample, job_result in zip(sample_accessions, slurm_job_results):
         if slurm_status_is_finished_successfully(job_result[FINAL_SLURM_STATE]):
             print(f"Successfully ran nextflow pipeline for {sample}")
+            await notify_via_slack(f"✅ Downloaded read runs for {sample}")
         else:
             print(
                 f"Something went wrong running nextflow pipeline for {sample} in job {job_result[SLURM_JOB_ID]}"

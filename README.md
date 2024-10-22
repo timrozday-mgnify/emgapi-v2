@@ -58,6 +58,8 @@ You could also just create/migrate the DB, without the fixture placement, using 
 ```shell
 FLOW=assemble_study task deploy-flow  # assumes file is called assemble_study.py and flow is assembly_study()
 FILE=workflows/prefect_utils/slurm_flow.py FLOW=move_data task deploy-flow
+task prefect -- block register -m prefect_slack.credentials
+FLOW=realistic_example task deploy-flow
 ```
 
 ### Run everything (the databases, the Django app, the Prefect workflow server, a Prefect work egent, and a small Slurm cluster with associated controllers+dbs.)

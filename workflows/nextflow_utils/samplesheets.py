@@ -194,7 +194,7 @@ def move_samplesheet_back_from_editable_location(
         parameters={
             "source": source,
             "target": destination,
-            "move_command": "mv",  # rather than cp. Effectively ensures editable location is cleared up.
+            "move_command": "cp",
         },
         timeout=timeout,
     )
