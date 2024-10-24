@@ -4,6 +4,10 @@
 Build the specific dockerfile for WP Kubernetes, push it to quay, and restart the app on WP K8s:
 `task ebi-wp-k8s-hl:update-api`
 
+To deploy a newly written flow, for example:
+`FLOW=assemble_study task ebi-wp-k8s-hl:deploy-flow`
+This *ONLY* deploys the flow to the prefect server. It doesn't mean the workers yet have access to that code.
+
 If any code related to prefect flows has changed, or if the DB schema has changed, you'll also need to restart any prefect workers.
 Look for a `deploy-prefect-worker` job on the Microbiome Informatics Jenkins, to do so.
 
