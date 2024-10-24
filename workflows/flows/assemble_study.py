@@ -21,6 +21,7 @@ from workflows.data_io_utils.filenames import (
     file_path_shortener,
 )
 from workflows.ena_utils.ena_file_fetching import convert_ena_ftp_to_fire_fastq
+from workflows.prefect_utils.slack_notification import notify_via_slack
 from workflows.views import encode_samplesheet_path
 
 django.setup()
@@ -478,3 +479,4 @@ which you can edit in the [admin panel]({EMG_CONFIG.service_urls.app_root}/{reve
             samplesheet,
             assembler,
         )
+    await notify_via_slack(f"Assembly of {mgnify_study} / {accession} is finished")
