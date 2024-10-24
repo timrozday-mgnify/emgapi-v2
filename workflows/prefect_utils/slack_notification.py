@@ -1,11 +1,10 @@
 import os
 
+from django.conf import settings
 from prefect import get_run_logger, task
 from prefect.runtime import flow_run
 from prefect_slack import SlackWebhook
 from prefect_slack.messages import send_incoming_webhook_message
-
-from emgapiv2.settings import EMG_CONFIG
 
 
 @task
@@ -14,7 +13,7 @@ async def notify_via_slack(message: str):
 
     try:
         slack_webhook = await SlackWebhook.load(
-            EMG_CONFIG.slack.slack_webhook_prefect_block_name
+            settings.EMG_CONFIG.slack.slack_webhook_prefect_block_name
         )
 
         flow_run_name = flow_run.name
@@ -45,6 +44,9 @@ async def notify_via_slack(message: str):
                 },
             ],
         )
+    except ValueError as e:
+        logger.warning("Slack credentials not set up in prefect")
+        logger.warning(e)
     except Exception as e:
         logger.warning("Failed to send slack notification.")
         logger.warning(e)
