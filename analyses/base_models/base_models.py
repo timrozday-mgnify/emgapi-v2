@@ -35,7 +35,6 @@ class VisibilityControlledModel(models.Model):
 
 
 class ENADerivedModel(VisibilityControlledModel):
-    objects = ena.models.ENAAccessionManager()
 
     ena_accessions = JSONField(default=list, db_index=True, blank=True)
     is_suppressed = models.BooleanField(default=False)

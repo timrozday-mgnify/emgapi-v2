@@ -2,7 +2,6 @@ from typing import List
 
 import httpx
 from prefect import task, get_run_logger
-
 import analyses.models
 import ena.models
 from emgapiv2.settings import EMG_CONFIG
@@ -24,18 +23,13 @@ def create_ena_api_request(result_type, query, limit, fields, result_format="jso
     task_run_name="Get study from ENA: {accession}",
     log_prints=True,
 )
-def get_study_from_ena(accession: str, limit: int = 10) -> ena.models.Study:
+async def get_study_from_ena(accession: str, limit: int = 10) -> ena.models.Study:
     logger = get_run_logger()
 
-    fields = ",".join([
-        "study_title",
-        "secondary_study_accession"
-    ])
+    fields = ",".join(EMG_CONFIG.ena.study_metadata_fields)
     result_type = "study"
     query = f"study_accession%3D{accession}%20OR%20secondary_study_accession%3D{accession}"
 
-    if ena.models.Study.objects.filter(accession=accession).exists():
-        return ena.models.Study.objects.get_by_accession(ena_accession=accession)
     logger.info(f"Will fetch from ENA Portal API Study {accession}")
     portal = httpx.get(
         create_ena_api_request(
@@ -75,7 +69,7 @@ def get_study_from_ena(accession: str, limit: int = 10) -> ena.models.Study:
         else:
             primary_accession: str = s["study_accession"]
 
-        study, created = ena.models.Study.objects.get_or_create(
+        study, created = await ena.models.Study.objects.aget_or_create(
             accession=primary_accession,
             defaults={
                 "title": portal.json()[0]["study_title"],
@@ -137,28 +131,11 @@ def get_study_readruns_from_ena(
         query = f'{query[:-1]} AND library_strategy={filter_library_strategy}"'
     query = query.replace('"', "%22")
 
-    fields = ",".join(
-        [
-            "sample_accession",
-            "sample_title",
-            "secondary_sample_accession",
-            "fastq_md5",
-            "fastq_ftp",
-            "library_layout",
-            "library_strategy",
-            "library_source",
-            "scientific_name",
-        ]
-    )
+    fields = ",".join(EMG_CONFIG.ena.readrun_metadata_fields)
     result_type = "read_run"
 
     logger.info(f"Will fetch study {accession} read-runs from ENA portal API")
-    logger.info(create_ena_api_request(
-            result_type=result_type,
-            query=query,
-            limit=limit,
-            fields=fields
-        ) + '&dataPortal=metagenome')
+
     mgys_study = analyses.models.Study.objects.get(ena_study__accession=accession)
 
     portal = httpx.get(

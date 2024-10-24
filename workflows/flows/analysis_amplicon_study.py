@@ -8,11 +8,12 @@ import django
 django.setup()
 from django.conf import settings
 from django.utils.text import slugify
-from prefect import flow, task
+from prefect import flow, task, get_run_logger
 from prefect.artifacts import create_table_artifact
 from prefect.task_runners import SequentialTaskRunner
 
 import analyses.models
+import ena.models
 from emgapiv2.settings import EMG_CONFIG
 from workflows.ena_utils.ena_api_requests import (
     get_study_from_ena,
@@ -72,7 +73,7 @@ def create_analyses(study: analyses.models.Study, runs: List[str]):
 
 @task(log_prints=True)
 def chunk_amplicon_list(items: List[Any], chunk_size: int) -> List[List[Any]]:
-    return [items[j : j + chunk_size] for j in range(0, len(items), chunk_size)]
+    return [items[j: j + chunk_size] for j in range(0, len(items), chunk_size)]
 
 
 @task(log_prints=True)
@@ -198,24 +199,26 @@ async def analysis_amplicon_study(
     Get a study from ENA, and input it to MGnify.
     Kick off amplicon-v6 pipeline.
     :param study_accession: Study accession e.g. PRJxxxxxx
-    :param profile: Name of the nextflow profile to use for amplicon-v6.
     """
+    logger = get_run_logger()
     # Create/get ENA Study object
-    ena_study = get_study_from_ena(study_accession)
-    await ena_study.arefresh_from_db()
-    print(f"ENA Study is {ena_study.accession}: {ena_study.title}")
+    ena_study = await ena.models.Study.objects.get_ena_study(study_accession)
+    if not ena_study:
+        ena_study = await get_study_from_ena(study_accession)
+        await ena_study.arefresh_from_db()
+    logger.info(f"ENA Study is {ena_study.accession}: {ena_study.title}")
 
     # Get a MGnify Study object for this ENA Study
     mgnify_study = await analyses.models.Study.objects.get_or_create_for_ena_study(
         study_accession
     )
     await mgnify_study.arefresh_from_db()
-    print(f"MGnify study is {mgnify_study.accession}: {mgnify_study.title}")
+    logger.info(f"MGnify study is {mgnify_study.accession}: {mgnify_study.title}")
 
     read_runs = get_study_readruns_from_ena(
         ena_study.accession, limit=5000, filter_library_strategy="AMPLICON"
     )
-    print(f"Returned {len(read_runs)} run from ENA portal API")
+    logger.info(f"Returned {len(read_runs)} run from ENA portal API")
 
     # get or create Analysis for runs
     mgnify_analyses = create_analyses(mgnify_study, read_runs)
@@ -225,8 +228,8 @@ async def analysis_amplicon_study(
     # Doing so means we don't use our entire cluster allocation for this study
     chunk_size = 20
     chunked_runs = chunk_amplicon_list(runs_to_attempt, chunk_size)
-    print("chunked", chunked_runs)
+    logger.info("chunked", chunked_runs)
     for runs_chunk in chunked_runs:
         # launch jobs for all runs in this chunk in a single flow
-        print(f"Working on amplicons: {runs_chunk[0]}-{runs_chunk[len(runs_chunk)-1]}")
+        logger.info(f"Working on amplicons: {runs_chunk[0]}-{runs_chunk[len(runs_chunk)-1]}")
         await perform_amplicons_in_parallel(mgnify_study, runs_chunk)

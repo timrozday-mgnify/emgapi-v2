@@ -11,27 +11,29 @@ import analyses.models
 
 
 @pytest.mark.django_db(transaction=True)
-def test_get_study_from_ena_no_primary_accession(httpx_mock):
+@pytest.mark.asyncio
+async def test_get_study_from_ena_no_primary_accession(httpx_mock):
     """
     Study doesn't have primary accession and returns empty json
     """
     study_accession = "SRP012064"  # study doesn't have primary accession
     httpx_mock.add_response(
-        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=study_accession={study_accession}%20OR%20secondary_study_accession={study_accession}&limit=10&format=json&fields=study_title,secondary_study_accession",
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=study_accession={study_accession}%20OR%20secondary_study_accession={study_accession}&limit=10&format=json&fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}",
         json=[],
     )
     with disable_run_logger():
         with pytest.raises(Exception, match=f"No study found for accession {study_accession}"):
-            get_study_from_ena.fn(study_accession, limit=10)
+            await get_study_from_ena.fn(study_accession, limit=10)
 
 @pytest.mark.django_db(transaction=True)
-def test_get_study_from_ena_two_secondary_accessions(httpx_mock):
+@pytest.mark.asyncio
+async def test_get_study_from_ena_two_secondary_accessions(httpx_mock):
     """
     Study has two secondary accessions
     """
     study_accession = "PRJNA109315"  # has SRP000903;SRP001212 secondary accessions
     httpx_mock.add_response(
-        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=study_accession={study_accession}%20OR%20secondary_study_accession={study_accession}&limit=10&format=json&fields=study_title,secondary_study_accession",
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=study_accession={study_accession}%20OR%20secondary_study_accession={study_accession}&limit=10&format=json&fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}",
         json=[
             {
                 "study_title": "Weird study",
@@ -41,23 +43,25 @@ def test_get_study_from_ena_two_secondary_accessions(httpx_mock):
         ],
     )
     with disable_run_logger():
-        get_study_from_ena.fn(study_accession, limit=10)
-        assert(ena.models.Study.objects.filter(
-            accession=study_accession
-            ).count() == 1
+        await get_study_from_ena.fn(study_accession, limit=10)
+        assert(
+                await ena.models.Study.objects.filter(
+                    accession=study_accession
+                ).acount() == 1
         )
-        created_study = ena.models.Study.objects.get(accession=study_accession)
+        created_study = await ena.models.Study.objects.get_ena_study(study_accession)
         assert created_study.accession == study_accession
         assert len(created_study.additional_accessions) == 2
 
 @pytest.mark.django_db(transaction=True)
-def test_get_study_from_ena_use_secondary_as_primary(httpx_mock):
+@pytest.mark.asyncio
+async def test_get_study_from_ena_use_secondary_as_primary(httpx_mock):
     """
     Study doesn't have primary accession
     """
     sec_study_accession = "SRP0009034"
     httpx_mock.add_response(
-        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=study_accession={sec_study_accession}%20OR%20secondary_study_accession={sec_study_accession}&limit=10&format=json&fields=study_title,secondary_study_accession",
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=study_accession={sec_study_accession}%20OR%20secondary_study_accession={sec_study_accession}&limit=10&format=json&fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}",
         json=[
             {
                 "study_title": "More weird study",
@@ -67,23 +71,25 @@ def test_get_study_from_ena_use_secondary_as_primary(httpx_mock):
         ],
     )
     with disable_run_logger():
-        get_study_from_ena.fn(sec_study_accession, limit=10)
-        assert(ena.models.Study.objects.filter(
-            accession=sec_study_accession
-            ).count() == 1
+        await get_study_from_ena.fn(sec_study_accession, limit=10)
+        assert(
+                await ena.models.Study.objects.filter(
+                    accession=sec_study_accession
+                ).acount() == 1
         )
-        created_study = ena.models.Study.objects.get(accession=sec_study_accession)
+        created_study = await ena.models.Study.objects.get_ena_study(sec_study_accession)
         assert created_study.accession == sec_study_accession
         assert len(created_study.additional_accessions) == 1
 
 @pytest.mark.django_db(transaction=True)
-def test_get_study_from_ena_no_secondary_accession(httpx_mock):
+@pytest.mark.asyncio
+async def test_get_study_from_ena_no_secondary_accession(httpx_mock):
     """
     Study has no secondary accessions
     """
     study_accession = "PRJNA109315"
     httpx_mock.add_response(
-        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=study_accession={study_accession}%20OR%20secondary_study_accession={study_accession}&limit=10&format=json&fields=study_title,secondary_study_accession",
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=study_accession={study_accession}%20OR%20secondary_study_accession={study_accession}&limit=10&format=json&fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}",
         json=[
             {
                 "study_title": "Weird study without secondary accession",
@@ -93,12 +99,13 @@ def test_get_study_from_ena_no_secondary_accession(httpx_mock):
         ],
     )
     with disable_run_logger():
-        get_study_from_ena.fn(study_accession, limit=10)
-        assert(ena.models.Study.objects.filter(
-            accession=study_accession
-            ).count() == 1
+        await get_study_from_ena.fn(study_accession, limit=10)
+        assert(
+                await ena.models.Study.objects.filter(
+                    accession=study_accession
+                ).acount() == 1
         )
-        created_study = ena.models.Study.objects.get(accession=study_accession)
+        created_study = await ena.models.Study.objects.get_ena_study(study_accession)
         assert created_study.accession == study_accession
         assert len(created_study.additional_accessions) == 0
 
@@ -114,7 +121,7 @@ def test_get_study_readruns_from_ena(httpx_mock, raw_read_ena_study, raw_reads_m
     """
     study_accession = "PRJNA398089"
     httpx_mock.add_response(
-        url=f"{EMG_CONFIG.ena.portal_search_api}?result=read_run&query=%22(study_accession={study_accession}%20OR%20secondary_study_accession={study_accession})%22&limit=10&format=json&fields=sample_accession,sample_title,secondary_sample_accession,fastq_md5,fastq_ftp,library_layout,library_strategy,library_source,scientific_name&dataPortal=metagenome",
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=read_run&query=%22(study_accession={study_accession}%20OR%20secondary_study_accession={study_accession})%22&limit=10&format=json&fields={','.join(EMG_CONFIG.ena.readrun_metadata_fields)}&dataPortal=metagenome",
         json=[
             {
                 "run_accession": "RUN1",

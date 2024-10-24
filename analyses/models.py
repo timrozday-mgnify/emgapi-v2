@@ -18,9 +18,6 @@ from analyses.base_models.base_models import (
     TimeStampedModel,
     VisibilityControlledModel,
 )
-from ena.models import (
-    ENAAccessionManager,
-)
 from analyses.base_models.mgnify_accessioned_models import MGnifyAccessionField
 from analyses.base_models.with_downloads_models import WithDownloadsModel
 
@@ -180,7 +177,7 @@ class Assembler(TimeStampedModel):
         return f"{self.name} {self.version}" if self.version is not None else self.name
 
 
-class AssemblyManager(ENAAccessionManager):
+class AssemblyManager(models.Manager):
     def get_queryset(self):
         return super().get_queryset().select_related("run")
 

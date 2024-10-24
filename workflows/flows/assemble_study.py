@@ -29,6 +29,7 @@ django.setup()
 from prefect import flow, get_run_logger, suspend_flow_run, task
 
 import analyses.models
+import ena.models
 from emgapiv2.settings import EMG_CONFIG
 from workflows.ena_utils.ena_api_requests import (
     get_study_from_ena,
@@ -307,7 +308,7 @@ async def run_assembler_for_samplesheet(
         f"{EMG_CONFIG.slurm.default_workdir}/{mgnify_study.ena_study.accession}_miassembler"
     )
     command = (
-        f"nextflow run {EMG_CONFIG.assembler.assembler_repo} "
+        f"nextflow run {EMG_CONFIG.assembler.assembly_pipeline_repo} "
         f"-r {EMG_CONFIG.assembler.miassemebler_git_revision} "
         f"-latest "  # Pull changes from GitHub
         f"-profile {EMG_CONFIG.assembler.miassembler_nf_profile} "
@@ -408,8 +409,10 @@ async def assemble_study(accession: str):
 
     # Create (or get) an ENA Study object, populating with metadata from ENA
     # Refresh from DB in case we get an old cached version.
-    ena_study = get_study_from_ena(accession)
-    await ena_study.arefresh_from_db()
+    ena_study = await ena.models.Study.objects.get_ena_study(accession)
+    if not ena_study:
+        ena_study = await get_study_from_ena(accession)
+        await ena_study.arefresh_from_db()
     logger.info(f"ENA Study is {ena_study.accession}: {ena_study.title}")
 
     # Get a MGnify Study object for this ENA Study
