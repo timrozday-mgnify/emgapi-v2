@@ -2,6 +2,7 @@ django==5.0.4
 django-ninja==1.3.0
 prefect==2.20.2
 prefect-shell==0.2.2
+prefect-slack==0.2.2
 dj-database-url
 psycopg2-binary
 cython<3.0
