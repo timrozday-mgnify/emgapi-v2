@@ -5,7 +5,8 @@
 
 {% block content %}
     {% component "unfold/components/title.html" %}
-        Edit Samplesheet: <code>{{ filename }}</code>
+        Edit Samplesheet<br/>
+        <code style="font-size: xx-small; border-radius: 8px; padding: 8px; background-color: #eeeeee">{{ filename }}</code>
     {% endcomponent %}
     {% component "unfold/components/container.html" %}
 
@@ -52,11 +53,14 @@
             });
 
             var hot = new Handsontable(container, {
-                data: rows,
+                data: rows.length >= 2 ? rows.slice(1) : rows,
                 rowHeaders: true,
-                colHeaders: true,
+                colHeaders: rows.length ? rows[0] : true,
                 minSpareRows: 1,
                 contextMenu: true,
+                dropdownMenu: true,
+                multiColumnSorting: true,
+                filters: true,
                 licenseKey: 'non-commercial-and-evaluation'
             });
 
@@ -66,6 +70,7 @@
                 var csvData = hot.getData().map(function(row) {
                     return row.join(",");
                 }).join("\n");
+                csvData = hot.getColHeader().join(",") + "\n" + csvData;
                 console.log("CSVDATA", csvData);
                 document.getElementById('csvData').value = csvData;
             };
