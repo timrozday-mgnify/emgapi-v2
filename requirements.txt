@@ -1,13 +1,13 @@
 django==5.0.4
-django-ninja==1.3.0
-prefect==2.20.2
+django-ninja~=1.1.0
+prefect~=2.18.3
 prefect-shell==0.2.2
 prefect-slack==0.2.2
 dj-database-url
 psycopg2-binary
 cython<3.0
-pydantic
-pydantic-settings
+pydantic~=2.8.2
+pydantic-settings~=2.4.0
 nextflowpy==0.8.1
 django-unfold==0.37.0
 tzdata==2024.1
@@ -23,3 +23,9 @@ biopython==1.83
 pymongo==4.8.0
 mysql-connector-python==9.0.0
 SQLAlchemy==2.0.32
+
+numpy~=1.26.4
+requests~=2.32.3
+httpx~=0.27.0
+typing_extensions~=4.12.2
+asgiref~=3.8.1

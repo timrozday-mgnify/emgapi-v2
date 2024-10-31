@@ -46,3 +46,29 @@ deployments:
     work_queue_name:
     job_variables: {}
   schedules: []
+- name: realistic_example_deployment
+  version:
+  tags: []
+  description: "Example flow for Prefect, doing some \"realistic\" work.\nDownloads
+    read-runs from ENA using a minimal nextflow pipeline, and integrated with the
+    Django DB.\n\n:param accession: Accession of ENA Study to download\n:return:"
+  entrypoint: workflows/flows/realistic_example.py:realistic_example
+  parameters: {}
+  work_pool:
+    name: slurm
+    work_queue_name:
+    job_variables: {}
+  schedules: []
+- name: analysis_amplicon_study_deployment
+  version:
+  tags: []
+  description: "Get a study from ENA, and input it to MGnify.\nKick off amplicon-v6
+    pipeline.\n:param study_accession: Study accession e.g. PRJxxxxxx\n:param profile:
+    Name of the nextflow profile to use for amplicon-v6."
+  entrypoint: workflows/flows/analysis_amplicon_study.py:analysis_amplicon_study
+  parameters: {}
+  work_pool:
+    name: slurm
+    work_queue_name:
+    job_variables: {}
+  schedules: []

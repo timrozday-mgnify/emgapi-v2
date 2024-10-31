@@ -31,8 +31,6 @@ class SlurmConfig(BaseModel):
 
     datamover_paritition: str = "datamover"
 
-    assembly_uploader_python_executable: str = "python3"
-    assembly_uploader_root_dir: str = ""
     webin_cli_executor: str = "/usr/bin/webin-cli/webin-cli.jar"
 
     amplicon_nextflow_master_job_memory: int = 5  # Gb
@@ -57,6 +55,7 @@ class AssemblerConfig(BaseModel):
 class WebinConfig(BaseModel):
     emg_webin_account: str = None
     emg_webin_password: str = None
+    submitting_center_name: str = "EMG"
 
 
 class ENAConfig(BaseModel):

@@ -4,3 +4,6 @@ prefectdb/
 appdb/
 prefectserver
 deployment/
+pixi-env
+.nextflow
+slurm-dev-environment/fs

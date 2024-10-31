@@ -8,6 +8,7 @@ appdb/
 prefectserver
 logs/
 slurm-dev-environment/jobdir/
+slurm-dev-environment/fs/nfs/production/dev-slurm-work-dir/**
 secret*.yaml
 secret*.yml
 secret*.env

@@ -4,6 +4,7 @@ import logging
 import os
 import re
 from enum import Enum
+from pathlib import Path
 from typing import ClassVar
 
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
@@ -21,6 +22,7 @@ from analyses.base_models.base_models import (
 )
 from analyses.base_models.mgnify_accessioned_models import MGnifyAccessionField
 from analyses.base_models.with_downloads_models import WithDownloadsModel
+from emgapiv2.async_utils import anysync_property
 
 # Some models associated with MGnify Analyses (MGYS, MGYA etc).
 
@@ -217,6 +219,7 @@ class Assembly(TimeStampedModel, ENADerivedModel):
     class CommonMetadataKeys:
         COVERAGE = "coverage"
         COVERAGE_DEPTH = "coverage_depth"
+        N_CONTIGS = "n_contigs"
 
     metadata = JSONField(default=dict, db_index=True, blank=True)
 
@@ -262,6 +265,17 @@ class Assembly(TimeStampedModel, ENADerivedModel):
         if erz_accession not in self.ena_accessions:
             self.ena_accessions.append(erz_accession)
             return self.save()
+
+    @anysync_property
+    def dir_with_miassembler_suffix(self):
+        # MIAssembler outputs to a specific dir pattern inside the run's assembly/ies folder.
+        assembler = self.assembler
+        return (
+            Path(self.dir)
+            / Path("assembly")
+            / Path(assembler.name.lower())
+            / Path(assembler.version)
+        )
 
     class Meta:
         verbose_name_plural = "Assemblies"
