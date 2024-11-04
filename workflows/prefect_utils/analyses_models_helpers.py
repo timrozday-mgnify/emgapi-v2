@@ -1,6 +1,6 @@
 from prefect import task
 
-from analyses.models import Assembly
+from analyses.models import Assembly, Analysis
 
 
 @task(log_prints=True)
@@ -34,6 +34,43 @@ def task_mark_assembly_status(
     for unset_status in unset_statuses or []:
         if assembly.status[unset_status]:
             assembly.mark_status(
+                unset_status,
+                set_status_as=False,
+                reason=f"Explicitly unset when setting {status}",
+            )
+
+
+@task(log_prints=True)
+def task_mark_analysis_status(
+    analysis: Analysis,
+    status: Analysis.AnalysisStates,
+    reason: str = None,
+    unset_statuses: [Analysis.AnalysisStates] = None,
+) -> None:
+    """
+    Logs and updates the status of a given analysis.
+    :param analysis: The Analysis object to update.
+    :type analysis: Analysis
+    :param status: The new status to assign to the analysis.
+    :type status: One of Analysis.AnalysisStates
+    :param reason: An optional reason for the status change, which will be recorded.
+    :type reason: str, optional
+    :param unset_statuses: An optional list of statuses to unset, if they are already set (e.g., [Analysis.AnalysisStates.ANALYSIS_FAILED])
+    :type unset_statuses: list of Analysis.AnalysisStates, optional
+    :return: None
+    :rtype: None
+    :raises ValueError: If the status is not one of the predefined AnalysisStates.
+    """
+    if status not in Analysis.AnalysisStates.__dict__.values():
+        raise ValueError(
+            f"Invalid status '{status}'. Must be one of the predefined AnalysisStates."
+        )
+
+    print(f"Analysis {analysis} status is {status} now.")
+    analysis.mark_status(status, reason=reason)
+    for unset_status in unset_statuses or []:
+        if analysis.status[unset_status]:
+            analysis.mark_status(
                 unset_status,
                 set_status_as=False,
                 reason=f"Explicitly unset when setting {status}",

@@ -61,6 +61,18 @@ class AmpliconPipelineConfig(BaseModel):
         "main"  # branch or commit of ebi-metagenomics/amplicon-pipeline
     )
     amplicon_pipeline_nf_profile: str = "codon_slurm"
+    samplesheet_chunk_size: int = 20
+    amplicon_library_strategy: str = "AMPLICON"
+    # results stats
+    completed_runs_csv: str = "qc_passed_runs.csv"
+    failed_runs_csv: str = "qc_failed_runs.csv"
+    # results folders
+    qc_folder: str = "qc"
+    sequence_categorisation_folder: str = "sequence-categorisation"
+    amplified_region_inference_folder: str = "amplified-region-inference"
+    asv_folder: str = "asv"
+    primer_identification_folder: str = "primer-identification"
+    taxonomy_summary_folder: str = "taxonomy-summary"
 
 
 class WebinConfig(BaseModel):
