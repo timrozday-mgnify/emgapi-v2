@@ -1,4 +1,8 @@
 import json
+import os
+import shutil
+
+from django.db.models import Q
 
 import pytest
 from prefect.artifacts import Artifact
@@ -6,8 +10,238 @@ from prefect.artifacts import Artifact
 from emgapiv2.settings import EMG_CONFIG
 
 import analyses.models
-import ena.models
 from workflows.flows.analysis_amplicon_study import analysis_amplicon_study
+
+
+def generate_fake_pipeline_all_results(amplicon_run_folder, run):
+    # QC
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.qc_folder}",
+        exist_ok=True,
+    )
+    with open(
+            f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.qc_folder}/{run}_seqfu.tsv", "w"):
+        pass
+
+    # PRIMER IDENTIFICATION
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.primer_identification_folder}",
+        exist_ok=True,
+    )
+    with open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.primer_identification_folder}/{run}.cutadapt.json", "w"), \
+            open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.primer_identification_folder}/{run}_primers.fasta", "w"), \
+            open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.primer_identification_folder}/{run}_primer_validation.tsv", "w"):
+        pass
+
+    # AMPLIFIED REGION INFERENCE
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.amplified_region_inference_folder}",
+        exist_ok=True,
+    )
+    with open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.amplified_region_inference_folder}/{run}.tsv", "w"), \
+            open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.amplified_region_inference_folder}/{run}.16S.V3-V4.txt", "w"), \
+            open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.amplified_region_inference_folder}/{run}.18S.V9.txt", "w"):
+        pass
+
+    # ASV
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.asv_folder}",
+        exist_ok=True,
+    )
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.asv_folder}/16S-V3-V4",
+        exist_ok=True,
+    )
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.asv_folder}/18S-V9",
+        exist_ok=True,
+    )
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.asv_folder}/concat",
+        exist_ok=True,
+    )
+    with open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.asv_folder}/{run}_dada2_stats.tsv", "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.asv_folder}/{run}_DADA2-SILVA_asv_tax.tsv",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.asv_folder}/{run}_DADA2-PR2_asv_tax.tsv",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.asv_folder}/{run}_asv_seqs.fasta",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.asv_folder}/18S-V9/{run}_18S-V9_asv_read_counts.tsv",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.asv_folder}/16S-V3-V4/{run}_16S-V3-V4_asv_read_counts.tsv",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.asv_folder}/concat/{run}_concat_asv_read_counts.tsv",
+                "w"):
+        pass
+
+    # SEQUENCE CATEGORISATION
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.sequence_categorisation_folder}",
+        exist_ok=True,
+    )
+    with open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.sequence_categorisation_folder}/{run}_SSU.fasta", "w"), \
+            open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.sequence_categorisation_folder}/{run}.tblout.deoverlapped", "w"), \
+            open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.sequence_categorisation_folder}/{run}_SSU_rRNA_bacteria.RF00177.fa", "w"):
+        pass
+
+    # TAXONOMY SUMMARY
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}",
+        exist_ok=True,
+    )
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/SILVA-SSU",
+        exist_ok=True,
+    )
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/PR2",
+        exist_ok=True,
+    )
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-SILVA",
+        exist_ok=True,
+    )
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-PR2",
+        exist_ok=True,
+    )
+    with open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/SILVA-SSU/{run}.html",
+              "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/SILVA-SSU/{run}_SILVA-SSU.mseq",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/SILVA-SSU/{run}_SILVA-SSU.tsv",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/SILVA-SSU/{run}_SILVA-SSU.txt",
+                "w"):
+        pass
+    with open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/PR2/{run}.html",
+              "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/PR2/{run}_PR2.mseq",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/PR2/{run}_PR2.tsv",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/PR2/{run}_PR2.txt",
+                "w"):
+        pass
+    with open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-SILVA/{run}_16S-V3-V4_DADA2-SILVA_asv_krona_counts.txt",
+              "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-SILVA/{run}_16S-V3-V4.html",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-SILVA/{run}_DADA2-SILVA.mseq",
+                "w"), \
+           open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-SILVA/{run}_18S-V9_DADA2-SILVA_asv_krona_counts.txt",
+              "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-SILVA/{run}_18S-V9.html",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-SILVA/{run}_concat_DADA2-SILVA_asv_krona_counts.txt",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-SILVA/{run}_concat.html",
+                "w"):
+        pass
+    with open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-PR2/{run}_16S-V3-V4_DADA2-PR2_asv_krona_counts.txt",
+              "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-PR2/{run}_16S-V3-V4.html",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-PR2/{run}_DADA2-PR2.mseq",
+                "w"), \
+           open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-PR2/{run}_18S-V9_DADA2-PR2_asv_krona_counts.txt",
+              "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-PR2/{run}_18S-V9.html",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-PR2/{run}_concat_DADA2-PR2_asv_krona_counts.txt",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-PR2/{run}_concat.html",
+                "w"):
+        pass
+
+def generate_fake_pipeline_no_asvs(amplicon_run_folder, run):
+    # QC
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.qc_folder}",
+        exist_ok=True,
+    )
+    with open(
+            f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.qc_folder}/{run}_seqfu.tsv", "w"):
+        pass
+
+    # AMPLIFIED REGION INFERENCE
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.amplified_region_inference_folder}",
+        exist_ok=True,
+    )
+    with open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.amplified_region_inference_folder}/{run}.tsv", "w"):
+        pass
+
+    # SEQUENCE CATEGORISATION
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.sequence_categorisation_folder}",
+        exist_ok=True,
+    )
+    with open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.sequence_categorisation_folder}/{run}_SSU.fasta", "w"), \
+            open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.sequence_categorisation_folder}/{run}.tblout.deoverlapped", "w"), \
+            open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.sequence_categorisation_folder}/{run}_SSU_rRNA_bacteria.RF00177.fa", "w"):
+        pass
+
+    # TAXONOMY SUMMARY
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}",
+        exist_ok=True,
+    )
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/SILVA-SSU",
+        exist_ok=True,
+    )
+    os.makedirs(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/PR2",
+        exist_ok=True,
+    )
+    with open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/SILVA-SSU/{run}.html",
+              "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/SILVA-SSU/{run}_SILVA-SSU.mseq",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/SILVA-SSU/{run}_SILVA-SSU.tsv",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/SILVA-SSU/{run}_SILVA-SSU.txt",
+                "w"):
+        pass
+    with open(f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/PR2/{run}.html",
+              "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/PR2/{run}_PR2.mseq",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/PR2/{run}_PR2.tsv",
+                "w"), \
+            open(
+                f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/PR2/{run}_PR2.txt",
+                "w"):
+        pass
 
 
 @pytest.mark.django_db(transaction=True)
@@ -18,16 +252,22 @@ async def test_prefect_analyse_amplicon_flow(
     mock_cluster_can_accept_jobs_yes,
     mock_start_cluster_job,
     mock_check_cluster_job_all_completed,
-    raw_read_run,
     raw_read_ena_study
 ):
     """
     Test should create/get ENA and MGnify study into DB.
-    Create analysis for amplicon run and launch it with samplesheet.
+    Create analysis for amplicon runs and launch it with samplesheet.
+    One run has all results, one run failed
     """
     study_accession = "PRJNA398089"
-    amplicon_run = "SRR6704248"
+    amplicon_run_all_results = "SRR_all_results"
+    amplicon_run_failed = "SRR_failed"
+    amplicon_run_no_asv = "SRR_no_asv"
+    amplicon_run_no_qc = "SRR_no_qc"
+    amplicon_run_extra_dada2 = "SRR_extra_dada2"
+    runs = [amplicon_run_all_results, amplicon_run_failed, amplicon_run_no_asv, amplicon_run_no_qc, amplicon_run_extra_dada2]
 
+    # mock ENA response
     httpx_mock.add_response(
         url=f"{EMG_CONFIG.ena.portal_search_api}?"
             f"result=read_run"
@@ -41,9 +281,57 @@ async def test_prefect_analyse_amplicon_flow(
                 "sample_accession": "SAMN08514017",
                 "sample_title": "my data",
                 "secondary_sample_accession": "SAMN08514017",
-                "run_accession": amplicon_run,
+                "run_accession": amplicon_run_all_results,
                 "fastq_md5": "123;abc",
-                "fastq_ftp": f"ftp.sra.example.org/vol/fastq/{amplicon_run}/{amplicon_run}_1.fastq.gz;ftp.sra.example.org/vol/fastq/{amplicon_run}/{amplicon_run}_2.fastq.gz",
+                "fastq_ftp": f"ftp.sra.example.org/vol/fastq/{amplicon_run_all_results}/{amplicon_run_all_results}_1.fastq.gz;ftp.sra.example.org/vol/fastq/{amplicon_run_all_results}/{amplicon_run_all_results}_2.fastq.gz",
+                "library_layout": "PAIRED",
+                "library_strategy": "AMPLICON",
+                "library_source": "METAGENOMIC",
+                "scientific_name": "metagenome"
+            },
+            {
+                "sample_accession": "SAMN08514018",
+                "sample_title": "my data",
+                "secondary_sample_accession": "SAMN08514018",
+                "run_accession": amplicon_run_failed,
+                "fastq_md5": "123;abc",
+                "fastq_ftp": f"ftp.sra.example.org/vol/fastq/{amplicon_run_failed}/{amplicon_run_failed}_1.fastq.gz;ftp.sra.example.org/vol/fastq/{amplicon_run_failed}/{amplicon_run_failed}_2.fastq.gz",
+                "library_layout": "PAIRED",
+                "library_strategy": "AMPLICON",
+                "library_source": "METAGENOMIC",
+                "scientific_name": "metagenome"
+            },
+            {
+                "sample_accession": "SAMN08514019",
+                "sample_title": "my data",
+                "secondary_sample_accession": "SAMN08514019",
+                "run_accession": amplicon_run_no_asv,
+                "fastq_md5": "123;abc",
+                "fastq_ftp": f"ftp.sra.example.org/vol/fastq/{amplicon_run_no_asv}/{amplicon_run_no_asv}_1.fastq.gz;ftp.sra.example.org/vol/fastq/{amplicon_run_no_asv}/{amplicon_run_no_asv}_2.fastq.gz",
+                "library_layout": "PAIRED",
+                "library_strategy": "AMPLICON",
+                "library_source": "METAGENOMIC",
+                "scientific_name": "metagenome"
+            },
+            {
+                "sample_accession": "SAMN08514020",
+                "sample_title": "my data",
+                "secondary_sample_accession": "SAMN08514020",
+                "run_accession": amplicon_run_no_qc,
+                "fastq_md5": "123;abc",
+                "fastq_ftp": f"ftp.sra.example.org/vol/fastq/{amplicon_run_no_qc}/{amplicon_run_no_qc}_1.fastq.gz;ftp.sra.example.org/vol/fastq/{amplicon_run_no_qc}/{amplicon_run_no_qc}_2.fastq.gz",
+                "library_layout": "PAIRED",
+                "library_strategy": "AMPLICON",
+                "library_source": "METAGENOMIC",
+                "scientific_name": "metagenome"
+            },
+            {
+                "sample_accession": "SAMN08514021",
+                "sample_title": "my data",
+                "secondary_sample_accession": "SAMN08514021",
+                "run_accession": amplicon_run_extra_dada2,
+                "fastq_md5": "123;abc",
+                "fastq_ftp": f"ftp.sra.example.org/vol/fastq/{amplicon_run_extra_dada2}/{amplicon_run_extra_dada2}_1.fastq.gz;ftp.sra.example.org/vol/fastq/{amplicon_run_extra_dada2}/{amplicon_run_extra_dada2}_2.fastq.gz",
                 "library_layout": "PAIRED",
                 "library_strategy": "AMPLICON",
                 "library_source": "METAGENOMIC",
@@ -52,6 +340,33 @@ async def test_prefect_analyse_amplicon_flow(
         ],
     )
 
+    # create fake results
+    amplicon_folder = f"{EMG_CONFIG.slurm.default_workdir}/{study_accession}_amplicon_v6"
+    os.mkdir(amplicon_folder)
+
+    with open(f"{amplicon_folder}/{EMG_CONFIG.amplicon_pipeline.completed_runs_csv}", "w") as file:
+        file.write(f"{amplicon_run_all_results},all_results" + "\n")
+        file.write(f"{amplicon_run_no_asv},no_asvs" + '\n')
+        file.write(f"{amplicon_run_no_qc},no_asvs" + '\n')
+        file.write(f"{amplicon_run_extra_dada2},no_asvs")
+    with open(f"{amplicon_folder}/{EMG_CONFIG.amplicon_pipeline.failed_runs_csv}", "w") as file:
+        file.write(f"{amplicon_run_failed},failed")
+
+    # ------- results for completed runs with all results
+    generate_fake_pipeline_all_results(f"{amplicon_folder}/{amplicon_run_all_results}", amplicon_run_all_results)
+    # ------- results for completed runs with no asv results
+    generate_fake_pipeline_no_asvs(f"{amplicon_folder}/{amplicon_run_no_asv}", amplicon_run_no_asv)
+    generate_fake_pipeline_no_asvs(f"{amplicon_folder}/{amplicon_run_no_qc}", amplicon_run_no_qc)
+    generate_fake_pipeline_no_asvs(f"{amplicon_folder}/{amplicon_run_extra_dada2}", amplicon_run_extra_dada2)
+    # rm qc to generate failed sanity check run
+    shutil.rmtree(f"{amplicon_folder}/{amplicon_run_no_qc}/{EMG_CONFIG.amplicon_pipeline.qc_folder}")
+    # add extra dada2 folder
+    os.makedirs(
+        f"{amplicon_folder}/{amplicon_run_extra_dada2}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-SILVA",
+        exist_ok=True,
+    )
+
+    # RUN MAIN FLOW
     await analysis_amplicon_study(study_accession=study_accession)
 
     mock_start_cluster_job.assert_called()
@@ -60,18 +375,57 @@ async def test_prefect_analyse_amplicon_flow(
     assembly_samplesheet_table = await Artifact.get("amplicon-v6-initial-sample-sheet")
     assert assembly_samplesheet_table.type == "table"
     table_data = json.loads(assembly_samplesheet_table.data)
-    assert len(table_data) == 1
+    assert len(table_data) == len(runs)
 
     assert (
         await analyses.models.Analysis.objects.filter(
-            run__ena_accessions__contains=amplicon_run
+            run__ena_accessions__contains=amplicon_run_all_results
         ).acount()
         == 1
     )
 
+    # check completed runs (all runs in completed list - might contain sanity check not passed as well)
     assert (
         await analyses.models.Analysis.objects.filter(
             status__analysis_completed=True
         ).acount()
-        == 1
+        == 4
+    )
+    # check failed runs
+    assert (
+            await analyses.models.Analysis.objects.filter(
+                status__analysis_failed=True
+            ).acount()
+            == 1
+    )
+    # check sanity check runs
+    assert (
+            await analyses.models.Analysis.objects.filter(
+                status__analysis_post_sanity_check_failed=True
+            ).acount()
+            == 2
+    )
+    assert (
+            await analyses.models.Analysis.objects.filter(
+                status__analysis_completed_reason="all_results"
+            ).acount()
+            == 1
+    )
+    assert (
+            await analyses.models.Analysis.objects.filter(
+                status__analysis_completed_reason="no_asvs"
+            ).acount()
+            == 3
+    )
+    assert (
+            await analyses.models.Analysis.objects.filter(
+                status__analysis_post_sanity_check_failed_reason="No qc folder"
+            ).acount()
+            == 1
+    )
+    assert (
+            await analyses.models.Analysis.objects.filter(
+                Q(status__analysis_post_sanity_check_failed_reason__icontains="DADA2-SILVA in taxonomy-summary")
+            ).acount()
+            == 1
     )

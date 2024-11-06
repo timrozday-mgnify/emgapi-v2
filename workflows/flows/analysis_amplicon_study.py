@@ -68,7 +68,7 @@ def create_analyses(study: analyses.models.Study, runs: List[str]):
             study=study, sample=run_obj.sample, run=run_obj, ena_study=study.ena_study
         )
         if created:
-            print(f"Created analyses {analysis} {analysis.run.experiment_type}")
+            print(f"Created analyses {analysis} {analysis.run.first_accession} {analysis.run.experiment_type}")
         analyses_list.append(analysis)
     return analyses_list
 
@@ -220,9 +220,9 @@ def sanity_check_amplicon_results(
     if sequence_categorisation_folder.exists():
         # if folder exists - checking for required files
         pattern_gene_fasta = re.compile(r'\w+_(SSU|LSU|ITS)\.fasta$')
-        matching_gene_files = [True if f.is_file() and pattern_gene_fasta.match(f) else False for f in sequence_categorisation_folder.iterdir() ]
-        pattern_domain_fasta = re.compile(r'\w+_(SSU|LSU|ITS)_rRNA_(bacteria|archaea|eukarya)\.[A-Za-z0-9]+\.fa$')
-        matching_domain_files = [True if f.is_file() and pattern_domain_fasta.match(f) else False for f in
+        matching_gene_files = [True if f.is_file() and pattern_gene_fasta.match(f.name) else False for f in sequence_categorisation_folder.iterdir()]
+        pattern_domain_fasta = re.compile(r'\w+_(SSU|LSU|ITS)_rRNA_(bacteria|archaea|eukarya)\.[A-Z0-9]+\.fa$')
+        matching_domain_files = [True if f.is_file() and pattern_domain_fasta.match(f.name) else False for f in
                                sequence_categorisation_folder.iterdir()]
         if not (Path(f"{sequence_categorisation_folder}/{run_id}.tblout.deoverlapped").exists()
                 and sum(matching_gene_files) and sum(matching_domain_files)):
@@ -240,7 +240,7 @@ def sanity_check_amplicon_results(
                 # extract variable regions
                 pattern_txt = re.compile(r'\w+\.(\w+S)\.(V[\w.-]+)\.txt$')
                 for f in amplified_region_inference_folder.iterdir():
-                    match = pattern_txt.search(f)
+                    match = pattern_txt.search(f.name)
                     if match:
                         amplified_regions.append(f"{match.group(1)}-{match.group(2)}")
                 if len(amplified_regions) > 2:
@@ -249,8 +249,8 @@ def sanity_check_amplicon_results(
 
     # PRIMER IDENTIFICATION optional folder
     if primer_identification_folder.exists():
-        cutadapt_json = Path(f"{amplified_region_inference_folder}/{run_id}.cutadapt.json")
-        if len(list(amplified_region_inference_folder.iterdir())) == 1:
+        cutadapt_json = Path(f"{primer_identification_folder}/{run_id}.cutadapt.json")
+        if len(list(primer_identification_folder.iterdir())) == 1:
             if not cutadapt_json.exists():
                 # checking required file
                 reason = f"missing required file in {EMG_CONFIG.amplicon_pipeline.primer_identification_folder}"
@@ -260,9 +260,9 @@ def sanity_check_amplicon_results(
                 if cutadapt_json.stat().st_size:
                     reason = f"required file in {EMG_CONFIG.amplicon_pipeline.primer_identification_folder} did not passed sanity check"
                     logger.info(f"Post sanity check for {run_id}: {reason}")
-        elif len(list(amplified_region_inference_folder.iterdir())) == 3:
-            primers_file = Path(f"{amplified_region_inference_folder}/{run_id}_primers.fasta")
-            validation_file = Path(f"{amplified_region_inference_folder}/{run_id}_primer_validation.tsv")
+        elif len(list(primer_identification_folder.iterdir())) == 3:
+            primers_file = Path(f"{primer_identification_folder}/{run_id}_primers.fasta")
+            validation_file = Path(f"{primer_identification_folder}/{run_id}_primer_validation.tsv")
             if primers_file.exists() and validation_file.exists() and cutadapt_json.exists():
                 if not (
                         (
@@ -290,7 +290,7 @@ def sanity_check_amplicon_results(
         dada2_silva = Path(f"{asv_folder}/{run_id}_DADA2-SILVA_asv_tax.tsv")
         dada2_pr2 = Path(f"{asv_folder}/{run_id}_DADA2-PR2_asv_tax.tsv")
         asv_stats = Path(f"{asv_folder}/{run_id}_asv_seqs.fasta")
-        if not (dada2_stats.exists() and dada2_pr2.exists() and dada2_silva.exists() and asv_stats.exitst()):
+        if not (dada2_stats.exists() and dada2_pr2.exists() and dada2_silva.exists() and asv_stats.exists()):
             reason = f"missing required file in {EMG_CONFIG.amplicon_pipeline.asv_folder}"
             logger.info(f"Post sanity check for {run_id}: {reason}")
         else:
@@ -298,14 +298,14 @@ def sanity_check_amplicon_results(
             if amplified_regions:
                 for region in amplified_regions:
                     if Path(f"{asv_folder}/{region}").exists():
-                        if not Path(f"{asv_folder}/{region}/${run_id}_{region}_asv_read_counts.tsv").exists():
-                            reason = f"No asv_read_counts in ${region}"
+                        if not Path(f"{asv_folder}/{region}/{run_id}_{region}_asv_read_counts.tsv").exists():
+                            reason = f"No asv_read_counts in {region}"
                     else:
                         reason = f"No {region} in {EMG_CONFIG.amplicon_pipeline.asv_folder}"
             # check concat folder for more than 1 region
             if len(amplified_regions) > 1:
                 if Path(f"{asv_folder}/concat").exists():
-                    if not Path(f"{asv_folder}/concat/${run_id}_concat_asv_read_counts.tsv").exists():
+                    if not Path(f"{asv_folder}/concat/{run_id}_concat_asv_read_counts.tsv").exists():
                         reason = f"No counts for concat folder in {EMG_CONFIG.amplicon_pipeline.asv_folder}"
                 else:
                     reason = f"Missing concat folder in {EMG_CONFIG.amplicon_pipeline.asv_folder} for {len(amplified_regions)} regions"
@@ -321,26 +321,26 @@ def sanity_check_amplicon_results(
             if sum([Path(f"{taxonomy_summary_folder}/{db}").exists() for db in dada2_tax_names]) != 0:
                 reason = f"DADA2 db exists but no {EMG_CONFIG.amplicon_pipeline.asv_folder} found"
         for db in taxonomy_summary_folder.iterdir():
-            if db in tax_dbs:
-                html = Path(f"{taxonomy_summary_folder}/{db}/${run_id}.html")
-                mseq = Path(f"{taxonomy_summary_folder}/{db}/${run_id}_{db}.mseq")
-                tsv = Path(f"{taxonomy_summary_folder}/{db}/${run_id}_{db}.tsv")
-                txt = Path(f"{taxonomy_summary_folder}/{db}/${run_id}_{db}.txt")
+            if db.name in tax_dbs:
+                html = Path(f"{db}/{run_id}.html")
+                mseq = Path(f"{db}/{run_id}_{db.name}.mseq")
+                tsv = Path(f"{db}/{run_id}_{db.name}.tsv")
+                txt = Path(f"{db}/{run_id}_{db.name}.txt")
                 if not(html.exists() and mseq.exists() and tsv.exists() and txt.exists()):
                     reason = f"missing file in {db}"
-            elif db in dada2_tax_names:
-                if not Path(f"{taxonomy_summary_folder}/{db}/${run_id}_{db}.mseq").exists():
+            elif db.name in dada2_tax_names and asv_folder.exists():
+                if not Path(f"{db}/{run_id}_{db.name}.mseq").exists():
                     reason = f"missing mseq in {db}"
                 else:
                     for region in amplified_regions:
-                        region_krona = Path(f"{taxonomy_summary_folder}/{db}/${run_id}_{region}_{db}_asv_krona_counts.txt")
-                        region_html = Path(f"{taxonomy_summary_folder}/{db}/${run_id}_{region}.html")
+                        region_krona = Path(f"{db}/{run_id}_{region}_{db.name}_asv_krona_counts.txt")
+                        region_html = Path(f"{db}/{run_id}_{region}.html")
                         if not(region_html.exists() and region_krona.exists()):
                             reason = f"missing {region} file in {db}"
                     # checking concat folder
                     if len(amplified_regions) == 2:
-                        concat_html = Path(f"{taxonomy_summary_folder}/{db}/${run_id}_concat.html")
-                        concat_krona = Path(f"{taxonomy_summary_folder}/{db}/${run_id}_concat_{db}_asv_krona_counts.txt")
+                        concat_html = Path(f"{db}/{run_id}_concat.html")
+                        concat_krona = Path(f"{db}/{run_id}_concat_{db.name}_asv_krona_counts.txt")
                         if not(concat_krona.exists() and concat_html.exists()):
                             reason = f"missing concat files in {db}"
             else:
@@ -350,9 +350,9 @@ def sanity_check_amplicon_results(
     if qc_folder.exists():
         if not Path(f"{qc_folder}/{analysis.run.first_accession}_seqfu.tsv").exists():
             reason = f"No required seqfu.tsv in {EMG_CONFIG.amplicon_pipeline.qc_folder} folder"
-        else:
-            reason = f"No {EMG_CONFIG.amplicon_pipeline.qc_folder} folder"
-        logger.info(f"Post sanity check for {run_id}: {reason}")
+    else:
+        reason = f"No {EMG_CONFIG.amplicon_pipeline.qc_folder} folder"
+    logger.info(f"Post sanity check for {run_id}: {reason}")
 
     if reason:
         task_mark_analysis_status(
@@ -397,10 +397,10 @@ def set_post_analysis_states(
         if analysis.run.first_accession in qc_failed_runs:
             task_mark_analysis_status(
                 analysis,
-                status=analyses.models.Analysis.AnalysisStates.ANALYSIS_QC_FAILED,
+                status=analyses.models.Analysis.AnalysisStates.ANALYSIS_FAILED,
                 reason=qc_failed_runs[analysis.run.first_accession]
             )
-        elif analysis.run.first_accession in qc_completed_csv:
+        elif analysis.run.first_accession in qc_completed_runs:
             task_mark_analysis_status(
                 analysis,
                 status=analyses.models.Analysis.AnalysisStates.ANALYSIS_COMPLETED,
@@ -502,7 +502,6 @@ async def analysis_amplicon_study(
     # Work on chunks of 20 readruns at a time
     # Doing so means we don't use our entire cluster allocation for this study
     chunked_runs = chunk_amplicon_list(runs_to_attempt, EMG_CONFIG.amplicon_pipeline.samplesheet_chunk_size)
-    logger.info("chunked", chunked_runs)
     for runs_chunk in chunked_runs:
         # launch jobs for all runs in this chunk in a single flow
         logger.info(f"Working on amplicons: {runs_chunk[0]}-{runs_chunk[len(runs_chunk)-1]}")
