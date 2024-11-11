@@ -445,12 +445,13 @@ async def perform_amplicons_in_parallel(
     )
 
     try:
+        env_variables = "ALL,TOWER_WORKSPACE_ID" + f"{',TOWER_ACCESS_TOKEN' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''} "
         await run_cluster_job(
             name=f"Analyse amplicon study {mgnify_study.ena_study.accession} via samplesheet {slugify(samplesheet)}",
             command=command,
             expected_time=timedelta(days=5),
             memory=f"{EMG_CONFIG.slurm.amplicon_nextflow_master_job_memory}G",
-            environment="ALL,TOWER_ACCESS_TOKEN,TOWER_WORKSPACE_ID",
+            environment=env_variables,
             input_files_to_hash=[samplesheet],
         )
     except ClusterJobFailedException:

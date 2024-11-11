@@ -25,7 +25,7 @@ class SlurmConfig(BaseModel):
     job_log_tail_lines: int = 10
     # how many lines of slurm log to send to prefect each time we check it
 
-    use_nextflow_tower: bool = True
+    use_nextflow_tower: bool = False
     nextflow_tower_org: str = "EMBL-EBI"
     nextflow_tower_workspace: str = "ebi-spws-dev-microbiome-info"
 
@@ -35,7 +35,7 @@ class SlurmConfig(BaseModel):
     assembly_uploader_root_dir: str = ""
     webin_cli_executor: str = "/usr/bin/webin-cli/webin-cli.jar"
 
-    amplicon_nextflow_master_job_memory: int = 5  # Gb
+    amplicon_nextflow_master_job_memory: int = 1  # Gb
 
     shared_filesystem_root_on_slurm: str = "/nfs/public"
     shared_filesystem_root_on_server: str = "/app/data"
