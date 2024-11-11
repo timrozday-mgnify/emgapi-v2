@@ -157,7 +157,7 @@ def test_get_study_readruns_from_ena(httpx_mock, raw_read_ena_study, raw_reads_m
                 "library_layout": "PAIRED",
                 "library_strategy": "AMPLICON",
                 "library_source": "METAGENOME",
-                "scientific_name": "metagenome"
+                "scientific_name": "uncultured bacteria"
             },
             {
                 "run_accession": "RUN4",
@@ -203,7 +203,7 @@ def test_get_study_readruns_from_ena(httpx_mock, raw_read_ena_study, raw_reads_m
         assert (analyses.models.Run.objects.filter(ena_accessions__contains="RUN1").count() == 0)
         # correct run
         assert (analyses.models.Run.objects.filter(ena_accessions__contains="RUN2").count() == 1)
-        # incorrect library_source
+        # incorrect library_source and scientific name
         assert (analyses.models.Run.objects.filter(ena_accessions__contains="RUN3").count() == 0)
         # incorrect library_layout single
         assert (analyses.models.Run.objects.filter(ena_accessions__contains="RUN4").count() == 0)

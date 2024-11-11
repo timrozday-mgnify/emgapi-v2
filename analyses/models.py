@@ -376,8 +376,8 @@ class Analysis(
     MGnifyAutomatedModel,
     TimeStampedModel,
     VisibilityControlledModel,
+    WithDownloadsModel,
 ):
-    # WithDownloadsModel
     objects = AnalysisManagerDeferringAnnotations()
     objects_and_annotations = AnalysisManagerIncludingAnnotations()
 
