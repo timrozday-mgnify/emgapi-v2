@@ -6,7 +6,9 @@ from analyses.models import Biome
 
 @pytest.mark.dev_data_maker
 @pytest.mark.django_db(transaction=True)
-def test_make_dev_data(top_level_biomes, assemblers, raw_read_analyses):
+def test_make_dev_data(
+    top_level_biomes, assemblers, raw_read_analyses, mgnify_assemblies_completed
+):
     """
     Dummy test that just sets up fixtures and dumps them to JSON for using as dev data.
     """

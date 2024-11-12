@@ -14,7 +14,7 @@ from django_ltree.models import TreeModel
 
 import ena.models
 from analyses.base_models.base_models import (
-    ENAAccessionManager,
+    ENADerivedManager,
     ENADerivedModel,
     MGnifyAutomatedModel,
     TimeStampedModel,
@@ -180,7 +180,7 @@ class Assembler(TimeStampedModel):
         return f"{self.name} {self.version}" if self.version is not None else self.name
 
 
-class AssemblyManager(ENAAccessionManager):
+class AssemblyManager(ENADerivedManager):
     def get_queryset(self):
         return super().get_queryset().select_related("run")
 

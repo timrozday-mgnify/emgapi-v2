@@ -3,6 +3,7 @@ import os
 import re
 from datetime import timedelta
 from pathlib import Path
+from typing import Optional
 
 import django
 from assembly_uploader import assembly_manifest, study_xmls, submit_study
@@ -375,7 +376,7 @@ async def submit_assembly_slurm(
     task_runner=SequentialTaskRunner,
 )
 async def upload_assembly(
-    assembly_id: int, dry_run: bool = True, custom_upload_folder: Path = None
+    assembly_id: int, dry_run: bool = True, custom_upload_folder: Optional[Path] = None
 ):
     """
     This flow performs a sanity check and uploads an assembly for a specific run to ENA.

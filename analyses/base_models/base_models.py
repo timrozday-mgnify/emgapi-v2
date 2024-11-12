@@ -20,10 +20,21 @@ class MGnifyAutomatedModel(models.Model):
     # TODO: suppression propagation
 
 
+class SelectRelatedEnaStudyManagerMixin:
+    def get_queryset(self):
+        return super().get_queryset().select_related("ena_study")
+
+
+class VisibilityControlledManager(SelectRelatedEnaStudyManagerMixin, models.Manager):
+    pass
+
+
 class VisibilityControlledModel(models.Model):
     """
     Base class for models that should inherit their privacy status (so visibility) from an ENA Study.
     """
+
+    objects = VisibilityControlledManager()
 
     is_private = models.BooleanField(default=False)
     ena_study = models.ForeignKey(ena.models.Study, on_delete=models.CASCADE)
@@ -35,7 +46,7 @@ class VisibilityControlledModel(models.Model):
         abstract = True
 
 
-class ENAAccessionManager(models.Manager):
+class GetByENAAccessionManagerMixin:
     async def get_by_accession(self, ena_accession):
         qs = self.get_queryset().filter(ena_accessions__contains=ena_accession)
         if qs.count() > 1:
@@ -45,8 +56,14 @@ class ENAAccessionManager(models.Manager):
         return qs.first()
 
 
+class ENADerivedManager(
+    SelectRelatedEnaStudyManagerMixin, GetByENAAccessionManagerMixin, models.Manager
+):
+    pass
+
+
 class ENADerivedModel(VisibilityControlledModel):
-    objects = ENAAccessionManager()
+    objects = ENADerivedManager()
 
     ena_accessions = models.JSONField(default=list, db_index=True, blank=True)
     is_suppressed = models.BooleanField(default=False)

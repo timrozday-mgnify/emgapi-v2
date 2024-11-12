@@ -72,3 +72,17 @@ deployments:
     work_queue_name:
     job_variables: {}
   schedules: []
+- name: upload_assembly_deployment
+  version:
+  tags: []
+  description: "This flow performs a sanity check and uploads an assembly for a specific
+    run to ENA.\n\nIt is intended to be executed *per run* after the assembly flow.
+    The assembly uploader\nscripts are executed using Prefect's `ShellOperation` command.
+    The assembly submission\nvia `webin-cli` is launched as a SLURM cluster job."
+  entrypoint: workflows/flows/upload_assembly.py:upload_assembly
+  parameters: {}
+  work_pool:
+    name: slurm
+    work_queue_name:
+    job_variables: {}
+  schedules: []
