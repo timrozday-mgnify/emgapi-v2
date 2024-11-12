@@ -420,9 +420,10 @@ async def upload_assembly(
             mgnify_assembly,
             status=mgnify_assembly.AssemblyStates.POST_ASSEMBLY_QC_FAILED,
         )
-        raise Exception(
+        logger.error(
             f"Assembly {mgnify_assembly} did not pass sanity check. No further action."
         )
+        return
 
     # Register study and submit to ENA (if was not submitted before)
     registered_study = process_study(
