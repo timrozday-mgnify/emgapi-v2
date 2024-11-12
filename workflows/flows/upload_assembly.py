@@ -401,7 +401,7 @@ async def upload_assembly(
         raise e
 
     assembly_path = Path(await mgnify_assembly.dir_with_miassembler_suffix) / Path(
-        f"{mgnify_assembly.run.first_accession}.contigs.fasta.gz"
+        f"{mgnify_assembly.run.first_accession}.contigs.fa.gz"
     )
 
     upload_folder = custom_upload_folder or assembly_path.parent / Path(
