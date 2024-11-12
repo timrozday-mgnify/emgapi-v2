@@ -7,6 +7,7 @@ from enum import Enum
 from pathlib import Path
 from typing import ClassVar
 
+from asgiref.sync import sync_to_async
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import models
 from django.db.models import JSONField, Q
@@ -76,6 +77,9 @@ class StudyManager(models.Manager):
             )
         study, _ = await Study.objects.aget_or_create(
             ena_study=ena_study, title=ena_study.title
+        )
+        await sync_to_async(study.inherit_accessions_from_related_ena_object)(
+            "ena_study"
         )
         return study
 

@@ -162,6 +162,9 @@ def process_study(
     logger = get_run_logger()
     registered_study = None
 
+    # ensure we have appropriate accessions
+    assembly.reads_study.inherit_accessions_from_related_ena_object("ena_study")
+
     # if the assembly study (i.e. TPA study for public data) does not yet have an ENA study attached,
     # it means we need to register it.
 
