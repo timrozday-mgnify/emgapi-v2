@@ -22,3 +22,4 @@ deployment/**/auth
 /staticfiles
 *env/
 dev-db.json
+talisman_report/

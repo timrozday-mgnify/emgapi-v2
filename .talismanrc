@@ -1,0 +1,5 @@
+fileignoreconfig:
+- filename: workflows/prefect_utils/env_context.py
+  ignore_detectors: [filename]
+- filename: emgapiv2/settings.py
+  ignore_detectors: [filename]
