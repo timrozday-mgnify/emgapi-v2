@@ -31,8 +31,6 @@ class SlurmConfig(BaseModel):
 
     datamover_paritition: str = "datamover"
 
-    webin_cli_executor: str = "/usr/bin/webin-cli/webin-cli.jar"
-
     amplicon_nextflow_master_job_memory: int = 5  # Gb
 
     shared_filesystem_root_on_slurm: str = "/nfs/public"
@@ -56,6 +54,7 @@ class WebinConfig(BaseModel):
     emg_webin_account: str = None
     emg_webin_password: str = None
     submitting_center_name: str = "EMG"
+    webin_cli_executor: str = "/usr/bin/webin-cli/webin-cli.jar"
 
 
 class ENAConfig(BaseModel):
