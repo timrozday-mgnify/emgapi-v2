@@ -3,3 +3,7 @@ fileignoreconfig:
   ignore_detectors: [filename]
 - filename: emgapiv2/settings.py
   ignore_detectors: [filename]
+- filename: emgapiv2/test_utils.py
+  checksum: ab3eefe0d1b722d23b8dd55ba55a364e5f6593403f0d96898d0745c900f7926f
+- filename: emgapiv2/config.py
+  checksum: ad0fde5a1d53ecc82dc214b93ccc253f5e17f9bea089c8d896aafeffafbabb63

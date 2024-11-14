@@ -20,6 +20,7 @@ from prefect.variables import Variable
 from pydantic import AnyUrl
 from pydantic_core import Url
 
+from emgapiv2.log_utils import mask_sensitive_data as safe
 from emgapiv2.settings import EMG_CONFIG
 from workflows.data_io_utils.filenames import file_path_shortener
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
@@ -254,7 +255,7 @@ def start_cluster_job(
         {command}
         """
     )
-    logger.info(f"Will run the script ```{script}```")
+    logger.info(f"Will run the script ```{safe(script)}```")
     desc = pyslurm.JobSubmitDescription(
         name=name,
         time_limit=slurm_timedelta(expected_time),
@@ -282,7 +283,7 @@ def start_cluster_job(
             Slurm working dir is {job_workdir}.
             {nf_link_markdown}
             """
-        ).replace("<<SCRIPT>>", script),
+        ).replace("<<SCRIPT>>", safe(script)),
     )
 
     return job_id

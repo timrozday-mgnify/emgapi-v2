@@ -1,4 +1,7 @@
-from pydantic import AnyHttpUrl, BaseModel
+import re
+from typing import List, Pattern
+
+from pydantic import AnyHttpUrl, BaseModel, Field
 from pydantic.networks import MongoDsn, MySQLDsn
 from pydantic_settings import BaseSettings
 
@@ -85,6 +88,24 @@ class SlackConfig(BaseModel):
     slack_webhook_prefect_block_name: str = "slack-webhook"
 
 
+class MaskReplacement(BaseModel):
+    match: Pattern = Field(
+        ..., description="A compiled regex pattern which, when matched, will be masked"
+    )
+    replacement: str = Field(
+        default="***", description="A string to replace occurences of match with"
+    )
+
+
+class LogMaskingConfig(BaseModel):
+    patterns: List[MaskReplacement] = [
+        MaskReplacement(
+            match=re.compile(r"(?i)(-password(?:=|\s))(['\"]?)(.*?)(\2)(?=\s|$)"),
+            replacement=r"\1\2*****\2",
+        )
+    ]
+
+
 class EMGConfig(BaseSettings):
     assembler: AssemblerConfig = AssemblerConfig()
     ena: ENAConfig = ENAConfig()
@@ -94,6 +115,7 @@ class EMGConfig(BaseSettings):
     slack: SlackConfig = SlackConfig()
     slurm: SlurmConfig = SlurmConfig()
     webin: WebinConfig = WebinConfig()
+    log_masking: LogMaskingConfig = LogMaskingConfig()
 
     model_config = {
         "env_prefix": "emg_",
