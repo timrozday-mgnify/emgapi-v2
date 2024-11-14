@@ -56,6 +56,7 @@ class SlurmStatus(str, Enum):
     stopped = "STOPPED"
     timeout = "TIMEOUT"
     cancelled = "CANCELLED"
+    out_of_memory = "OUT_OF_MEMORY"
 
     # Custom responses
     unknown = "UNKNOWN"
@@ -82,6 +83,7 @@ def slurm_status_is_finished_unsuccessfully(state: Union[SlurmStatus, str]):
         SlurmStatus.suspended,
         SlurmStatus.terminated,
         SlurmStatus.cancelled,
+        SlurmStatus.out_of_memory,
     ]
 
 
