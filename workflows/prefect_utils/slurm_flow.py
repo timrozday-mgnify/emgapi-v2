@@ -136,7 +136,7 @@ def check_cluster_job(
                     <<LOG>>
                     ----------
                     """
-                ).replace("<<LOG>>", log)
+                ).replace("<<LOG>>", safe(log))
             )
     else:
         logger.info(f"No Slurm Job Stdout available at {job_log_path}")
