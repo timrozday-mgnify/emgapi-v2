@@ -330,7 +330,7 @@ async def submit_assembly_slurm(
             name=f"Upload assembly for {mgnify_assembly} to ENA",
             command=command,
             expected_time=timedelta(hours=1),
-            memory=f"500M",
+            memory=f"4G",
             environment="ALL",  # copy env vars from the prefect agent into the slurm job
         )
     except ClusterJobFailedException:
