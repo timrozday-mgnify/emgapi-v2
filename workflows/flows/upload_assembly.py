@@ -242,7 +242,6 @@ def prepare_assembly(
     upload_folder: Path,
 ) -> Path:
     logger = get_run_logger()
-    upload_output_folder = assembly_path.parent
 
     # create metadata table
     metadata_dir = upload_folder / Path("metadata")
@@ -261,7 +260,7 @@ def prepare_assembly(
         study=mgnify_assembly.reads_study.first_accession,
         assembly_study=mgnify_assembly.assembly_study.first_accession,
         assemblies_csv=data_csv_path,
-        output_dir=upload_output_folder,
+        output_dir=upload_folder,
     ).write()
 
     manifest = upload_folder / Path(mgnify_assembly.run.first_accession + ".manifest")
