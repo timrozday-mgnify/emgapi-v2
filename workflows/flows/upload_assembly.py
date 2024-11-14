@@ -115,16 +115,19 @@ def create_study_xml(
     assembly_study_title = assembly_study_writer._title
 
     # check was upload folder created or not
-    upload_folder = output_dir / Path(study_accession + "_upload")
-    logger.info(f"Upload folder: {os.path.abspath(upload_folder)}")
-    if os.path.exists(upload_folder):
-        if len([i for i in os.listdir(upload_folder) if i.endswith(".xml")]) != 2:
-            raise Exception("Folder {upload_folder} should contain 2 XMLs")
+    written_to = assembly_study_writer.upload_dir
+    logger.info(f"Upload folder: {os.path.abspath(written_to)}")
+    if os.path.exists(written_to):
+        if len([i for i in os.listdir(written_to) if i.endswith(".xml")]) != 2:
+            raise Exception(
+                f"Folder {output_dir} should contain 2 XMLs. Contained {os.listdir(written_to)}"
+            )
         else:
-            logger.info(f"Upload folder {upload_folder} and study XMLs were created")
+            logger.info(f"Upload folder {written_to} and study XMLs were created")
     else:
-        raise Exception(f"Folder {upload_folder} does not exist")
-    return upload_folder, assembly_study_title
+        raise FileNotFoundError(f"Folder {written_to} does not exist")
+
+    return written_to, assembly_study_title
 
 
 @task(
@@ -172,7 +175,7 @@ def process_study(
         logger.info(
             f"Need to register an ENA (assembly) study for the assemblies of {assembly.reads_study.first_accession}"
         )
-        per_study_upload_folder, assembly_study_title = create_study_xml(
+        study_reg_dir, assembly_study_title = create_study_xml(
             study_accession=assembly.reads_study.first_accession,
             library=define_library(assembly.run.experiment_type),
             output_dir=upload_folder,
@@ -181,7 +184,7 @@ def process_study(
 
         registered_study = submit_study_xml(
             study_accession=assembly.reads_study.first_accession,
-            upload_dir=per_study_upload_folder,
+            upload_dir=study_reg_dir,
             dry_run=dry_run,
         )
         logger.info(f"Study submitted successfully under {registered_study}")
