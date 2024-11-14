@@ -256,14 +256,17 @@ def prepare_assembly(
     # assembly_uploader assembly_manifest
     logger.info("Will generate assembly manifests")
 
-    assembly_manifest.AssemblyManifestGenerator(
+    assembly_manifest_writer = assembly_manifest.AssemblyManifestGenerator(
         study=mgnify_assembly.reads_study.first_accession,
         assembly_study=mgnify_assembly.assembly_study.first_accession,
         assemblies_csv=data_csv_path,
         output_dir=upload_folder,
-    ).write()
+    )
+    assembly_manifest_writer.write()
 
-    manifest = upload_folder / Path(mgnify_assembly.run.first_accession + ".manifest")
+    manifest = assembly_manifest_writer.upload_dir / Path(
+        mgnify_assembly.run.first_accession + ".manifest"
+    )
     return manifest
 
 
