@@ -9,6 +9,7 @@ prefectserver
 logs/
 slurm-dev-environment/jobdir/
 slurm-dev-environment/fs/nfs/production/dev-slurm-work-dir/**
+slurm-dev-environment/fs/hps/tests/assembly_uploader/assembly/metaspades/3.15.5/upload
 secret*.yaml
 secret*.yml
 secret*.env

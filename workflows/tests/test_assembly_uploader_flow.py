@@ -95,7 +95,6 @@ async def test_prefect_assembly_upload_flow_assembly_metaspades(
         upload_assembly,
         assembly_id=assembly.id,
         dry_run=True,
-        custom_upload_folder=tmp_path,
     )
 
     captured_logging = logged_uploader_result.logs
@@ -148,7 +147,6 @@ async def test_prefect_assembly_upload_flow_post_assembly_sanity_check_not_passe
         upload_assembly,
         assembly_id=assembly.id,
         dry_run=True,
-        custom_upload_folder=tmp_path,
     )
 
     assert (

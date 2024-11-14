@@ -409,9 +409,8 @@ async def upload_assembly(
         f"{mgnify_assembly.run.first_accession}.contigs.fa.gz"
     )
 
-    upload_folder = custom_upload_folder or assembly_path.parent / Path(
-        f"{mgnify_assembly.ena_study.accession}_upload"
-    )
+    upload_folder = custom_upload_folder or assembly_path.parent / Path("upload")
+    upload_folder.mkdir(exist_ok=True, parents=True)
 
     logger.info(f"Assembly ID:{mgnify_assembly.id} found in {mgnify_assembly.dir}")
     logger.info(f"Using {upload_folder = }")
