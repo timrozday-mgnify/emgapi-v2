@@ -275,10 +275,12 @@ def prepare_assembly(
     task_run_name="Get assembly accession for {assembly}",
 )
 async def get_assigned_assembly_accession(
-    assembly: analyses.models.Assembly, upload_dir: Path
+    assembly: analyses.models.Assembly, manifest: Path
 ):
     logger = get_run_logger()
-    webin_cli_log = upload_dir / Path("webin-cli.report")
+    logger.info(f"Getting assembly accession for {assembly}")
+    webin_cli_log = manifest.parent / Path("webin-cli.report")
+    logger.info(f"Looking for {webin_cli_log}")
     if os.path.exists(webin_cli_log):
         with open(webin_cli_log, "r") as report:
             report_lines = report.readlines()
@@ -353,7 +355,7 @@ async def submit_assembly_slurm(
         else:
             # check webin.report for ERZ
             erz_accession = await get_assigned_assembly_accession(
-                mgnify_assembly, upload_folder
+                mgnify_assembly, manifest
             )
             if erz_accession:
                 logger.info(f"Upload completed for {mgnify_assembly}")
@@ -390,7 +392,7 @@ async def upload_assembly(
     This flow performs a sanity check and uploads an assembly for a specific run to ENA.
 
     It is intended to be executed *per run* after the assembly flow. The assembly uploader
-    scripts are executed using Prefect's `ShellOperation` command. The assembly submission
+    is a separate python library to prepare the upload files. The assembly submission
     via `webin-cli` is launched as a SLURM cluster job.
     """
     logger = get_run_logger()
