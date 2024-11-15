@@ -311,7 +311,6 @@ def add_erz_accession(assembly: analyses.models.Assembly, erz_accession):
 async def submit_assembly_slurm(
     manifest: Path,
     mgnify_assembly: analyses.models.Assembly,
-    upload_folder: Path,
     dry_run: bool,
 ):
     logger = get_run_logger()
@@ -334,6 +333,7 @@ async def submit_assembly_slurm(
             expected_time=timedelta(hours=1),
             memory=f"4G",
             environment="ALL",  # copy env vars from the prefect agent into the slurm job
+            input_files_to_hash=[manifest],
         )
     except ClusterJobFailedException:
         logger.error(
@@ -449,4 +449,4 @@ async def upload_assembly(
     )
 
     # Submit assembly with Webin-cli
-    await submit_assembly_slurm(manifest, mgnify_assembly, upload_folder, dry_run)
+    await submit_assembly_slurm(manifest, mgnify_assembly, dry_run)
