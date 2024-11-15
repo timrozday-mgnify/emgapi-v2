@@ -165,7 +165,11 @@ class AssemblyAdmin(ModelAdmin):
         if (not obj.status) or (not type(obj.status) is dict):
             return None
         return " — ".join(
-            [status.upper() for status, is_set in obj.status.items() if is_set]
+            [
+                status.upper()
+                for status, is_set in obj.status.items()
+                if is_set and not status.endswith("reason")
+            ]
         )
 
 
