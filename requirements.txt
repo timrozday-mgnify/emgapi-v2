@@ -17,6 +17,7 @@ django-ltree-2==0.1.9
 whitenoise==6.8.2
 gunicorn==23.0.0
 django-debug-toolbar==4.4.6
+django-admin-inline-paginator==0.4.0
 
 biopython==1.84
 

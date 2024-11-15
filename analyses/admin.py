@@ -3,6 +3,7 @@ import json
 from django import forms
 from django.contrib import admin
 from django.db import models
+from django_admin_inline_paginator.admin import InlinePaginated
 from unfold.admin import ModelAdmin, TabularInline
 
 from emgapiv2.widgets import StatusPathwayWidget
@@ -20,8 +21,11 @@ from .models import (
 )
 
 
-class StudyRunsInline(TabularInline):
+class StudyRunsInline(InlinePaginated, TabularInline):
     model = Run
+    pagination_key = "study_runs_page"
+    per_page = 10
+
     show_change_link = True
     fields = [
         "first_accession",
@@ -29,8 +33,9 @@ class StudyRunsInline(TabularInline):
         "sample",
         "latest_analysis_status_display",
     ]
-    readonly_fields = ["first_accession", "latest_analysis_status_display"]
+    readonly_fields = ["first_accession", "latest_analysis_status_display", "sample"]
     max_num = 0
+    ordering = ["-updated_at"]
 
     def latest_analysis_status_display(self, obj: Run):
         if obj.latest_analysis_status:
@@ -46,13 +51,17 @@ class StudyRunsInline(TabularInline):
         return "No Status"
 
 
-class StudyAssembliesInline(TabularInline):
+class StudyAssembliesInline(InlinePaginated, TabularInline):
     model = Assembly
+    verbose_name = "Assembly in this study"
+    verbose_name_plural = "Assemblies in this study"
     show_change_link = True
     fields = ["run", "status", "dir"]
     readonly_fields = ["run"]
     max_num = 0
     fk_name = "assembly_study"
+    pagination_key = "study_assemblies_page"
+    per_page = 10
     formfield_overrides = {
         models.JSONField: {
             "widget": StatusPathwayWidget(
@@ -70,13 +79,17 @@ class StudyAssembliesInline(TabularInline):
     }
 
 
-class StudyReadsInline(TabularInline):
+class StudyReadsInline(InlinePaginated, TabularInline):
     model = Assembly
+    verbose_name = "Assembly of this studies' read"
+    verbose_name_plural = "Assemblies of this studies' reads"
     show_change_link = True
     fields = ["run", "status", "dir"]
     readonly_fields = ["run"]
     max_num = 0
     fk_name = "reads_study"
+    pagination_key = "study_assemblies_reads_page"
+    per_page = 10
     formfield_overrides = {
         models.JSONField: {
             "widget": StatusPathwayWidget(
