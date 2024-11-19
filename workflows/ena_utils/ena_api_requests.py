@@ -7,6 +7,11 @@ import ena.models
 from emgapiv2.settings import EMG_CONFIG
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 
+ALLOWED_LIBRARY_SOURCE: list = ["METAGENOMIC", "METATRANSCRIPTOMIC"]
+SINGLE_END_LIBRARY_LAYOUT: str = "SINGLE"
+PAIRED_END_LIBRARY_LAYOUT: str = "PAIRED"
+METAGENOME_SCIENTIFIC_NAME: str = "metagenome"
+
 
 def create_ena_api_request(result_type, query, limit, fields, result_format="json"):
     return f"{EMG_CONFIG.ena.portal_search_api}?" \
@@ -90,7 +95,7 @@ def check_reads_fastq(fastq: list, run_accession: str, library_layout: str):
         return False
     # potential single end
     elif len(sorted_fastq) == 1:
-        if library_layout == EMG_CONFIG.sanity_check.paired_end_library_layout:
+        if library_layout == PAIRED_END_LIBRARY_LAYOUT:
             logger.warning(f'Incorrect library_layout for {run_accession} having one fastq file')
             return False
         if '_1.f' in sorted_fastq[0] or '_2.f' in sorted_fastq[0]:
@@ -100,7 +105,7 @@ def check_reads_fastq(fastq: list, run_accession: str, library_layout: str):
             return sorted_fastq
     # potential paired end
     elif len(sorted_fastq) == 2:
-        if library_layout == EMG_CONFIG.sanity_check.single_end_library_layout:
+        if library_layout == SINGLE_END_LIBRARY_LAYOUT:
             logger.warning(f'Incorrect library_layout for {run_accession} having two fastq files')
             return False
         if '_1.f' in sorted_fastq[0] and '_2.f' in sorted_fastq[1]:
@@ -152,13 +157,13 @@ def get_study_readruns_from_ena(
     logger.info("ENA portal responded ok.")
     for read_run in portal.json():
         # check scientific name
-        if EMG_CONFIG.sanity_check.metagenome_scientific_name not in read_run['scientific_name']:
+        if METAGENOME_SCIENTIFIC_NAME not in read_run['scientific_name']:
             logger.warning(f"Run {read_run['run_accession']} is not in metagenome taxa. "
                            f"No further processing for that run.")
             continue
 
         # check metagenome source
-        if read_run['library_source'] not in EMG_CONFIG.sanity_check.allowed_library_source:
+        if read_run['library_source'] not in ALLOWED_LIBRARY_SOURCE:
             logger.warning(f"Run {read_run['run_accession']} data has not allowed source. "
                            f"No further processing for that run.")
             continue

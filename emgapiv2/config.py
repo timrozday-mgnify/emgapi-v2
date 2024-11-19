@@ -72,10 +72,12 @@ class ENAConfig(BaseModel):
     primary_study_accession_re: str = "(PRJ[EDN][A-Z][0-9]+)"
     assembly_accession_re: str = "([EDS]RZ[0-9]{6,})"
     portal_search_api: AnyHttpUrl = "https://www.ebi.ac.uk/ena/portal/api/search"
+    # TODO: migrate to the ENA Handler
     study_metadata_fields: list = [
         "study_title",
         "secondary_study_accession"
     ]
+    # TODO: migrate to the ENA Handler
     readrun_metadata_fields: list = [
         "sample_accession",
         "sample_title",
@@ -111,20 +113,12 @@ class SlackConfig(BaseModel):
     slack_webhook_prefect_block_name: str = "slack-webhook"
 
 
-class SanityCheckConfig(BaseModel):
-    allowed_library_source: list = ["METAGENOMIC", "METATRANSCRIPTOMIC"]
-    single_end_library_layout: str = "SINGLE"
-    paired_end_library_layout: str = "PAIRED"
-    metagenome_scientific_name: str = "metagenome"
-
-
 class EMGConfig(BaseSettings):
     amplicon_pipeline: AmpliconPipelineConfig = AmpliconPipelineConfig()
     assembler: AssemblerConfig = AssemblerConfig()
     ena: ENAConfig = ENAConfig()
     environment: str = "development"
     legacy_service: LegacyServiceConfig = LegacyServiceConfig()
-    sanity_check: SanityCheckConfig = SanityCheckConfig()
     service_urls: ServiceURLsConfig = ServiceURLsConfig()
     slack: SlackConfig = SlackConfig()
     slurm: SlurmConfig = SlurmConfig()
