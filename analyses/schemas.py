@@ -52,16 +52,6 @@ class MGnifyAnalysis(ModelSchema):
         model = analyses.models.Analysis
         fields = ["accession"]
 
-
-# class MGnifyAnalysisDetail(MGnifyAnalysis):
-#     downloads: List[MGnifyAnalysisDownloadFile] = Field(
-#         ..., alias="downloads_as_objects"
-#     )
-#
-#     class Meta:
-#         model = analyses.models.Analysis
-#         fields = ["accession"]
-
 class MGnifyAnalysisDetail(MGnifyAnalysis):
     downloads: List[MGnifyAnalysisDownloadFile] = Field(
         ..., alias="downloads_as_objects"

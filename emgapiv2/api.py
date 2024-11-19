@@ -116,25 +116,6 @@ def list_mgnify_studies(request):
 #################################################################
 
 
-# @api.get(
-#     "/analyses/{accession}",
-#     response=MGnifyAnalysisDetail,
-#     summary="Get MGnify analysis by accession",
-#     description="MGnify analyses are accessioned with an MYGA-prefixed identifier "
-#     "and correspond to an individual Run or Assembly analysed by a Pipeline.",
-#     tags=[ApiSections.ANALYSES.value],
-#     openapi_extra=make_links_section(
-#         make_related_detail_link(
-#             related_detail_operation_id="get_mgnify_study",
-#             related_object_name="study",
-#             self_object_name="analysis",
-#             related_id_in_response="study_accession",
-#         )
-#     ),
-# )
-# def get_mgnify_analysis(request, accession: str):
-#     analysis = get_object_or_404(analyses.models.Analysis, accession=accession)
-#     return analysis
 
 @api.get(
     "/analyses/{accession}",
