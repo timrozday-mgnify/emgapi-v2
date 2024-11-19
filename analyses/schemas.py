@@ -53,14 +53,32 @@ class MGnifyAnalysis(ModelSchema):
         fields = ["accession"]
 
 
+# class MGnifyAnalysisDetail(MGnifyAnalysis):
+#     downloads: List[MGnifyAnalysisDownloadFile] = Field(
+#         ..., alias="downloads_as_objects"
+#     )
+#
+#     class Meta:
+#         model = analyses.models.Analysis
+#         fields = ["accession"]
+
 class MGnifyAnalysisDetail(MGnifyAnalysis):
     downloads: List[MGnifyAnalysisDownloadFile] = Field(
         ..., alias="downloads_as_objects"
     )
+    run_accession:  Optional[str]
+    sample_accession: Optional[str] = Field(..., alias="sample_id")
+    assembly_accession: Optional[str] = Field(..., alias="assembly_id")
+    experiment_type: Optional[str]
+    instrument_model: Optional[str]
+    instrument_platform: Optional[str]
+    pipeline_version: Optional[str]
 
     class Meta:
         model = analyses.models.Analysis
-        fields = ["accession"]
+        fields = ["accession", "run_accession", "sample_accession",
+                  "assembly_accession", "experiment_type", "instrument_model",
+                  "instrument_platform", "pipeline_version"]
 
 
 class MGnifyAnalysisTypedAnnotation(Schema):

@@ -116,6 +116,26 @@ def list_mgnify_studies(request):
 #################################################################
 
 
+# @api.get(
+#     "/analyses/{accession}",
+#     response=MGnifyAnalysisDetail,
+#     summary="Get MGnify analysis by accession",
+#     description="MGnify analyses are accessioned with an MYGA-prefixed identifier "
+#     "and correspond to an individual Run or Assembly analysed by a Pipeline.",
+#     tags=[ApiSections.ANALYSES.value],
+#     openapi_extra=make_links_section(
+#         make_related_detail_link(
+#             related_detail_operation_id="get_mgnify_study",
+#             related_object_name="study",
+#             self_object_name="analysis",
+#             related_id_in_response="study_accession",
+#         )
+#     ),
+# )
+# def get_mgnify_analysis(request, accession: str):
+#     analysis = get_object_or_404(analyses.models.Analysis, accession=accession)
+#     return analysis
+
 @api.get(
     "/analyses/{accession}",
     response=MGnifyAnalysisDetail,
@@ -133,8 +153,30 @@ def list_mgnify_studies(request):
     ),
 )
 def get_mgnify_analysis(request, accession: str):
-    analysis = get_object_or_404(analyses.models.Analysis, accession=accession)
-    return analysis
+    analysis = get_object_or_404(analyses.models.Analysis.objects.select_related("run"), accession=accession)
+
+    run_accession = analysis.run.ena_accessions[0] if analysis.run else None
+    study_id = analysis.study.accession if analysis.study else None
+    sample_id = analysis.sample.ena_sample_id if analysis.sample else None
+    assembly_id = analysis.assembly.ena_accessions[0] if analysis.assembly else None
+    experiment_type = analysis.run.experiment_type if analysis.run else None
+    instrument_model = analysis.run.instrument_model if analysis.run else None
+    instrument_platform = analysis.run.instrument_platform if analysis.run else None
+
+    response = {
+        "accession": analysis.accession,
+        "run_accession": run_accession,
+        "downloads_as_objects": analysis.downloads_as_objects,
+        "study_id": study_id,
+        "sample_id": sample_id,
+        "assembly_id": assembly_id,
+        "experiment_type": experiment_type,
+        "instrument_model": instrument_model,
+        "instrument_platform": instrument_platform,
+        "pipeline_version": analysis.pipeline_version,
+    }
+
+    return response
 
 
 @api.get(

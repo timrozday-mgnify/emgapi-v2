@@ -110,6 +110,13 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
         INSTRUMENT_PLATFORM = "instrument_platform"
         INSTRUMENT_MODEL = "instrument_model"
 
+    instrument_platform = models.CharField(
+        db_column="instrument_platform", max_length=100, blank=True, null=True
+    )
+    instrument_model = models.CharField(
+        db_column="instrument_model", max_length=100, blank=True, null=True
+    )
+
     class ExperimentTypes(models.TextChoices):
         METATRANSCRIPTOMIC = "METAT", "Metatranscriptomic"
         METAGENOMIC = "METAG", "Metagenomic"
