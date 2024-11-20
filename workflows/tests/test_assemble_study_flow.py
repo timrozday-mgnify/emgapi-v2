@@ -105,7 +105,7 @@ async def test_prefect_assemble_study_flow(
         json.dump({"coverage": 0.04760503915318373, "coverage_depth": 273.694}, file)
 
     ### RUN WORKFLOW ###
-    await assemble_study(accession)
+    await assemble_study(accession, upload=False)
 
     ### MOCKS WERE ALL CALLED ###
     mock_suspend_flow_run.assert_called()

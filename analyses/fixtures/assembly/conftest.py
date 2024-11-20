@@ -46,10 +46,10 @@ def mgnify_assemblies(raw_read_run, raw_reads_mgnify_study, assemblers):
 
 
 @pytest.fixture
-def mgnify_assembly_completed(mgnify_assemblies):
+def mgnify_assemblies_completed(mgnify_assemblies):
     run_accession = "SRR6180434"
     metaspades_assemblies = mg_models.Assembly.objects.filter(
-        assembler__name="metaspades", run__ena_accessions__in=[run_accession]
+        assembler__name="metaspades", run__ena_accessions__contains=run_accession
     )
     for item in metaspades_assemblies:
         item.mark_status("assembly_completed")
@@ -60,7 +60,7 @@ def mgnify_assembly_completed(mgnify_assemblies):
 def mgnify_assembly_completed_uploader_sanity_check(mgnify_assemblies):
     run_accession = "SRR6180435"
     metaspades_assemblies = mg_models.Assembly.objects.filter(
-        assembler__name="metaspades", run__ena_accessions__in=[run_accession]
+        assembler__name="metaspades", run__ena_accessions__contains=run_accession
     )
     for item in metaspades_assemblies:
         item.mark_status("assembly_completed")

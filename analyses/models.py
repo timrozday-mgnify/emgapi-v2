@@ -4,8 +4,10 @@ import logging
 import os
 import re
 from enum import Enum
+from pathlib import Path
 from typing import ClassVar
 
+from asgiref.sync import sync_to_async
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import models
 from django.db.models import JSONField, Q
@@ -13,7 +15,7 @@ from django_ltree.models import TreeModel
 
 import ena.models
 from analyses.base_models.base_models import (
-    ENAAccessionManager,
+    ENADerivedManager,
     ENADerivedModel,
     MGnifyAutomatedModel,
     TimeStampedModel,
@@ -21,6 +23,7 @@ from analyses.base_models.base_models import (
 )
 from analyses.base_models.mgnify_accessioned_models import MGnifyAccessionField
 from analyses.base_models.with_downloads_models import WithDownloadsModel
+from emgapiv2.async_utils import anysync_property
 
 # Some models associated with MGnify Analyses (MGYS, MGYA etc).
 
@@ -75,6 +78,9 @@ class StudyManager(models.Manager):
         study, _ = await Study.objects.aget_or_create(
             ena_study=ena_study, title=ena_study.title
         )
+        await sync_to_async(study.inherit_accessions_from_related_ena_object)(
+            "ena_study"
+        )
         return study
 
 
@@ -125,7 +131,7 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
     experiment_type = models.CharField(
         choices=ExperimentTypes, max_length=5, default=ExperimentTypes.UNKNOWN
     )
-    metadata = models.JSONField(default=dict)
+    metadata = models.JSONField(default=dict, blank=True)
     study = models.ForeignKey(Study, on_delete=models.CASCADE, related_name="runs")
     sample = models.ForeignKey(Sample, on_delete=models.CASCADE, related_name="runs")
 
@@ -178,7 +184,7 @@ class Assembler(TimeStampedModel):
         return f"{self.name} {self.version}" if self.version is not None else self.name
 
 
-class AssemblyManager(ENAAccessionManager):
+class AssemblyManager(ENADerivedManager):
     def get_queryset(self):
         return super().get_queryset().select_related("run")
 
@@ -217,6 +223,7 @@ class Assembly(TimeStampedModel, ENADerivedModel):
     class CommonMetadataKeys:
         COVERAGE = "coverage"
         COVERAGE_DEPTH = "coverage_depth"
+        N_CONTIGS = "n_contigs"
 
     metadata = JSONField(default=dict, db_index=True, blank=True)
 
@@ -262,6 +269,17 @@ class Assembly(TimeStampedModel, ENADerivedModel):
         if erz_accession not in self.ena_accessions:
             self.ena_accessions.append(erz_accession)
             return self.save()
+
+    @anysync_property
+    def dir_with_miassembler_suffix(self):
+        # MIAssembler outputs to a specific dir pattern inside the run's assembly/ies folder.
+        assembler = self.assembler
+        return (
+            Path(self.dir)
+            / Path("assembly")
+            / Path(assembler.name.lower())
+            / Path(assembler.version)
+        )
 
     class Meta:
         verbose_name_plural = "Assemblies"

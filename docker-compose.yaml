@@ -6,7 +6,7 @@ include:
 
 services:
   prefect-database:
-    image: postgres:latest
+    image: postgres:16
     restart: always
     container_name: prefect-database
     environment:
@@ -23,7 +23,7 @@ services:
     networks: [emg]
 
   app-database:
-    image: postgres:latest
+    image: postgres:16
     restart: always
     container_name: app-database
     environment:
@@ -40,7 +40,7 @@ services:
     networks: [emg]
 
   prefect-server:
-    image: prefecthq/prefect:2-latest
+    image: prefecthq/prefect:2.20.10-python3.12
     restart: always
     container_name: prefect-server
     volumes:
