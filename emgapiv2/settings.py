@@ -57,8 +57,9 @@ EMG_CONFIG: EMGConfig = EMGConfig(_env_file=emg_config_env)
 
 INSTALLED_APPS = [
     "unfold",
-    # "unfold.contrib.filters"
-    # "unfold.contrib.forms",
+    "unfold.contrib.filters",
+    "unfold.contrib.forms",
+    "unfold.contrib.inlines",
     # "unfold.contrib.import_export",  # optional, if django-import-export package is used
     # "unfold.contrib.guardian",  # optional, if django-guardian package is used
     # "unfold.contrib.simple_history",  # optional, if django-simple-history package is used
@@ -206,7 +207,7 @@ UNFOLD = {
             "400": "59 170 80",
             "300": "98 188 95",
             "200": "150 205 131",
-            "100": "#194 221 168",
+            "100": "194 221 168",
             "050": "228 237 206",
         },
     },

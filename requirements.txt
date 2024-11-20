@@ -9,7 +9,7 @@ cython<3.0
 pydantic~=2.9.2
 pydantic-settings~=2.6.0
 nextflowpy==0.8.1
-django-unfold==0.40.0
+django-unfold==0.41.0
 tzdata==2024.1
 pandas==2.2.3
 django-ltree-2==0.1.9

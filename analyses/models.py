@@ -131,7 +131,7 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
     experiment_type = models.CharField(
         choices=ExperimentTypes, max_length=5, default=ExperimentTypes.UNKNOWN
     )
-    metadata = models.JSONField(default=dict)
+    metadata = models.JSONField(default=dict, blank=True)
     study = models.ForeignKey(Study, on_delete=models.CASCADE, related_name="runs")
     sample = models.ForeignKey(Sample, on_delete=models.CASCADE, related_name="runs")
 
