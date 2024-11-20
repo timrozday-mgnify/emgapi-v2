@@ -6,3 +6,4 @@ pytest-httpx
 pytest-asyncio
 pytest-env
 pytest-sugar
+pytest-responses

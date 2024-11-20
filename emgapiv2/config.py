@@ -1,4 +1,7 @@
-from pydantic import AnyHttpUrl, BaseModel
+import re
+from typing import List, Pattern
+
+from pydantic import AnyHttpUrl, BaseModel, Field
 from pydantic.networks import MongoDsn, MySQLDsn
 from pydantic_settings import BaseSettings
 
@@ -78,16 +81,20 @@ class AmpliconPipelineConfig(BaseModel):
 class WebinConfig(BaseModel):
     emg_webin_account: str = None
     emg_webin_password: str = None
+    submitting_center_name: str = "EMG"
+    webin_cli_executor: str = "/usr/bin/webin-cli/webin-cli.jar"
 
 
 class ENAConfig(BaseModel):
     primary_study_accession_re: str = "(PRJ[EDN][A-Z][0-9]+)"
     assembly_accession_re: str = "([EDS]RZ[0-9]{6,})"
     portal_search_api: AnyHttpUrl = "https://www.ebi.ac.uk/ena/portal/api/search"
+    # TODO: migrate to the ENA Handler
     study_metadata_fields: list = [
         "study_title",
         "secondary_study_accession"
     ]
+    # TODO: migrate to the ENA Handler
     readrun_metadata_fields: list = [
         "sample_accession",
         "sample_title",
@@ -123,11 +130,22 @@ class SlackConfig(BaseModel):
     slack_webhook_prefect_block_name: str = "slack-webhook"
 
 
-class SanityCheckConfig(BaseModel):
-    allowed_library_source: list = ["METAGENOMIC", "METATRANSCRIPTOMIC"]
-    single_end_library_layout: str = "SINGLE"
-    paired_end_library_layout: str = "PAIRED"
-    metagenome_scientific_name: str = "metagenome"
+class MaskReplacement(BaseModel):
+    match: Pattern = Field(
+        ..., description="A compiled regex pattern which, when matched, will be masked"
+    )
+    replacement: str = Field(
+        default="***", description="A string to replace occurences of match with"
+    )
+
+
+class LogMaskingConfig(BaseModel):
+    patterns: List[MaskReplacement] = [
+        MaskReplacement(
+            match=re.compile(r"(?i)(-password(?:=|\s))(['\"]?)(.*?)(\2)(?=\s|$)"),
+            replacement=r"\1\2*****\2",
+        )
+    ]
 
 
 class EMGConfig(BaseSettings):
@@ -136,11 +154,11 @@ class EMGConfig(BaseSettings):
     ena: ENAConfig = ENAConfig()
     environment: str = "development"
     legacy_service: LegacyServiceConfig = LegacyServiceConfig()
-    sanity_check: SanityCheckConfig = SanityCheckConfig()
     service_urls: ServiceURLsConfig = ServiceURLsConfig()
     slack: SlackConfig = SlackConfig()
     slurm: SlurmConfig = SlurmConfig()
     webin: WebinConfig = WebinConfig()
+    log_masking: LogMaskingConfig = LogMaskingConfig()
 
     model_config = {
         "env_prefix": "emg_",
