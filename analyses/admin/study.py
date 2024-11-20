@@ -163,7 +163,9 @@ class StudyAdmin(ModelAdmin):
     def show_assembly_status_summary(self, request, object_id):
         study = get_object_or_404(Study, pk=object_id)
         assemblies_per_state = {
-            state: study.assemblies_reads.filter(**{f"status__{state}": True}).count()
+            state: study.assemblies_reads.filter(
+                **{f"status__{state.value}": True}
+            ).count()
             for state in Assembly.AssemblyStates
         }
         assemblies_total = study.assemblies_reads.count()
@@ -183,7 +185,10 @@ class StudyAdmin(ModelAdmin):
         }
 
         assemblies_progress = [
-            {"state": state.value, "value": 100 * count / assemblies_total}
+            {
+                "state": state.value,
+                "value": (100 * count / assemblies_total) if assemblies_total else 0,
+            }
             for state, count in assemblies_per_state.items()
         ]
 
