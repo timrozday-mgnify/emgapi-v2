@@ -1,4 +1,7 @@
-from pydantic import AnyHttpUrl, BaseModel
+import re
+from typing import List, Pattern
+
+from pydantic import AnyHttpUrl, BaseModel, Field
 from pydantic.networks import MongoDsn, MySQLDsn
 from pydantic_settings import BaseSettings
 
@@ -31,10 +34,6 @@ class SlurmConfig(BaseModel):
 
     datamover_paritition: str = "datamover"
 
-    assembly_uploader_python_executable: str = "python3"
-    assembly_uploader_root_dir: str = ""
-    webin_cli_executor: str = "/usr/bin/webin-cli/webin-cli.jar"
-
     amplicon_nextflow_master_job_memory: int = 5  # Gb
 
     shared_filesystem_root_on_slurm: str = "/nfs/public"
@@ -66,6 +65,8 @@ class AmpliconPipelineConfig(BaseModel):
 class WebinConfig(BaseModel):
     emg_webin_account: str = None
     emg_webin_password: str = None
+    submitting_center_name: str = "EMG"
+    webin_cli_executor: str = "/usr/bin/webin-cli/webin-cli.jar"
 
 
 class ENAConfig(BaseModel):
@@ -113,6 +114,24 @@ class SlackConfig(BaseModel):
     slack_webhook_prefect_block_name: str = "slack-webhook"
 
 
+class MaskReplacement(BaseModel):
+    match: Pattern = Field(
+        ..., description="A compiled regex pattern which, when matched, will be masked"
+    )
+    replacement: str = Field(
+        default="***", description="A string to replace occurences of match with"
+    )
+
+
+class LogMaskingConfig(BaseModel):
+    patterns: List[MaskReplacement] = [
+        MaskReplacement(
+            match=re.compile(r"(?i)(-password(?:=|\s))(['\"]?)(.*?)(\2)(?=\s|$)"),
+            replacement=r"\1\2*****\2",
+        )
+    ]
+
+
 class EMGConfig(BaseSettings):
     amplicon_pipeline: AmpliconPipelineConfig = AmpliconPipelineConfig()
     assembler: AssemblerConfig = AssemblerConfig()
@@ -123,6 +142,7 @@ class EMGConfig(BaseSettings):
     slack: SlackConfig = SlackConfig()
     slurm: SlurmConfig = SlurmConfig()
     webin: WebinConfig = WebinConfig()
+    log_masking: LogMaskingConfig = LogMaskingConfig()
 
     model_config = {
         "env_prefix": "emg_",

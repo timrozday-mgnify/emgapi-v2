@@ -16,11 +16,13 @@ from prefect.artifacts import create_table_artifact
 from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 
+from analyses.models import Assembly
 from workflows.data_io_utils.filenames import (
     accession_prefix_separated_dir_path,
     file_path_shortener,
 )
 from workflows.ena_utils.ena_file_fetching import convert_ena_ftp_to_fire_fastq
+from workflows.flows.upload_assembly import upload_assembly
 from workflows.prefect_utils.slack_notification import notify_via_slack
 from workflows.views import encode_samplesheet_path
 
@@ -394,16 +396,36 @@ async def run_assembler_for_samplesheet(
                 )
 
 
+@flow(log_prints=True, task_runner=SequentialTaskRunner)
+def upload_assemblies(study: analyses.models.Study, dry_run: bool = False):
+    """
+    Uploads all completed, not-previously-uploaded assemblies to ENA.
+    The first assembly upload will usually trigger a TPA study to be created.
+    """
+    assemblies_to_upload = study.assemblies_reads.filter(
+        **{
+            f"status__{Assembly.AssemblyStates.ASSEMBLY_COMPLETED}": True,
+            f"status__{Assembly.AssemblyStates.ASSEMBLY_UPLOADED}": False,
+        }
+    )
+    for assembly in assemblies_to_upload:
+        upload_assembly(assembly.id, dry_run=dry_run)
+
+
 @flow(
     name="Assemble a study",
     flow_run_name="Assemble: {accession}",
     task_runner=SequentialTaskRunner,
 )
-async def assemble_study(accession: str):
+async def assemble_study(
+    accession: str, upload: bool = True, use_ena_dropbox_dev: bool = False
+):
     """
     Get a study from ENA, and input it to MGnify.
     Kick off assembly pipeline.
     :param accession: Study accession e.g. PRJxxxxxx
+    :param upload: Whether to upload the TPA study or not
+    :param use_ena_dropbox_dev: Whether to use ENA wwwdev dropbox
     """
     logger = get_run_logger()
 
@@ -483,3 +505,6 @@ which you can edit in the [admin panel]({EMG_CONFIG.service_urls.app_root}/{reve
             assembler,
         )
     await notify_via_slack(f"Assembly of {mgnify_study} / {accession} is finished")
+
+    if upload:
+        upload_assemblies(mgnify_study, dry_run=use_ena_dropbox_dev)

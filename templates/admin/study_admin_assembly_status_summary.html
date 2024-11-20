@@ -1,0 +1,18 @@
+{% extends "unfold/layouts/base.html" %}
+{% load unfold %}
+
+{% block content %}
+  {% component "unfold/components/card.html" %}
+    {% component "unfold/components/table.html" with table=assemblies_status_table card_included=1 striped=1 %}{% endcomponent %}
+  {% endcomponent %}
+
+  {% component "unfold/components/separator.html" %}{% endcomponent %}
+
+  {% component "unfold/components/card.html" %}
+    {% component "unfold/components/flex.html" with col=1 class="gap-5" %}
+        {% for state_and_count in assemblies_progress %}
+            {% component "unfold/components/progress.html" with title=state_and_count.state value=state_and_count.value %}{% endcomponent %}
+        {% endfor %}
+    {% endcomponent %}
+  {% endcomponent %}
+{% endblock %}
