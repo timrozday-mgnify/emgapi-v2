@@ -2,14 +2,17 @@ import csv
 import re
 from datetime import timedelta
 from pathlib import Path
+from textwrap import dedent as _
 from typing import Any, List, Union
 
 import django
 
+from workflows.views import encode_samplesheet_path
+
 django.setup()
 from django.conf import settings
 from django.utils.text import slugify
-from prefect import flow, task, get_run_logger
+from prefect import flow, get_run_logger, task
 from prefect.artifacts import create_table_artifact
 from prefect.task_runners import SequentialTaskRunner
 
@@ -25,8 +28,8 @@ from workflows.nextflow_utils.samplesheets import (
     queryset_hash,
     queryset_to_samplesheet,
 )
-from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 from workflows.prefect_utils.analyses_models_helpers import task_mark_analysis_status
+from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 from workflows.prefect_utils.slurm_flow import (
     ClusterJobFailedException,
     run_cluster_job,
@@ -68,14 +71,16 @@ def create_analyses(study: analyses.models.Study, runs: List[str]):
             study=study, sample=run_obj.sample, run=run_obj, ena_study=study.ena_study
         )
         if created:
-            print(f"Created analyses {analysis} {analysis.run.first_accession} {analysis.run.experiment_type}")
+            print(
+                f"Created analyses {analysis} {analysis.run.first_accession} {analysis.run.experiment_type}"
+            )
         analyses_list.append(analysis)
     return analyses_list
 
 
 @task(log_prints=True)
 def chunk_amplicon_list(items: List[Any], chunk_size: int) -> List[List[Any]]:
-    return [items[j: j + chunk_size] for j in range(0, len(items), chunk_size)]
+    return [items[j : j + chunk_size] for j in range(0, len(items), chunk_size)]
 
 
 @task(log_prints=True)
@@ -99,7 +104,7 @@ def make_samplesheet_amplicon(
 
     ss_hash = queryset_hash(runs, "id")
 
-    sample_sheet_tsv = queryset_to_samplesheet(
+    sample_sheet_csv = queryset_to_samplesheet(
         queryset=runs,
         filename=Path(EMG_CONFIG.slurm.default_workdir)
         / Path(
@@ -125,24 +130,29 @@ def make_samplesheet_amplicon(
         bludgeon=True,
     )
 
-    with open(sample_sheet_tsv) as f:
-        csv_reader = csv.DictReader(f, delimiter="\t")
+    with open(sample_sheet_csv) as f:
+        csv_reader = csv.DictReader(f, delimiter=",")
         table = list(csv_reader)
 
     create_table_artifact(
         key="amplicon-v6-initial-sample-sheet",
         table=table,
-        description="Sample sheet created for run of amplicon-v6",
+        description=_(
+            f"""\
+            Sample sheet created for run of amplicon-v6.
+            Saved to `{sample_sheet_csv}`
+            [Edit it]({EMG_CONFIG.service_urls.app_root}/workflows/edit-samplesheet/fetch/{encode_samplesheet_path(sample_sheet_csv)})
+            """
+        ),
     )
-    return sample_sheet_tsv
+    return sample_sheet_csv
 
 
 @task(
     cache_key_fn=context_agnostic_task_input_hash,
 )
 def sanity_check_amplicon_results(
-    amplicon_current_outdir: Path,
-    analysis: analyses.models.Analysis
+    amplicon_current_outdir: Path, analysis: analyses.models.Analysis
 ):
     """
     QC folder:
@@ -209,23 +219,47 @@ def sanity_check_amplicon_results(
     logger = get_run_logger()
     reason = None
     run_id = analysis.run.first_accession
-    qc_folder = Path(f"{amplicon_current_outdir}/{EMG_CONFIG.amplicon_pipeline.qc_folder}")
-    sequence_categorisation_folder = Path(f"{amplicon_current_outdir}/{EMG_CONFIG.amplicon_pipeline.sequence_categorisation_folder}")
-    amplified_region_inference_folder = Path(f"{amplicon_current_outdir}/{EMG_CONFIG.amplicon_pipeline.amplified_region_inference_folder}")
-    primer_identification_folder = Path(f"{amplicon_current_outdir}/{EMG_CONFIG.amplicon_pipeline.primer_identification_folder}")
-    asv_folder = Path(f"{amplicon_current_outdir}/{EMG_CONFIG.amplicon_pipeline.asv_folder}")
-    taxonomy_summary_folder = Path(f"{amplicon_current_outdir}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}")
+    qc_folder = Path(
+        f"{amplicon_current_outdir}/{EMG_CONFIG.amplicon_pipeline.qc_folder}"
+    )
+    sequence_categorisation_folder = Path(
+        f"{amplicon_current_outdir}/{EMG_CONFIG.amplicon_pipeline.sequence_categorisation_folder}"
+    )
+    amplified_region_inference_folder = Path(
+        f"{amplicon_current_outdir}/{EMG_CONFIG.amplicon_pipeline.amplified_region_inference_folder}"
+    )
+    primer_identification_folder = Path(
+        f"{amplicon_current_outdir}/{EMG_CONFIG.amplicon_pipeline.primer_identification_folder}"
+    )
+    asv_folder = Path(
+        f"{amplicon_current_outdir}/{EMG_CONFIG.amplicon_pipeline.asv_folder}"
+    )
+    taxonomy_summary_folder = Path(
+        f"{amplicon_current_outdir}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}"
+    )
 
     # SEQUENCE CATEGORISATION optional folder
     if sequence_categorisation_folder.exists():
         # if folder exists - checking for required files
-        pattern_gene_fasta = re.compile(r'\w+_(SSU|LSU|ITS)\.fasta$')
-        matching_gene_files = [True if f.is_file() and pattern_gene_fasta.match(f.name) else False for f in sequence_categorisation_folder.iterdir()]
-        pattern_domain_fasta = re.compile(r'\w+_(SSU|LSU|ITS)_rRNA_(bacteria|archaea|eukarya)\.[A-Z0-9]+\.fa$')
-        matching_domain_files = [True if f.is_file() and pattern_domain_fasta.match(f.name) else False for f in
-                               sequence_categorisation_folder.iterdir()]
-        if not (Path(f"{sequence_categorisation_folder}/{run_id}.tblout.deoverlapped").exists()
-                and sum(matching_gene_files) and sum(matching_domain_files)):
+        pattern_gene_fasta = re.compile(r"\w+_(SSU|LSU|ITS)\.fasta$")
+        matching_gene_files = [
+            True if f.is_file() and pattern_gene_fasta.match(f.name) else False
+            for f in sequence_categorisation_folder.iterdir()
+        ]
+        pattern_domain_fasta = re.compile(
+            r"\w+_(SSU|LSU|ITS)_rRNA_(bacteria|archaea|eukarya)\.[A-Z0-9]+\.fa$"
+        )
+        matching_domain_files = [
+            True if f.is_file() and pattern_domain_fasta.match(f.name) else False
+            for f in sequence_categorisation_folder.iterdir()
+        ]
+        if not (
+            Path(
+                f"{sequence_categorisation_folder}/{run_id}.tblout.deoverlapped"
+            ).exists()
+            and sum(matching_gene_files)
+            and sum(matching_domain_files)
+        ):
             reason = f"missing required files in {EMG_CONFIG.amplicon_pipeline.sequence_categorisation_folder}"
             logger.info(f"Post sanity check for {run_id}: {reason}")
 
@@ -238,7 +272,7 @@ def sanity_check_amplicon_results(
         else:
             if len(list(amplified_region_inference_folder.iterdir())) > 1:
                 # extract variable regions
-                pattern_txt = re.compile(r'\w+\.(\w+S)\.(V[\w.-]+)\.txt$')
+                pattern_txt = re.compile(r"\w+\.(\w+S)\.(V[\w.-]+)\.txt$")
                 for f in amplified_region_inference_folder.iterdir():
                     match = pattern_txt.search(f.name)
                     if match:
@@ -261,20 +295,29 @@ def sanity_check_amplicon_results(
                     reason = f"required file in {EMG_CONFIG.amplicon_pipeline.primer_identification_folder} did not passed sanity check"
                     logger.info(f"Post sanity check for {run_id}: {reason}")
         elif len(list(primer_identification_folder.iterdir())) == 3:
-            primers_file = Path(f"{primer_identification_folder}/{run_id}_primers.fasta")
-            validation_file = Path(f"{primer_identification_folder}/{run_id}_primer_validation.tsv")
-            if primers_file.exists() and validation_file.exists() and cutadapt_json.exists():
+            primers_file = Path(
+                f"{primer_identification_folder}/{run_id}_primers.fasta"
+            )
+            validation_file = Path(
+                f"{primer_identification_folder}/{run_id}_primer_validation.tsv"
+            )
+            if (
+                primers_file.exists()
+                and validation_file.exists()
+                and cutadapt_json.exists()
+            ):
                 if not (
-                        (
-                                primers_file.stat().st_size == 0
-                                and validation_file.stat().st_size == 0
-                                and cutadapt_json.stat().st_size == 0
-                        ) or (
-                                primers_file.stat().st_size != 0
-                                and validation_file.stat().st_size != 0
-                                and cutadapt_json.stat().st_size != 0
-                         )
-                       ):
+                    (
+                        primers_file.stat().st_size == 0
+                        and validation_file.stat().st_size == 0
+                        and cutadapt_json.stat().st_size == 0
+                    )
+                    or (
+                        primers_file.stat().st_size != 0
+                        and validation_file.stat().st_size != 0
+                        and cutadapt_json.stat().st_size != 0
+                    )
+                ):
                     reason = f"Incorrect file sizes in {EMG_CONFIG.amplicon_pipeline.primer_identification_folder}"
                     logger.info(f"Post sanity check for {run_id}: {reason}")
             else:
@@ -290,22 +333,35 @@ def sanity_check_amplicon_results(
         dada2_silva = Path(f"{asv_folder}/{run_id}_DADA2-SILVA_asv_tax.tsv")
         dada2_pr2 = Path(f"{asv_folder}/{run_id}_DADA2-PR2_asv_tax.tsv")
         asv_stats = Path(f"{asv_folder}/{run_id}_asv_seqs.fasta")
-        if not (dada2_stats.exists() and dada2_pr2.exists() and dada2_silva.exists() and asv_stats.exists()):
-            reason = f"missing required file in {EMG_CONFIG.amplicon_pipeline.asv_folder}"
+        if not (
+            dada2_stats.exists()
+            and dada2_pr2.exists()
+            and dada2_silva.exists()
+            and asv_stats.exists()
+        ):
+            reason = (
+                f"missing required file in {EMG_CONFIG.amplicon_pipeline.asv_folder}"
+            )
             logger.info(f"Post sanity check for {run_id}: {reason}")
         else:
             # check var regions
             if amplified_regions:
                 for region in amplified_regions:
                     if Path(f"{asv_folder}/{region}").exists():
-                        if not Path(f"{asv_folder}/{region}/{run_id}_{region}_asv_read_counts.tsv").exists():
+                        if not Path(
+                            f"{asv_folder}/{region}/{run_id}_{region}_asv_read_counts.tsv"
+                        ).exists():
                             reason = f"No asv_read_counts in {region}"
                     else:
-                        reason = f"No {region} in {EMG_CONFIG.amplicon_pipeline.asv_folder}"
+                        reason = (
+                            f"No {region} in {EMG_CONFIG.amplicon_pipeline.asv_folder}"
+                        )
             # check concat folder for more than 1 region
             if len(amplified_regions) > 1:
                 if Path(f"{asv_folder}/concat").exists():
-                    if not Path(f"{asv_folder}/concat/{run_id}_concat_asv_read_counts.tsv").exists():
+                    if not Path(
+                        f"{asv_folder}/concat/{run_id}_concat_asv_read_counts.tsv"
+                    ).exists():
                         reason = f"No counts for concat folder in {EMG_CONFIG.amplicon_pipeline.asv_folder}"
                 else:
                     reason = f"Missing concat folder in {EMG_CONFIG.amplicon_pipeline.asv_folder} for {len(amplified_regions)} regions"
@@ -315,10 +371,26 @@ def sanity_check_amplicon_results(
         dada2_tax_names = ["DADA2-SILVA", "DADA2-PR2"]
         tax_dbs = ["SILVA-SSU", "SILVA-LSU", "UNITE", "ITSoneDB", "PR2"]
         if asv_folder.exists():
-            if sum([Path(f"{taxonomy_summary_folder}/{db}").exists() for db in dada2_tax_names]) != 2:
+            if (
+                sum(
+                    [
+                        Path(f"{taxonomy_summary_folder}/{db}").exists()
+                        for db in dada2_tax_names
+                    ]
+                )
+                != 2
+            ):
                 reason = f"missing one of DADA2 tax folders in {EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}"
         else:
-            if sum([Path(f"{taxonomy_summary_folder}/{db}").exists() for db in dada2_tax_names]) != 0:
+            if (
+                sum(
+                    [
+                        Path(f"{taxonomy_summary_folder}/{db}").exists()
+                        for db in dada2_tax_names
+                    ]
+                )
+                != 0
+            ):
                 reason = f"DADA2 db exists but no {EMG_CONFIG.amplicon_pipeline.asv_folder} found"
         for db in taxonomy_summary_folder.iterdir():
             if db.name in tax_dbs:
@@ -326,22 +398,28 @@ def sanity_check_amplicon_results(
                 mseq = Path(f"{db}/{run_id}_{db.name}.mseq")
                 tsv = Path(f"{db}/{run_id}_{db.name}.tsv")
                 txt = Path(f"{db}/{run_id}_{db.name}.txt")
-                if not(html.exists() and mseq.exists() and tsv.exists() and txt.exists()):
+                if not (
+                    html.exists() and mseq.exists() and tsv.exists() and txt.exists()
+                ):
                     reason = f"missing file in {db}"
             elif db.name in dada2_tax_names and asv_folder.exists():
                 if not Path(f"{db}/{run_id}_{db.name}.mseq").exists():
                     reason = f"missing mseq in {db}"
                 else:
                     for region in amplified_regions:
-                        region_krona = Path(f"{db}/{run_id}_{region}_{db.name}_asv_krona_counts.txt")
+                        region_krona = Path(
+                            f"{db}/{run_id}_{region}_{db.name}_asv_krona_counts.txt"
+                        )
                         region_html = Path(f"{db}/{run_id}_{region}.html")
-                        if not(region_html.exists() and region_krona.exists()):
+                        if not (region_html.exists() and region_krona.exists()):
                             reason = f"missing {region} file in {db}"
                     # checking concat folder
                     if len(amplified_regions) == 2:
                         concat_html = Path(f"{db}/{run_id}_concat.html")
-                        concat_krona = Path(f"{db}/{run_id}_concat_{db.name}_asv_krona_counts.txt")
-                        if not(concat_krona.exists() and concat_html.exists()):
+                        concat_krona = Path(
+                            f"{db}/{run_id}_concat_{db.name}_asv_krona_counts.txt"
+                        )
+                        if not (concat_krona.exists() and concat_html.exists()):
                             reason = f"missing concat files in {db}"
             else:
                 reason = f"unknown {db} in {EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}"
@@ -358,23 +436,22 @@ def sanity_check_amplicon_results(
         task_mark_analysis_status(
             analysis,
             status=analyses.models.Analysis.AnalysisStates.ANALYSIS_POST_SANITY_CHECK_FAILED,
-            reason=reason
+            reason=reason,
         )
 
 
 @task(
     cache_key_fn=context_agnostic_task_input_hash,
 )
-def set_post_analysis_states(
-    amplicon_current_outdir: Path,
-    amplicon_analyses: List
-):
+def set_post_analysis_states(amplicon_current_outdir: Path, amplicon_analyses: List):
     # The pipeline produces top level end of execution reports, which contain
     # the list of the runs that were completed, and those that were not.
     # For more information: https://github.com/EBI-Metagenomics/amplicon-pipeline?tab=readme-ov-file#top-level-reports
 
     # qc_failed_runs.csv: runID,reason(seqfu_fail/sfxhd_fail/libstrat_fail/no_reads)
-    qc_failed_csv = Path(f"{amplicon_current_outdir}/{EMG_CONFIG.amplicon_pipeline.failed_runs_csv}")
+    qc_failed_csv = Path(
+        f"{amplicon_current_outdir}/{EMG_CONFIG.amplicon_pipeline.failed_runs_csv}"
+    )
     qc_failed_runs = {}  # Stores {run_accession, qc_fail_reason}
 
     if qc_failed_csv.is_file():
@@ -384,7 +461,9 @@ def set_post_analysis_states(
                 qc_failed_runs[run_accession] = fail_reason
 
     # qc_passed_runs.csv: runID,info(all_results/no_asvs)
-    qc_completed_csv = Path(f"{amplicon_current_outdir}/{EMG_CONFIG.amplicon_pipeline.completed_runs_csv}")
+    qc_completed_csv = Path(
+        f"{amplicon_current_outdir}/{EMG_CONFIG.amplicon_pipeline.completed_runs_csv}"
+    )
     qc_completed_runs = {}  # Stores {run_accession, qc_fail_reason}
 
     if qc_completed_csv.is_file():
@@ -398,23 +477,23 @@ def set_post_analysis_states(
             task_mark_analysis_status(
                 analysis,
                 status=analyses.models.Analysis.AnalysisStates.ANALYSIS_FAILED,
-                reason=qc_failed_runs[analysis.run.first_accession]
+                reason=qc_failed_runs[analysis.run.first_accession],
             )
         elif analysis.run.first_accession in qc_completed_runs:
             task_mark_analysis_status(
                 analysis,
                 status=analyses.models.Analysis.AnalysisStates.ANALYSIS_COMPLETED,
-                reason=qc_completed_runs[analysis.run.first_accession]
+                reason=qc_completed_runs[analysis.run.first_accession],
             )
             sanity_check_amplicon_results(
                 Path(f"{amplicon_current_outdir}/{analysis.run.first_accession}"),
-                analysis
+                analysis,
             )
         else:
             task_mark_analysis_status(
                 analysis,
                 status=analyses.models.Analysis.AnalysisStates.ANALYSIS_FAILED,
-                reason="Missing run in execution"
+                reason="Missing run in execution",
             )
 
 
@@ -431,7 +510,9 @@ async def perform_amplicons_in_parallel(
     async for run in amplicon_analyses:
         mark_analysis_as_started(run)
 
-    amplicon_current_outdir = Path(f"{EMG_CONFIG.slurm.default_workdir}/{mgnify_study.ena_study.accession}_amplicon_v6")
+    amplicon_current_outdir = Path(
+        f"{EMG_CONFIG.slurm.default_workdir}/{mgnify_study.ena_study.accession}_amplicon_v6"
+    )
     command = (
         f"nextflow run {EMG_CONFIG.amplicon_pipeline.amplicon_pipeline_repo} "
         f"-r {EMG_CONFIG.amplicon_pipeline.amplicon_pipeline_git_revision} "
@@ -445,7 +526,10 @@ async def perform_amplicons_in_parallel(
     )
 
     try:
-        env_variables = "ALL,TOWER_WORKSPACE_ID" + f"{',TOWER_ACCESS_TOKEN' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''} "
+        env_variables = (
+            "ALL,TOWER_WORKSPACE_ID"
+            + f"{',TOWER_ACCESS_TOKEN' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''} "
+        )
         await run_cluster_job(
             name=f"Analyse amplicon study {mgnify_study.ena_study.accession} via samplesheet {slugify(samplesheet)}",
             command=command,
@@ -468,9 +552,7 @@ async def perform_amplicons_in_parallel(
     flow_run_name="Analyse amplicon: {study_accession}",
     task_runner=SequentialTaskRunner,
 )
-async def analysis_amplicon_study(
-    study_accession: str
-):
+async def analysis_amplicon_study(study_accession: str):
     """
     Get a study from ENA, and input it to MGnify.
     Kick off amplicon-v6 pipeline.
@@ -492,7 +574,9 @@ async def analysis_amplicon_study(
     logger.info(f"MGnify study is {mgnify_study.accession}: {mgnify_study.title}")
 
     read_runs = get_study_readruns_from_ena(
-        ena_study.accession, limit=5000, filter_library_strategy=EMG_CONFIG.amplicon_pipeline.amplicon_library_strategy
+        ena_study.accession,
+        limit=5000,
+        filter_library_strategy=EMG_CONFIG.amplicon_pipeline.amplicon_library_strategy,
     )
     logger.info(f"Returned {len(read_runs)} run from ENA portal API")
 
@@ -502,8 +586,12 @@ async def analysis_amplicon_study(
 
     # Work on chunks of 20 readruns at a time
     # Doing so means we don't use our entire cluster allocation for this study
-    chunked_runs = chunk_amplicon_list(runs_to_attempt, EMG_CONFIG.amplicon_pipeline.samplesheet_chunk_size)
+    chunked_runs = chunk_amplicon_list(
+        runs_to_attempt, EMG_CONFIG.amplicon_pipeline.samplesheet_chunk_size
+    )
     for runs_chunk in chunked_runs:
         # launch jobs for all runs in this chunk in a single flow
-        logger.info(f"Working on amplicons: {runs_chunk[0]}-{runs_chunk[len(runs_chunk)-1]}")
+        logger.info(
+            f"Working on amplicons: {runs_chunk[0]}-{runs_chunk[len(runs_chunk)-1]}"
+        )
         await perform_amplicons_in_parallel(mgnify_study, runs_chunk)
