@@ -45,12 +45,21 @@ class SlurmConfig(BaseModel):
 
 
 class AssemblerConfig(BaseModel):
+    assembly_pipeline_repo: str = "ebi-metagenomics/miassembler"
     assembler_default: str = "metaspades"
     assembler_version_default: str = "3.15.5"
     miassemebler_git_revision: str = (
-        "main"  # branch or commit of ebi-metagenomics/mi-assembler
+        "main"  # branch or commit of ebi-metagenomics/miassembler
     )
     miassembler_nf_profile: str = "codon_slurm"
+
+
+class AmpliconPipelineConfig(BaseModel):
+    amplicon_pipeline_repo: str = "ebi-metagenomics/amplicon-pipeline"
+    amplicon_pipeline_git_revision: str = (
+        "main"  # branch or commit of ebi-metagenomics/amplicon-pipeline
+    )
+    amplicon_pipeline_nf_profile: str = "codon_slurm"
 
 
 class WebinConfig(BaseModel):
@@ -64,6 +73,23 @@ class ENAConfig(BaseModel):
     primary_study_accession_re: str = "(PRJ[EDN][A-Z][0-9]+)"
     assembly_accession_re: str = "([EDS]RZ[0-9]{6,})"
     portal_search_api: AnyHttpUrl = "https://www.ebi.ac.uk/ena/portal/api/search"
+    # TODO: migrate to the ENA Handler
+    study_metadata_fields: list = [
+        "study_title",
+        "secondary_study_accession"
+    ]
+    # TODO: migrate to the ENA Handler
+    readrun_metadata_fields: list = [
+        "sample_accession",
+        "sample_title",
+        "secondary_sample_accession",
+        "fastq_md5",
+        "fastq_ftp",
+        "library_layout",
+        "library_strategy",
+        "library_source",
+        "scientific_name"
+    ]
 
     ftp_prefix: str = "ftp.sra.ebi.ac.uk/vol1/"
     fire_prefix: str = "s3://era-public/"
@@ -107,6 +133,7 @@ class LogMaskingConfig(BaseModel):
 
 
 class EMGConfig(BaseSettings):
+    amplicon_pipeline: AmpliconPipelineConfig = AmpliconPipelineConfig()
     assembler: AssemblerConfig = AssemblerConfig()
     ena: ENAConfig = ENAConfig()
     environment: str = "development"
