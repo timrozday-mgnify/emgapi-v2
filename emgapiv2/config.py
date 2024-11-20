@@ -28,13 +28,17 @@ class SlurmConfig(BaseModel):
     job_log_tail_lines: int = 10
     # how many lines of slurm log to send to prefect each time we check it
 
-    use_nextflow_tower: bool = True
+    use_nextflow_tower: bool = False
     nextflow_tower_org: str = "EMBL-EBI"
     nextflow_tower_workspace: str = "ebi-spws-dev-microbiome-info"
 
     datamover_paritition: str = "datamover"
 
-    amplicon_nextflow_master_job_memory: int = 5  # Gb
+    assembly_uploader_python_executable: str = "python3"
+    assembly_uploader_root_dir: str = ""
+    webin_cli_executor: str = "/usr/bin/webin-cli/webin-cli.jar"
+
+    amplicon_nextflow_master_job_memory: int = 1  # Gb
 
     shared_filesystem_root_on_slurm: str = "/nfs/public"
     shared_filesystem_root_on_server: str = "/app/data"
@@ -60,6 +64,18 @@ class AmpliconPipelineConfig(BaseModel):
         "main"  # branch or commit of ebi-metagenomics/amplicon-pipeline
     )
     amplicon_pipeline_nf_profile: str = "codon_slurm"
+    samplesheet_chunk_size: int = 20
+    amplicon_library_strategy: str = "AMPLICON"
+    # results stats
+    completed_runs_csv: str = "qc_passed_runs.csv"
+    failed_runs_csv: str = "qc_failed_runs.csv"
+    # results folders
+    qc_folder: str = "qc"
+    sequence_categorisation_folder: str = "sequence-categorisation"
+    amplified_region_inference_folder: str = "amplified-region-inference"
+    asv_folder: str = "asv"
+    primer_identification_folder: str = "primer-identification"
+    taxonomy_summary_folder: str = "taxonomy-summary"
 
 
 class WebinConfig(BaseModel):

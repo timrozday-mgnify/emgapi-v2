@@ -476,6 +476,8 @@ class Analysis(
         ANALYSIS_COMPLETED = "analysis_completed"
         ANALYSIS_BLOCKED = "analysis_blocked"
         ANALYSIS_FAILED = "analysis_failed"
+        ANALYSIS_QC_FAILED = "analysis_qc_failed"
+        ANALYSIS_POST_SANITY_CHECK_FAILED = "analysis_post_sanity_check_failed"
 
         @classmethod
         def default_status(cls):
@@ -490,8 +492,10 @@ class Analysis(
         default=AnalysisStates.default_status, null=True, blank=True
     )
 
-    def mark_status(self, status: AnalysisStates, set_status_as: bool = True):
+    def mark_status(self, status: AnalysisStates, set_status_as: bool = True, reason: str = None):
         self.status[status] = set_status_as
+        if reason:
+            self.status[f"{status}_reason"] = reason
         return self.save()
 
     class Meta:

@@ -120,8 +120,8 @@ def check_reads_fastq(fastq: list, run_accession: str, library_layout: str):
 
 @task(
     retries=10,
-    retry_delay_seconds=60,
     cache_key_fn=context_agnostic_task_input_hash,
+    retry_delay_seconds=60,
     task_run_name="Get study readruns from ENA: {accession}",
     log_prints=True,
 )
@@ -156,16 +156,11 @@ def get_study_readruns_from_ena(
 
     logger.info("ENA portal responded ok.")
     for read_run in portal.json():
-        # check scientific name
-        if METAGENOME_SCIENTIFIC_NAME not in read_run['scientific_name']:
-            logger.warning(f"Run {read_run['run_accession']} is not in metagenome taxa. "
-                           f"No further processing for that run.")
-            continue
-
-        # check metagenome source
-        if read_run['library_source'] not in ALLOWED_LIBRARY_SOURCE:
-            logger.warning(f"Run {read_run['run_accession']} data has not allowed source. "
-                           f"No further processing for that run.")
+        # check scientific name and metagenome source
+        if METAGENOME_SCIENTIFIC_NAME not in read_run['scientific_name'] and \
+            read_run['library_source'] not in ALLOWED_LIBRARY_SOURCE:
+            logger.warning(f"Run {read_run['run_accession']} is not in metagenome taxa and not in allowed library_sources. "
+                               f"No further processing for that run.")
             continue
 
         # check fastq files order/presence
