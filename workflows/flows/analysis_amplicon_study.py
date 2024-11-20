@@ -7,6 +7,7 @@ from typing import Any, List, Union
 
 import django
 
+from workflows.ena_utils.ena_file_fetching import convert_ena_ftp_to_fire_fastq
 from workflows.views import encode_samplesheet_path
 
 django.setup()
@@ -116,11 +117,14 @@ def make_samplesheet_amplicon(
                 renderer=lambda accessions: accessions[0],
             ),
             "fastq_1": SamplesheetColumnSource(
-                lookup_string="metadata__fastq_ftps", renderer=lambda ftps: ftps[0]
+                lookup_string="metadata__fastq_ftps",
+                renderer=lambda ftps: convert_ena_ftp_to_fire_fastq(ftps[0]),
             ),
             "fastq_2": SamplesheetColumnSource(
                 lookup_string="metadata__fastq_ftps",
-                renderer=lambda ftps: ftps[1] if len(ftps) > 1 else "",
+                renderer=lambda ftps: (
+                    convert_ena_ftp_to_fire_fastq(ftps[1]) if len(ftps) > 1 else ""
+                ),
             ),
             "single_end": SamplesheetColumnSource(
                 lookup_string="metadata__fastq_ftps",
