@@ -39,3 +39,8 @@ jobs:
         with:
           files: coverage/coverage.xml
           token: ${{ secrets.CODECOV_TOKEN }}
+
+
+# Debugging info:
+# This workflow file also works offline, using https://github.com/nektos/act.
+# Tested on Apple M series, with Colima.

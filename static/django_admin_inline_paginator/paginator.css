@@ -1,0 +1,30 @@
+.btn-page {
+  border: none;
+  padding: 5px 10px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 12px;
+  margin: 4px 2px;
+  cursor: pointer;
+}
+
+.page-available {
+  background-color: #ffffff;
+  color: #666;
+  border: 1px solid rgb(19, 134, 66);
+}
+
+.page-selected {
+  background-color: rgb(19, 134, 66);
+  color: white !important;
+}
+
+.results {
+  background-color: #ffffff;
+  color: #666;
+}
+
+div.admin-tabular-inline-pagination {
+  margin-bottom: 32px;
+}
