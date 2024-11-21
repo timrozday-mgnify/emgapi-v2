@@ -46,29 +46,55 @@ class MGnifyAnalysisDownloadFile(Schema, DownloadFile):
 
 
 class MGnifyAnalysis(ModelSchema):
-    study_accession: str = Field(..., alias="study_id")
+    study_accession: str
 
     class Meta:
         model = analyses.models.Analysis
         fields = ["accession"]
 
+
+class AnalysedRun(ModelSchema):
+    accession: str = Field(..., alias="first_accession", examples=["ERR0000001"])
+    instrument_model: Optional[str] = Field(..., examples=["Illumina HiSeq 2000"])
+    instrument_platform: Optional[str] = Field(..., examples=["Illumina"])
+
+    class Meta:
+        model = analyses.models.Run
+        fields = ["instrument_model", "instrument_platform"]
+
+
 class MGnifyAnalysisDetail(MGnifyAnalysis):
     downloads: List[MGnifyAnalysisDownloadFile] = Field(
         ..., alias="downloads_as_objects"
     )
-    run_accession:  Optional[str]
-    sample_accession: Optional[str] = Field(..., alias="sample_id")
-    assembly_accession: Optional[str] = Field(..., alias="assembly_id")
-    experiment_type: Optional[str]
-    instrument_model: Optional[str]
-    instrument_platform: Optional[str]
-    pipeline_version: Optional[str]
+    run_accession: Optional[str] = Field(
+        ...,
+        description="Accession number of the run this analysis is of, if this is a raw read analysis.",
+        examples=["ERR0000001"],
+    )
+    sample_accession: Optional[str] = Field(..., examples=["ERS0000001"])
+    assembly_accession: Optional[str] = Field(
+        ...,
+        description="Accession number of the assembly this analysis is of, if this is an assembly analysis.",
+        examples=["ERZ0000001"],
+    )
+    experiment_type: Optional[analyses.models.Run.ExperimentTypes]
+    pipeline_version: Optional[analyses.models.Analysis.PipelineVersions]
+    read_run: Optional[AnalysedRun] = Field(
+        ...,
+        alias="raw_run",
+        description="Metadata associated with the original read run this analysis is based on, whether or not those reads were assembled.",
+    )
 
     class Meta:
         model = analyses.models.Analysis
-        fields = ["accession", "run_accession", "sample_accession",
-                  "assembly_accession", "experiment_type", "instrument_model",
-                  "instrument_platform", "pipeline_version"]
+        fields = [
+            "accession",
+            "sample_accession",
+            "assembly_accession",
+            "experiment_type",
+            "pipeline_version",
+        ]
 
 
 class MGnifyAnalysisTypedAnnotation(Schema):

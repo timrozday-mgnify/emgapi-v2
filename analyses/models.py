@@ -5,7 +5,7 @@ import os
 import re
 from enum import Enum
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Union
 
 from asgiref.sync import sync_to_async
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
@@ -508,8 +508,12 @@ class Analysis(
         return self.save()
 
     @property
-    def assembly_or_run(self):
+    def assembly_or_run(self) -> Union[Assembly, Run]:
         return self.assembly or self.run
+
+    @property
+    def raw_run(self) -> Run:
+        return self.assembly.run if self.assembly else self.run
 
     class Meta:
         verbose_name_plural = "Analyses"
