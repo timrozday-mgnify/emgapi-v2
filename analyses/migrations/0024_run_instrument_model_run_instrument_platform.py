@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('analyses', '0022_alter_assembly_metadata'),
+        ('analyses', '0023_alter_run_metadata'),
     ]
 
     operations = [
