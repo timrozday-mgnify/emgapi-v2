@@ -116,7 +116,6 @@ def list_mgnify_studies(request):
 #################################################################
 
 
-
 @api.get(
     "/analyses/{accession}",
     response=MGnifyAnalysisDetail,
@@ -134,26 +133,28 @@ def list_mgnify_studies(request):
     ),
 )
 def get_mgnify_analysis(request, accession: str):
-    analysis = get_object_or_404(analyses.models.Analysis.objects.select_related("run"), accession=accession)
+    analysis = get_object_or_404(
+        analyses.models.Analysis.objects.select_related("run"), accession=accession
+    )
 
-    run_accession = analysis.run.ena_accessions[0] if analysis.run else None
-    study_id = analysis.study.accession if analysis.study else None
-    sample_id = analysis.sample.ena_sample_id if analysis.sample else None
-    assembly_id = analysis.assembly.ena_accessions[0] if analysis.assembly else None
+    run_accession = analysis.run.first_accession if analysis.run else None
+    study_accession = analysis.study.accession if analysis.study else None
+    sample_accession = analysis.sample.ena_sample.accession if analysis.sample else None
+    assembly_accession = (
+        analysis.assembly.first_accession if analysis.assembly else None
+    )
     experiment_type = analysis.run.experiment_type if analysis.run else None
-    instrument_model = analysis.run.instrument_model if analysis.run else None
-    instrument_platform = analysis.run.instrument_platform if analysis.run else None
+    raw_run = analysis.raw_run
 
     response = {
         "accession": analysis.accession,
         "run_accession": run_accession,
         "downloads_as_objects": analysis.downloads_as_objects,
-        "study_id": study_id,
-        "sample_id": sample_id,
-        "assembly_id": assembly_id,
+        "study_accession": study_accession,
+        "sample_accession": sample_accession,
+        "assembly_accession": assembly_accession,
         "experiment_type": experiment_type,
-        "instrument_model": instrument_model,
-        "instrument_platform": instrument_platform,
+        "raw_run": raw_run,
         "pipeline_version": analysis.pipeline_version,
     }
 
