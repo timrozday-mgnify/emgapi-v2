@@ -1,3 +1,6 @@
+from typing import Iterable
+
+from django.contrib import admin
 from django.core.validators import EMPTY_VALUES
 from django.db.models import Q
 from django_admin_inline_paginator.admin import InlinePaginated
@@ -30,3 +33,23 @@ class StudyFilter(TextFilter):
             filters |= Q(**{f"{field}__icontains": self.value()})
 
         return queryset.filter(filters)
+
+
+class StatusListFilter(admin.SimpleListFilter):
+    def get_statuses(self) -> Iterable[str]:
+        raise NotImplemented
+
+    title = "status"  # title of the filter
+    parameter_name = "status"  # url param for the filter
+
+    status_field = "status"  # JSON field on the model containing statuses
+
+    def lookups(self, request, model_admin):
+        return [
+            (state, state.replace("_", " ").title()) for state in self.get_statuses()
+        ]
+
+    def queryset(self, request, queryset):
+        if self.value() is None:
+            return queryset
+        return queryset.filter(**{f"{self.status_field}__{self.value()}": True})

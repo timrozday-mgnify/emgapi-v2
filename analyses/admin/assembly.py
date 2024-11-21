@@ -1,25 +1,15 @@
+from typing import Iterable
+
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 
-from analyses.admin.base import StudyFilter
+from analyses.admin.base import StatusListFilter, StudyFilter
 from analyses.models import Assembler, Assembly
 
 
-class AssemblyStatusListFilter(admin.SimpleListFilter):
-    title = "status"
-
-    parameter_name = "status"
-
-    def lookups(self, request, model_admin):
-        return [
-            (state, state.replace("_", " ").title())
-            for state in Assembly.AssemblyStates
-        ]
-
-    def queryset(self, request, queryset):
-        if self.value() is None:
-            return queryset
-        return queryset.filter(**{f"status__{self.value()}": True})
+class AssemblyStatusListFilter(StatusListFilter):
+    def get_statuses(self) -> Iterable[str]:
+        return Assembly.AssemblyStates
 
 
 @admin.register(Assembly)

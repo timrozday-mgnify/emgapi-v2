@@ -9,7 +9,8 @@ from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin
 from unfold.decorators import action, display
 
-from analyses.admin.base import TabularInlinePaginatedWithTabSupport
+from analyses.admin.analysis import AnalysisStatusListFilter
+from analyses.admin.base import StudyFilter, TabularInlinePaginatedWithTabSupport
 from analyses.models import Analysis, Assembly, Run, Study
 from emgapiv2.widgets import StatusPathwayWidget
 
@@ -113,7 +114,11 @@ class StudyAdmin(ModelAdmin):
         "ena_study__additional_accessions",
         "biome__biome_name",
     ]
-    actions_detail = ["show_assembly_status_summary", "show_run_type_summary"]
+    actions_detail = [
+        "show_assembly_status_summary",
+        "show_run_type_summary",
+        "show_analysis_status_summary",
+    ]
 
     fieldsets = (
         (None, {"fields": ["title", "ena_study", "biome", "ena_accessions"]}),
@@ -130,27 +135,6 @@ class StudyAdmin(ModelAdmin):
             },
         ),
     )
-
-    readonly_fields = ["filtered_run_links"]
-
-    def filtered_run_links(self, obj: Study):
-        if obj:
-            return format_html_join(
-                format_html("<br>"),
-                '<div><a href="{}" target="_blank" class="flex flex-row font-medium group items-center text-base text-purple-600 dark:text-purple-500">Show all {} runs <i class="material-symbols-outlined ml-2 relative right-0 text-lg transition-all group-hover:-right-1">arrow_right_alt</i></a></div>',
-                (
-                    (
-                        reverse("admin:analyses_run_changelist")
-                        + f"?experiment_type__exact={code}&q={obj.accession}",
-                        label,
-                    )
-                    for code, label in Run.ExperimentTypes.choices
-                ),
-            )
-
-        return "No link available"
-
-    filtered_run_links.short_description = "Jump to Runs by type"
 
     @display(description="ENA Accessions", label=True)
     def display_accessions(self, instance: Run):
@@ -245,6 +229,52 @@ class StudyAdmin(ModelAdmin):
                 "study": study,
                 "run_types_table": runs_types_table,
                 "title": f"Experiment types summary for runs of {study.accession}",
+                **self.admin_site.each_context(request),
+            },
+        )
+
+    @action(
+        description="Report: analysis statuses",
+        url_path="study-analysis-status-summary",
+    )
+    def show_analysis_status_summary(self, request, object_id):
+        study = get_object_or_404(Study, pk=object_id)
+        analyses_per_state = {
+            state: study.analyses.filter(**{f"status__{state.value}": True}).count()
+            for state in Analysis.AnalysisStates
+        }
+        analyses_total = study.analyses.count()
+
+        def make_state_link(state: Analysis.AnalysisStates) -> str:
+            url = reverse_lazy("admin:analyses_analysis_changelist")
+            url += f"?{AnalysisStatusListFilter.parameter_name}={state}&{StudyFilter.parameter_name}={study.accession}"
+            return format_html("<a href='{}'>{}</a>", url, state.value)
+
+        analyses_status_table = {
+            "headers": ["Analyses with state", "Count"],
+            "rows": [["Total", analyses_total]]
+            + [
+                [make_state_link(state), count]
+                for state, count in analyses_per_state.items()
+            ],
+        }
+
+        analyses_progress = [
+            {
+                "state": state.value,
+                "value": (100 * count / analyses_total) if analyses_total else 0,
+            }
+            for state, count in analyses_per_state.items()
+        ]
+
+        return render(
+            request,
+            "admin/study_admin_analysis_status_summary.html",
+            {
+                "study": study,
+                "analyses_status_table": analyses_status_table,
+                "analyses_progress": analyses_progress,
+                "title": f"Analysis status summary for {study.accession}",
                 **self.admin_site.each_context(request),
             },
         )

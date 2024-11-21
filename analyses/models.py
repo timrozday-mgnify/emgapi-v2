@@ -471,7 +471,7 @@ class Analysis(
         choices=PipelineVersions, max_length=5, default=PipelineVersions.v6
     )
 
-    class AnalysisStates:
+    class AnalysisStates(str, Enum):
         ANALYSIS_STARTED = "analysis_started"
         ANALYSIS_COMPLETED = "analysis_completed"
         ANALYSIS_BLOCKED = "analysis_blocked"
@@ -492,11 +492,17 @@ class Analysis(
         default=AnalysisStates.default_status, null=True, blank=True
     )
 
-    def mark_status(self, status: AnalysisStates, set_status_as: bool = True, reason: str = None):
+    def mark_status(
+        self, status: AnalysisStates, set_status_as: bool = True, reason: str = None
+    ):
         self.status[status] = set_status_as
         if reason:
             self.status[f"{status}_reason"] = reason
         return self.save()
+
+    @property
+    def assembly_or_run(self):
+        return self.assembly or self.run
 
     class Meta:
         verbose_name_plural = "Analyses"
