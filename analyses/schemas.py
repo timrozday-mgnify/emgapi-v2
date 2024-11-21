@@ -55,8 +55,8 @@ class MGnifyAnalysis(ModelSchema):
 
 class AnalysedRun(ModelSchema):
     accession: str = Field(..., alias="first_accession", examples=["ERR0000001"])
-    instrument_model: str = Field(..., examples=["Illumina HiSeq 2000"])
-    instrument_platform: str = Field(..., examples=["Illumina"])
+    instrument_model: Optional[str] = Field(..., examples=["Illumina HiSeq 2000"])
+    instrument_platform: Optional[str] = Field(..., examples=["Illumina"])
 
     class Meta:
         model = analyses.models.Run
