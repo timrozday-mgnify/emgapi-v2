@@ -52,7 +52,7 @@ def test_prefect_import_v5_amplicon_analyses_flow(
         mgys="MGYS00005000",
     )
 
-    assert "Created analysis MGYA00012345 (V5)" in importer_flow_run.logs
+    assert "Created analysis MGYA00012345 (V5 AMPLI)" in importer_flow_run.logs
 
     imported_analysis: Analysis = Analysis.objects.filter(
         accession="MGYA00012345"

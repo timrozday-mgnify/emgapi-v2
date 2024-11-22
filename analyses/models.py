@@ -11,6 +11,8 @@ from asgiref.sync import sync_to_async
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import models
 from django.db.models import JSONField, Q
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from django_ltree.models import TreeModel
 
 import ena.models
@@ -111,7 +113,30 @@ class Sample(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
         return f"Sample {self.id}: {self.ena_sample}"
 
 
-class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
+class WithExperimentTypeModel(models.Model):
+    class ExperimentTypes(models.TextChoices):
+        METATRANSCRIPTOMIC = "METAT", "Metatranscriptomic"
+        METAGENOMIC = "METAG", "Metagenomic"
+        AMPLICON = "AMPLI", "Amplicon"
+        ASSEMBLY = "ASSEM", "Assembly"
+        HYBRID_ASSEMBLY = "HYASS", "Hybrid assembly"
+        LONG_READ_ASSEMBLY = "LRASS", "Long-read assembly"
+
+        # legacy
+        METABARCODING = "METAB", "Metabarcoding"
+        UNKNOWN = "UNKNO", "Unknown"
+
+    experiment_type = models.CharField(
+        choices=ExperimentTypes, max_length=5, default=ExperimentTypes.UNKNOWN
+    )
+
+    class Meta:
+        abstract = True
+
+
+class Run(
+    TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel, WithExperimentTypeModel
+):
     class CommonMetadataKeys:
         INSTRUMENT_PLATFORM = "instrument_platform"
         INSTRUMENT_MODEL = "instrument_model"
@@ -128,21 +153,6 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
         db_column="instrument_model", max_length=100, blank=True, null=True
     )
 
-    class ExperimentTypes(models.TextChoices):
-        METATRANSCRIPTOMIC = "METAT", "Metatranscriptomic"
-        METAGENOMIC = "METAG", "Metagenomic"
-        AMPLICON = "AMPLI", "Amplicon"
-        ASSEMBLY = "ASSEM", "Assembly"
-        HYBRID_ASSEMBLY = "HYASS", "Hybrid assembly"
-        LONG_READ_ASSEMBLY = "LRASS", "Long-read assembly"
-
-        # legacy
-        METABARCODING = "METAB", "Metabarcoding"
-        UNKNOWN = "UNKNO", "Unknown"
-
-    experiment_type = models.CharField(
-        choices=ExperimentTypes, max_length=5, default=ExperimentTypes.UNKNOWN
-    )
     metadata = models.JSONField(default=dict, blank=True)
     study = models.ForeignKey(Study, on_delete=models.CASCADE, related_name="runs")
     sample = models.ForeignKey(Sample, on_delete=models.CASCADE, related_name="runs")
@@ -408,6 +418,7 @@ class Analysis(
     TimeStampedModel,
     VisibilityControlledModel,
     WithDownloadsModel,
+    WithExperimentTypeModel,
 ):
     objects = AnalysisManagerDeferringAnnotations()
     objects_and_annotations = AnalysisManagerIncludingAnnotations()
@@ -520,11 +531,27 @@ class Analysis(
     def raw_run(self) -> Run:
         return self.assembly.run if self.assembly else self.run
 
+    def inherit_experiment_type(self):
+        if self.assembly:
+            self.experiment_type = self.ExperimentTypes.ASSEMBLY
+            # TODO: long reads and hybrids
+        if self.run:
+            self.experiment_type = (
+                self.run.experiment_type or self.ExperimentTypes.UNKNOWN
+            )
+        self.save()
+
     class Meta:
         verbose_name_plural = "Analyses"
 
     def __str__(self):
-        return f"{self.accession} ({self.pipeline_version})"
+        return f"{self.accession} ({self.pipeline_version} {self.experiment_type})"
+
+
+@receiver(post_save, sender=Analysis)
+def on_analysis_saved(sender, instance: Analysis, created, **kwargs):
+    if instance.experiment_type in [None, "", instance.ExperimentTypes.UNKNOWN]:
+        instance.inherit_experiment_type()
 
 
 class AnalysedContig(TimeStampedModel):

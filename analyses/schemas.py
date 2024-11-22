@@ -78,7 +78,7 @@ class MGnifyAnalysisDetail(MGnifyAnalysis):
         description="Accession number of the assembly this analysis is of, if this is an assembly analysis.",
         examples=["ERZ0000001"],
     )
-    experiment_type: Optional[analyses.models.Run.ExperimentTypes]
+    experiment_type: Optional[analyses.models.Analysis.ExperimentTypes]
     pipeline_version: Optional[analyses.models.Analysis.PipelineVersions]
     read_run: Optional[AnalysedRun] = Field(
         ...,

@@ -7,7 +7,15 @@ from django.core.management import call_command
 
 from ena.models import Study as ENAStudy
 
-from .models import Assembler, Biome, ComputeResourceHeuristic, Study
+from .models import (
+    Analysis,
+    Assembler,
+    Assembly,
+    Biome,
+    ComputeResourceHeuristic,
+    Run,
+    Study,
+)
 
 
 @pytest.mark.django_db(transaction=True, reset_sequences=True)
@@ -174,3 +182,17 @@ def test_biome_importer(httpx_mock):
     assert Biome.objects.filter(path="root.deep").exists()
     assert Biome.objects.get(path="root.deep").biome_name == "Deep"
     assert Biome.objects.get(path="root.deep").pretty_lineage == "root:Deep"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_analysis_inheritance(
+    raw_read_run,
+):
+    for run in Run.objects.all():
+        analysis = Analysis.objects.create(
+            study=run.study, run=run, ena_study=run.ena_study, sample=run.sample
+        )
+        analysis.inherit_experiment_type()
+        analysis.refresh_from_db()
+        assert analysis.experiment_type != analysis.ExperimentTypes.UNKNOWN
+        assert analysis.experiment_type == run.experiment_type

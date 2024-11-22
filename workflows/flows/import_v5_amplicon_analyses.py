@@ -164,6 +164,7 @@ def import_v5_amplicon_analyses(mgys: str):
                     "run": run,
                 },
             )
+            analysis.inherit_experiment_type()
 
             if created:
                 logger.info(f"Created analysis {analysis}")

@@ -58,10 +58,13 @@ def get_runs_to_attempt(study: analyses.models.Study) -> List[Union[str, int]]:
                 f"status__{analyses.models.Analysis.AnalysisStates.ANALYSIS_BLOCKED}": False,
             }
         )
-        .filter(run__experiment_type=analyses.models.Run.ExperimentTypes.AMPLICON.value)
+        .filter(
+            experiment_type=analyses.models.WithExperimentTypeModel.ExperimentTypes.AMPLICON.value
+        )
+        .order_by("id")
         .values_list("id", flat=True)
     )
-    print(f"Got {len(runs_worth_trying)} run to attempt")
+    print(f"Got {len(runs_worth_trying)} runs to attempt")
     return runs_worth_trying
 
 
@@ -79,6 +82,7 @@ def create_analyses(study: analyses.models.Study, runs: List[str]):
             print(
                 f"Created analyses {analysis} {analysis.run.first_accession} {analysis.run.experiment_type}"
             )
+        analysis.inherit_experiment_type()
         analyses_list.append(analysis)
     return analyses_list
 
@@ -608,7 +612,5 @@ async def analysis_amplicon_study(study_accession: str):
     )
     for runs_chunk in chunked_runs:
         # launch jobs for all runs in this chunk in a single flow
-        logger.info(
-            f"Working on amplicons: {runs_chunk[0]}-{runs_chunk[len(runs_chunk)-1]}"
-        )
+        logger.info(f"Working on amplicons: {runs_chunk[0]}-{runs_chunk[-1]}")
         await perform_amplicons_in_parallel(mgnify_study, runs_chunk)
