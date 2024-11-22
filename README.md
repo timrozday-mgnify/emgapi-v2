@@ -131,6 +131,20 @@ task prefect -- deployment run "Download a study read-runs/realistic_example_dep
 
 ---
 
+### Code style guide
+* Use type hinting: `def my_func(param: List[str]) -> int:`
+* Prefer to use `pathlib` instead of `os.path`, e.g. for joining parts: `Path("/nfs/my/dir") / "subdir" / "file.txt"`
+* Config parameters (like the URL for ENA etc.) should use structured [Pydantic Settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/). See `settings.EMG_CONFIG`.
+* When you have a list of acceptable options for something, use `Enum`s or `TextChoices` (a kind of enum for Django db fields): `class AssemblyStatuses(str, Enum):...`
+* Use Django/postgres JSONFields liberally (they can save a load of complicated JOINs)
+* Apply a schema to JSONFields, using Enums, default dicts, custom pydantic types... see `WithDownloadsModel` for an example
+* Use class mixins and Django abstract models liberally, to add shared/similar functionality to multiple models
+* API list endpoints should not perform many/any JOINs. Prefer to have less information on the endpoint than introduce JOINs (it can be separately indexed for search)
+* API detail endpoints may perform JOINs
+* API action endpoints (e.g. `/analyses/MGYA1/taxonomies`) should be used where a very large dataset (`taxonomies`) is to be returned. This means `taxonomies` is not needed (so can be deferred) on the main analysis detail endpoint.
+* Use a variable for the labels of JSON/dicts: `STATUS = "status"; my_dict = {STATUS: get_status_of_run()}`
+* Use ReST style docstrings for functions: `:param sample_accession: The sample to be analysed`
+
 ## Developing models and flows
 
 ### Django
