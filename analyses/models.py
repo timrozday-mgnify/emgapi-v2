@@ -115,6 +115,11 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
     class CommonMetadataKeys:
         INSTRUMENT_PLATFORM = "instrument_platform"
         INSTRUMENT_MODEL = "instrument_model"
+        FASTQ_FTPS = "fastq_ftps"
+        LIBRARY_STRATEGY = "library_strategy"
+        LIBRARY_LAYOUT = "library_layout"
+        LIBRARY_SOURCE = "library_source"
+        SCIENTIFIC_NAME = "scientific_name"
 
     instrument_platform = models.CharField(
         db_column="instrument_platform", max_length=100, blank=True, null=True

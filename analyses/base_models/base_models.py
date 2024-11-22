@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.conf import settings
 from django.db import models
 
 import ena.models
@@ -75,6 +76,12 @@ class ENADerivedModel(VisibilityControlledModel):
         if len(self.ena_accessions):
             return self.ena_accessions[0]
         return None
+
+    @property
+    def ena_browser_url(self):
+        return (
+            f"{settings.EMG_CONFIG.ena.browser_view_url_prefix}/{self.first_accession}"
+        )
 
     def inherit_accessions_from_related_ena_object(self, related_field_name: str):
         """

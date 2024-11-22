@@ -89,11 +89,9 @@ class ENAConfig(BaseModel):
     primary_study_accession_re: str = "(PRJ[EDN][A-Z][0-9]+)"
     assembly_accession_re: str = "([EDS]RZ[0-9]{6,})"
     portal_search_api: AnyHttpUrl = "https://www.ebi.ac.uk/ena/portal/api/search"
+    browser_view_url_prefix: AnyHttpUrl = "https://www.ebi.ac.uk/ena/browser/view"
     # TODO: migrate to the ENA Handler
-    study_metadata_fields: list = [
-        "study_title",
-        "secondary_study_accession"
-    ]
+    study_metadata_fields: list = ["study_title", "secondary_study_accession"]
     # TODO: migrate to the ENA Handler
     readrun_metadata_fields: list = [
         "sample_accession",
@@ -104,7 +102,7 @@ class ENAConfig(BaseModel):
         "library_layout",
         "library_strategy",
         "library_source",
-        "scientific_name"
+        "scientific_name",
     ]
 
     ftp_prefix: str = "ftp.sra.ebi.ac.uk/vol1/"

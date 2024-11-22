@@ -9,3 +9,4 @@ fileignoreconfig:
   checksum: ad0fde5a1d53ecc82dc214b93ccc253f5e17f9bea089c8d896aafeffafbabb63
 allowed_patterns:
 - pagination_key
+- CommonMetadataKeys

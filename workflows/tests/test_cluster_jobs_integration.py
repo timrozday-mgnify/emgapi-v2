@@ -1,12 +1,17 @@
+import logging
 import re
 from datetime import timedelta
 
 import pytest
 from prefect import flow
+from prefect.logging import disable_run_logger
 from prefect.runtime import flow_run
 from prefect.variables import Variable
 
-from workflows.prefect_utils.slurm_flow import run_cluster_job
+from workflows.prefect_utils.slurm_flow import (
+    compute_hash_of_input_file,
+    run_cluster_job,
+)
 from workflows.prefect_utils.testing_utils import run_async_flow_and_capture_logs
 
 
@@ -130,3 +135,18 @@ async def test_run_cluster_job_state_persistence(
         input_files_to_hash=[tmp_path / "my_inputs.csv"],
     )
     assert job_id_initial_with_hash != job_id_repeat_with_hash
+
+
+def test_input_file_hash(tmp_path, caplog):
+    caplog.set_level(logging.WARNING)
+    f1 = tmp_path / "file1.txt"
+    f1.touch()
+
+    f2 = tmp_path / "file2.txt"
+    f2.touch()
+
+    f3 = tmp_path / "file3.txt"
+    with disable_run_logger():
+        hash = compute_hash_of_input_file.fn([f1, f2, f3])
+    assert f"Did not find a file to hash at {f3}." in caplog.text
+    assert hash.startswith("786a02f7")

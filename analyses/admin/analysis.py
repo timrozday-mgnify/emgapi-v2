@@ -1,18 +1,44 @@
 from typing import Iterable
 
 from django.contrib import admin
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from unfold.admin import ModelAdmin
 from unfold.decorators import action
 
 from analyses.admin.base import StatusListFilter, StudyFilter
-from analyses.models import Analysis
+from analyses.models import Analysis, Run
 
 
 class AnalysisStatusListFilter(StatusListFilter):
     def get_statuses(self) -> Iterable[str]:
         return Analysis.AnalysisStates
+
+
+class ExperimentTypeListFilter(admin.SimpleListFilter):
+    title = "experiment type"
+    parameter_name = "experiment_type"
+
+    def lookups(self, request, model_admin):
+        return Run.ExperimentTypes.choices
+
+    def queryset(self, request, queryset):
+        if self.value() is None:
+            return queryset
+
+        if self.value() in [
+            Run.ExperimentTypes.ASSEMBLY,
+            Run.ExperimentTypes.LONG_READ_ASSEMBLY,
+            Run.ExperimentTypes.HYBRID_ASSEMBLY,
+        ]:
+            # TODO: this isn't accurate; maybe add an experiment type field to analysis model instead
+            return queryset.filter(assembly__isnull=False)
+
+        return queryset.filter(
+            Q(run__experiment_type=self.value())
+            | Q(assembly__run__experiment_type=self.value())
+        )
 
 
 @admin.register(Analysis)
@@ -69,10 +95,11 @@ class AnalysisAdmin(ModelAdmin):
 
     list_filter = [
         StudyFilterForAnalysis,
+        "pipeline_version",
+        ExperimentTypeListFilter,
         "updated_at",
         "created_at",
         AnalysisStatusListFilter,
-        "pipeline_version",
     ]
     list_filter_submit = True
 
