@@ -3,9 +3,13 @@ from typing import Iterable
 from django.contrib import admin
 from django.core.validators import EMPTY_VALUES
 from django.db.models import Q
+from django.shortcuts import redirect
 from django_admin_inline_paginator.admin import InlinePaginated
 from unfold.admin import TabularInline
 from unfold.contrib.filters.admin import TextFilter
+from unfold.decorators import action
+
+from analyses.base_models.base_models import ENADerivedModel
 
 
 class TabularInlinePaginatedWithTabSupport(InlinePaginated, TabularInline):
@@ -53,3 +57,14 @@ class StatusListFilter(admin.SimpleListFilter):
         if self.value() is None:
             return queryset
         return queryset.filter(**{f"{self.status_field}__{self.value()}": True})
+
+
+class ENABrowserLinkMixin:
+    actions_detail = ["view_on_ena_browser"]
+
+    @action(
+        description="View on ENA browser",
+    )
+    def view_on_ena_browser(self, request, object_id):
+        instance: type[ENADerivedModel] = self.model.objects.get(pk=object_id)
+        return redirect(instance.ena_browser_url)

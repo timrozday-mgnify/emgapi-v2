@@ -4,13 +4,17 @@ from django.contrib import admin
 from django.db import models
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, render
-from django.urls import reverse, reverse_lazy
-from django.utils.html import format_html, format_html_join
+from django.urls import reverse_lazy
+from django.utils.html import format_html
 from unfold.admin import ModelAdmin
 from unfold.decorators import action, display
 
 from analyses.admin.analysis import AnalysisStatusListFilter
-from analyses.admin.base import StudyFilter, TabularInlinePaginatedWithTabSupport
+from analyses.admin.base import (
+    ENABrowserLinkMixin,
+    StudyFilter,
+    TabularInlinePaginatedWithTabSupport,
+)
 from analyses.models import Analysis, Assembly, Run, Study
 from emgapiv2.widgets import StatusPathwayWidget
 
@@ -36,7 +40,11 @@ class StudyRunsInline(TabularInlinePaginatedWithTabSupport):
             widget = StatusPathwayWidget(
                 pathway=[
                     Analysis.AnalysisStates.ANALYSIS_STARTED,
+                    Analysis.AnalysisStates.ANALYSIS_FAILED,
+                    Analysis.AnalysisStates.ANALYSIS_QC_FAILED,
+                    Analysis.AnalysisStates.ANALYSIS_BLOCKED,
                     Analysis.AnalysisStates.ANALYSIS_COMPLETED,
+                    Analysis.AnalysisStates.ANALYSIS_POST_SANITY_CHECK_FAILED,
                 ]
             )
             return widget.render(
@@ -102,7 +110,7 @@ class StudyReadsInline(TabularInlinePaginatedWithTabSupport):
 
 
 @admin.register(Study)
-class StudyAdmin(ModelAdmin):
+class StudyAdmin(ENABrowserLinkMixin, ModelAdmin):
     inlines = [StudyRunsInline, StudyAssembliesInline, StudyReadsInline]
     list_display = ["accession", "updated_at", "title", "display_accessions"]
     list_filter = ["updated_at", "created_at"]
@@ -118,7 +126,7 @@ class StudyAdmin(ModelAdmin):
         "show_assembly_status_summary",
         "show_run_type_summary",
         "show_analysis_status_summary",
-    ]
+    ] + ENABrowserLinkMixin.actions_detail
 
     fieldsets = (
         (None, {"fields": ["title", "ena_study", "biome", "ena_accessions"]}),
