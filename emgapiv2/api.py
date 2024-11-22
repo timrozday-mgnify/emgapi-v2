@@ -133,8 +133,32 @@ def list_mgnify_studies(request):
     ),
 )
 def get_mgnify_analysis(request, accession: str):
-    analysis = get_object_or_404(analyses.models.Analysis, accession=accession)
-    return analysis
+    analysis = get_object_or_404(
+        analyses.models.Analysis.objects.select_related("run"), accession=accession
+    )
+
+    run_accession = analysis.run.first_accession if analysis.run else None
+    study_accession = analysis.study.accession if analysis.study else None
+    sample_accession = analysis.sample.ena_sample.accession if analysis.sample else None
+    assembly_accession = (
+        analysis.assembly.first_accession if analysis.assembly else None
+    )
+    experiment_type = analysis.run.experiment_type if analysis.run else None
+    raw_run = analysis.raw_run
+
+    response = {
+        "accession": analysis.accession,
+        "run_accession": run_accession,
+        "downloads_as_objects": analysis.downloads_as_objects,
+        "study_accession": study_accession,
+        "sample_accession": sample_accession,
+        "assembly_accession": assembly_accession,
+        "experiment_type": experiment_type,
+        "raw_run": raw_run,
+        "pipeline_version": analysis.pipeline_version,
+    }
+
+    return response
 
 
 @api.get(

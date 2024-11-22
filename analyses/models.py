@@ -5,7 +5,7 @@ import os
 import re
 from enum import Enum
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Union
 
 from asgiref.sync import sync_to_async
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
@@ -115,6 +115,13 @@ class Run(TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel):
     class CommonMetadataKeys:
         INSTRUMENT_PLATFORM = "instrument_platform"
         INSTRUMENT_MODEL = "instrument_model"
+
+    instrument_platform = models.CharField(
+        db_column="instrument_platform", max_length=100, blank=True, null=True
+    )
+    instrument_model = models.CharField(
+        db_column="instrument_model", max_length=100, blank=True, null=True
+    )
 
     class ExperimentTypes(models.TextChoices):
         METATRANSCRIPTOMIC = "METAT", "Metatranscriptomic"
@@ -501,8 +508,12 @@ class Analysis(
         return self.save()
 
     @property
-    def assembly_or_run(self):
+    def assembly_or_run(self) -> Union[Assembly, Run]:
         return self.assembly or self.run
+
+    @property
+    def raw_run(self) -> Run:
+        return self.assembly.run if self.assembly else self.run
 
     class Meta:
         verbose_name_plural = "Analyses"
