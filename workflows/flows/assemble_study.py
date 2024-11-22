@@ -179,15 +179,15 @@ def make_samplesheet(
                 renderer=EXPERIMENT_TYPES_TO_MIASSEMBLER_LIBRARY_STRATEGY.get,
             ),
             "library_layout": SamplesheetColumnSource(
-                lookup_string="run__metadata__library_layout",
+                lookup_string=f"run__metadata__{analyses.models.Run.CommonMetadataKeys.LIBRARY_LAYOUT}",
                 renderer=lambda layout: str(layout).lower(),
             ),
             "fastq_1": SamplesheetColumnSource(
-                lookup_string="run__metadata__fastq_ftps",
+                lookup_string=f"run__metadata__{analyses.models.Run.CommonMetadataKeys.FASTQ_FTPS}",
                 renderer=lambda ftps: convert_ena_ftp_to_fire_fastq(ftps[0]),
             ),
             "fastq_2": SamplesheetColumnSource(
-                lookup_string="run__metadata__fastq_ftps",
+                lookup_string=f"run__metadata__{analyses.models.Run.CommonMetadataKeys.FASTQ_FTPS}",
                 renderer=lambda ftps: (
                     convert_ena_ftp_to_fire_fastq(ftps[1]) if len(ftps) > 1 else ""
                 ),

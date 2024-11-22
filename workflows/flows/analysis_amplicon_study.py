@@ -33,8 +33,12 @@ from workflows.prefect_utils.analyses_models_helpers import task_mark_analysis_s
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 from workflows.prefect_utils.slurm_flow import (
     ClusterJobFailedException,
+    compute_hash_of_input_file,
     run_cluster_job,
 )
+
+FASTQ_FTPS = analyses.models.Run.CommonMetadataKeys.FASTQ_FTPS
+METADATA__FASTQ_FTPS = f"{analyses.models.Run.metadata.field.name}__{FASTQ_FTPS}"
 
 
 @task(
@@ -96,12 +100,14 @@ def mark_analysis_as_failed(analysis: analyses.models.Analysis):
 
 @task(
     cache_key_fn=context_agnostic_task_input_hash,
+    log_prints=True,
 )
 def make_samplesheet_amplicon(
     mgnify_study: analyses.models.Study,
     runs_ids: List[Union[str, int]],
 ) -> Path:
     runs = analyses.models.Run.objects.filter(id__in=runs_ids)
+    print(f"Making amplicon samplesheet for runs {runs_ids}")
 
     ss_hash = queryset_hash(runs, "id")
 
@@ -117,17 +123,17 @@ def make_samplesheet_amplicon(
                 renderer=lambda accessions: accessions[0],
             ),
             "fastq_1": SamplesheetColumnSource(
-                lookup_string="metadata__fastq_ftps",
+                lookup_string=METADATA__FASTQ_FTPS,
                 renderer=lambda ftps: convert_ena_ftp_to_fire_fastq(ftps[0]),
             ),
             "fastq_2": SamplesheetColumnSource(
-                lookup_string="metadata__fastq_ftps",
+                lookup_string=METADATA__FASTQ_FTPS,
                 renderer=lambda ftps: (
                     convert_ena_ftp_to_fire_fastq(ftps[1]) if len(ftps) > 1 else ""
                 ),
             ),
             "single_end": SamplesheetColumnSource(
-                lookup_string="metadata__fastq_ftps",
+                lookup_string=METADATA__FASTQ_FTPS,
                 renderer=lambda ftps: "false" if len(ftps) > 1 else "true",
             ),
         },
@@ -507,16 +513,23 @@ async def perform_amplicons_in_parallel(
     amplicon_ids: List[Union[str, int]],
 ):
     amplicon_analyses = analyses.models.Analysis.objects.select_related("run").filter(
-        id__in=amplicon_ids
+        id__in=amplicon_ids,
+        run__metadata__fastq_ftps__isnull=False,
     )
     samplesheet = make_samplesheet_amplicon(mgnify_study, amplicon_ids)
 
     async for run in amplicon_analyses:
         mark_analysis_as_started(run)
 
-    amplicon_current_outdir = Path(
+    amplicon_current_outdir_parent = Path(
         f"{EMG_CONFIG.slurm.default_workdir}/{mgnify_study.ena_study.accession}_amplicon_v6"
     )
+
+    amplicon_current_outdir = (
+        amplicon_current_outdir_parent / compute_hash_of_input_file([samplesheet])[:6]
+    )
+    print(f"Using output dir {amplicon_current_outdir} for this execution")
+
     command = (
         f"nextflow run {EMG_CONFIG.amplicon_pipeline.amplicon_pipeline_repo} "
         f"-r {EMG_CONFIG.amplicon_pipeline.amplicon_pipeline_git_revision} "

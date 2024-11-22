@@ -134,7 +134,10 @@ def test_queryset_to_samplesheet(raw_reads_mgnify_study):
         ena_study=sample.ena_study,
         study=raw_reads_mgnify_study,
         metadata={
-            "fastqs": ["/path/to/fastq_1.fastq.gz", "/path/to/fastq_2.fastq.gz"],
+            analyses.models.Run.CommonMetadataKeys.FASTQ_FTPS: [
+                "/path/to/fastq_1.fastq.gz",
+                "/path/to/fastq_2.fastq.gz",
+            ],
         },
     )
 
@@ -145,10 +148,10 @@ def test_queryset_to_samplesheet(raw_reads_mgnify_study):
         filename=samplesheet,
         column_map={
             "fastq1": SamplesheetColumnSource(
-                lookup_string="metadata__fastqs", renderer=lambda f: f[0]
+                lookup_string="metadata__fastq_ftps", renderer=lambda f: f[0]
             ),
             "fastq2": SamplesheetColumnSource(
-                lookup_string="metadata__fastqs", renderer=lambda f: f[1]
+                lookup_string="metadata__fastq_ftps", renderer=lambda f: f[1]
             ),
         },
     )

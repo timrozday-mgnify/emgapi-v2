@@ -1,7 +1,8 @@
 from typing import List
 
 import httpx
-from prefect import task, get_run_logger
+from prefect import get_run_logger, task
+
 import analyses.models
 import ena.models
 from emgapiv2.settings import EMG_CONFIG
@@ -14,12 +15,14 @@ METAGENOME_SCIENTIFIC_NAME: str = "metagenome"
 
 
 def create_ena_api_request(result_type, query, limit, fields, result_format="json"):
-    return f"{EMG_CONFIG.ena.portal_search_api}?" \
-           f"result={result_type}&" \
-           f"query={query}&" \
-           f"limit={limit}&" \
-           f"format={result_format}&" \
-           f"fields={fields}"
+    return (
+        f"{EMG_CONFIG.ena.portal_search_api}?"
+        f"result={result_type}&"
+        f"query={query}&"
+        f"limit={limit}&"
+        f"format={result_format}&"
+        f"fields={fields}"
+    )
 
 
 @task(
@@ -33,15 +36,14 @@ async def get_study_from_ena(accession: str, limit: int = 10) -> ena.models.Stud
 
     fields = ",".join(EMG_CONFIG.ena.study_metadata_fields)
     result_type = "study"
-    query = f"study_accession%3D{accession}%20OR%20secondary_study_accession%3D{accession}"
+    query = (
+        f"study_accession%3D{accession}%20OR%20secondary_study_accession%3D{accession}"
+    )
 
     logger.info(f"Will fetch from ENA Portal API Study {accession}")
     portal = httpx.get(
         create_ena_api_request(
-            result_type=result_type,
-            query=query,
-            limit=limit,
-            fields=fields
+            result_type=result_type, query=query, limit=limit, fields=fields
         )
     )
     if portal.status_code == httpx.codes.OK:
@@ -57,20 +59,26 @@ async def get_study_from_ena(accession: str, limit: int = 10) -> ena.models.Stud
         if not secondary_accession:
             logger.warning(f"Study {accession} secondary_accession is not available")
         else:
-            if len(secondary_accession.split(';')) > 1:
-                logger.warning(f"Study {accession} has more than one secondary_accession")
-                additional_accessions = secondary_accession.split(';')
+            if len(secondary_accession.split(";")) > 1:
+                logger.warning(
+                    f"Study {accession} has more than one secondary_accession"
+                )
+                additional_accessions = secondary_accession.split(";")
             else:
                 additional_accessions = [secondary_accession]
 
         # Check primary accession
         if not s["study_accession"]:
-            logger.warning(f"Study {accession} primary_accession is not available. "
-                           f"Use first secondary accession as primary_accession")
+            logger.warning(
+                f"Study {accession} primary_accession is not available. "
+                f"Use first secondary accession as primary_accession"
+            )
             if additional_accessions:
                 primary_accession = additional_accessions[0]
             else:
-                raise Exception(f"Neither primary nor secondary accessions found for study {accession}")
+                raise Exception(
+                    f"Neither primary nor secondary accessions found for study {accession}"
+                )
         else:
             primary_accession: str = s["study_accession"]
 
@@ -91,30 +99,40 @@ def check_reads_fastq(fastq: list, run_accession: str, library_layout: str):
     logger = get_run_logger()
     sorted_fastq = sorted(fastq)  # to keep order [_1, _2, _3(?)]
     if not len(sorted_fastq):
-        logger.warning(f'No fastq files for run {run_accession}')
+        logger.warning(f"No fastq files for run {run_accession}")
         return False
     # potential single end
     elif len(sorted_fastq) == 1:
         if library_layout == PAIRED_END_LIBRARY_LAYOUT:
-            logger.warning(f'Incorrect library_layout for {run_accession} having one fastq file')
+            logger.warning(
+                f"Incorrect library_layout for {run_accession} having one fastq file"
+            )
             return False
-        if '_1.f' in sorted_fastq[0] or '_2.f' in sorted_fastq[0]:
-            logger.warning(f'Single fastq file contains _1 or _2 for run {run_accession}')
+        if "_1.f" in sorted_fastq[0] or "_2.f" in sorted_fastq[0]:
+            logger.warning(
+                f"Single fastq file contains _1 or _2 for run {run_accession}"
+            )
             return False
         else:
+            logger.info(f"One fastq for {run_accession}: {sorted_fastq}")
             return sorted_fastq
     # potential paired end
     elif len(sorted_fastq) == 2:
         if library_layout == SINGLE_END_LIBRARY_LAYOUT:
-            logger.warning(f'Incorrect library_layout for {run_accession} having two fastq files')
+            logger.warning(
+                f"Incorrect library_layout for {run_accession} having two fastq files"
+            )
             return False
-        if '_1.f' in sorted_fastq[0] and '_2.f' in sorted_fastq[1]:
+        if "_1.f" in sorted_fastq[0] and "_2.f" in sorted_fastq[1]:
+            logger.info(f"Two fastqs for {run_accession}: {sorted_fastq}")
             return sorted_fastq
         else:
-            logger.warning(f"Incorrect names of fastq files for run {run_accession} (${sorted_fastq})")
+            logger.warning(
+                f"Incorrect names of fastq files for run {run_accession} (${sorted_fastq})"
+            )
             return False
     elif len(fastq) > 2:
-        logger.info(f'More than 2 fastq files provided for run {run_accession}')
+        logger.info(f"More than 2 fastq files provided for run {run_accession}")
         return sorted_fastq[:2]
 
 
@@ -145,11 +163,9 @@ def get_study_readruns_from_ena(
 
     portal = httpx.get(
         create_ena_api_request(
-            result_type=result_type,
-            query=query,
-            limit=limit,
-            fields=fields
-        ) + '&dataPortal=metagenome'
+            result_type=result_type, query=query, limit=limit, fields=fields
+        )
+        + "&dataPortal=metagenome"
     )
     if not portal.status_code == httpx.codes.OK:
         raise Exception(f"Bad status! {portal.status_code} {portal}")
@@ -157,17 +173,26 @@ def get_study_readruns_from_ena(
     logger.info("ENA portal responded ok.")
     for read_run in portal.json():
         # check scientific name and metagenome source
-        if METAGENOME_SCIENTIFIC_NAME not in read_run['scientific_name'] and \
-            read_run['library_source'] not in ALLOWED_LIBRARY_SOURCE:
-            logger.warning(f"Run {read_run['run_accession']} is not in metagenome taxa and not in allowed library_sources. "
-                               f"No further processing for that run.")
+        if (
+            METAGENOME_SCIENTIFIC_NAME not in read_run["scientific_name"]
+            and read_run["library_source"] not in ALLOWED_LIBRARY_SOURCE
+        ):
+            logger.warning(
+                f"Run {read_run['run_accession']} is not in metagenome taxa and not in allowed library_sources. "
+                f"No further processing for that run."
+            )
             continue
 
         # check fastq files order/presence
-        fastq_ftp_reads = check_reads_fastq(fastq=read_run["fastq_ftp"].split(";"), run_accession=read_run["run_accession"],
-                                      library_layout=read_run["library_layout"])
+        fastq_ftp_reads = check_reads_fastq(
+            fastq=read_run["fastq_ftp"].split(";"),
+            run_accession=read_run["run_accession"],
+            library_layout=read_run["library_layout"],
+        )
         if not fastq_ftp_reads:
-            logger.warning('Incorrect structure of fastq files provided. No further processing for that run.')
+            logger.warning(
+                "Incorrect structure of fastq files provided. No further processing for that run."
+            )
             continue
 
         logger.info(f"Creating objects for {read_run['run_accession']}")
@@ -196,16 +221,26 @@ def get_study_readruns_from_ena(
             ena_study=mgys_study.ena_study,
             sample=mgnify_sample,
             defaults={
-                "metadata": {
-                    "library_strategy": read_run["library_strategy"],
-                    "library_layout": read_run["library_layout"],
-                    "library_source": read_run["library_source"],
-                    "scientific_name": read_run["scientific_name"],
-                    "fastq_ftps": fastq_ftp_reads,
+                analyses.models.Run.metadata.field.name: {
+                    analyses.models.Run.CommonMetadataKeys.LIBRARY_STRATEGY: read_run[
+                        analyses.models.Run.CommonMetadataKeys.LIBRARY_STRATEGY
+                    ],
+                    analyses.models.Run.CommonMetadataKeys.LIBRARY_LAYOUT: read_run[
+                        analyses.models.Run.CommonMetadataKeys.LIBRARY_LAYOUT
+                    ],
+                    analyses.models.Run.CommonMetadataKeys.LIBRARY_SOURCE: read_run[
+                        analyses.models.Run.CommonMetadataKeys.LIBRARY_SOURCE
+                    ],
+                    analyses.models.Run.CommonMetadataKeys.SCIENTIFIC_NAME: read_run[
+                        analyses.models.Run.CommonMetadataKeys.SCIENTIFIC_NAME
+                    ],
+                    analyses.models.Run.CommonMetadataKeys.FASTQ_FTPS: fastq_ftp_reads,
                 }
             },
         )
-        run.set_experiment_type_by_ena_library_strategy(read_run["library_strategy"])
+        run.set_experiment_type_by_ena_library_strategy(
+            read_run[analyses.models.Run.CommonMetadataKeys.LIBRARY_STRATEGY]
+        )
 
     mgys_study.refresh_from_db()
     return [run.ena_accessions[0] for run in mgys_study.runs.all()]
