@@ -77,3 +77,48 @@ def accession_prefix_separated_dir_path(accession: str, *chars_per_dir_level: in
         assert chars_at_level > 0
         path = path / Path(accession[:chars_at_level])
     return path / Path(accession)
+
+
+def next_enumerated_subdir(
+    parent_dir: Path, mkdirs: bool = False, pad: int = 4
+) -> Path:
+    """
+    Make a number-named folder inside dir. E.g. given:
+    parent_dir/
+      001/
+        my_file.txt
+
+    next_enumerated_subdir(dir) -> /path/to/dir/002
+
+    :param parent_dir: Path to the parent dir
+    :param mkdirs: Bool, which if true will also attempt to make the new enumerated dir and its parents
+    :param pad: How many characters long should the subdir be. E.g. 4 > 0001/
+    :return: Path to the next enumerated subdir
+    """
+    if not mkdirs and not parent_dir.is_dir():
+        raise ValueError(
+            f"The directory {parent_dir} does not exist or is not a directory."
+        )
+
+    if pad < 1:
+        raise ValueError(f"Pad length {pad} must be greater than or equal to 1.")
+
+    if mkdirs:
+        parent_dir.mkdir(parents=True, exist_ok=True)
+
+    if not parent_dir.is_dir():
+        raise FileNotFoundError(
+            f"The directory {parent_dir} does not exist or is not a directory."
+        )
+
+    max_int_dir = 0
+    glob_pattern = "[0-9]" * pad
+    for item in parent_dir.glob(glob_pattern):
+        if int(item.name) > max_int_dir:
+            max_int_dir = int(item.name)
+
+    next_int_dir = parent_dir / f"{max_int_dir + 1:0{pad}d}"
+
+    if mkdirs:
+        next_int_dir.mkdir(parents=True, exist_ok=True)
+    return next_int_dir

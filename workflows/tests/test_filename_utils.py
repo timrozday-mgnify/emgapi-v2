@@ -5,6 +5,7 @@ import pytest
 from workflows.data_io_utils.filenames import (
     accession_prefix_separated_dir_path,
     file_path_shortener,
+    next_enumerated_subdir,
 )
 
 
@@ -39,3 +40,52 @@ def test_accession_prefix_separated_dir_path():
     assert accession_prefix_separated_dir_path("PRJ123456", 3, 6, 7) == Path(
         "PRJ/PRJ123/PRJ1234/PRJ123456"
     )
+
+
+def test_next_enumerated_subdir(tmp_path):
+    assert tmp_path.is_dir()
+
+    # should find next dir but not make it
+    d = next_enumerated_subdir(tmp_path)
+    assert d == tmp_path / "0001"
+    assert not d.is_dir()
+
+    # should find same next dir since it was not made.
+    # should now be made
+    d = next_enumerated_subdir(tmp_path, mkdirs=True)
+    assert d == tmp_path / "0001"
+    assert d.is_dir()
+
+    d = next_enumerated_subdir(tmp_path, mkdirs=True)
+    assert d == tmp_path / "0002"
+    assert d.is_dir()
+
+    # make a file with clashing name
+    (tmp_path / "0003").touch()
+
+    # skipped over 0003 because it was a present file
+    d = next_enumerated_subdir(tmp_path, mkdirs=True)
+    assert d == tmp_path / "0004"
+    assert d.is_dir()
+
+    # check hierarchy works
+    d = next_enumerated_subdir(d, mkdirs=True)
+    assert d == tmp_path / "0004" / "0001"
+    assert d.is_dir()
+
+    # check differently formatted numbers dont interfere.
+    (tmp_path / "05").mkdir()
+    # should still make 0005 since 05 is different
+    d = next_enumerated_subdir(tmp_path, mkdirs=True)
+    assert d == tmp_path / "0005"
+    assert d.is_dir()
+
+    # check one digit strings
+    d = next_enumerated_subdir(tmp_path, mkdirs=True, pad=1)
+    assert d == tmp_path / "1"
+    d = next_enumerated_subdir(tmp_path, mkdirs=True, pad=1)
+    assert d == tmp_path / "2"
+
+    # check zero digit strings
+    with pytest.raises(ValueError):
+        next_enumerated_subdir(tmp_path, mkdirs=True, pad=0)
