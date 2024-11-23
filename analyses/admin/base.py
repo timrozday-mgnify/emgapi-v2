@@ -58,6 +58,8 @@ class StatusListFilter(admin.SimpleListFilter):
             return queryset
         return queryset.filter(**{f"{self.status_field}__{self.value()}": True})
 
+    # TODO: facet counts
+
 
 class ENABrowserLinkMixin:
     actions_detail = ["view_on_ena_browser"]

@@ -224,6 +224,18 @@ UNFOLD = {
                         "link": reverse_lazy("admin:index"),
                         "permission": lambda request: request.user.is_superuser,
                     },
+                    {
+                        "title": _("MGYS Studies"),
+                        "icon": "collections_bookmark",
+                        "link": reverse_lazy("admin:analyses_study_changelist"),
+                        "permission": lambda request: request.user.is_superuser,
+                    },
+                    {
+                        "title": _("⤷ Latest"),
+                        "icon": "fiber_new",
+                        "link": reverse_lazy("admin_jump_latest_study"),
+                        "permission": lambda request: request.user.is_superuser,
+                    },
                 ],
             },
             {

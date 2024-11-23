@@ -1,9 +1,10 @@
 import json
 
 from django.contrib import admin
+from django.contrib.admin.views.decorators import staff_member_required
 from django.db import models
 from django.db.models import Count
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin
@@ -286,3 +287,13 @@ class StudyAdmin(ENABrowserLinkMixin, ModelAdmin):
                 **self.admin_site.each_context(request),
             },
         )
+
+
+@staff_member_required
+def jump_to_latest_study_admin(request):
+    latest_study = Study.objects.order_by("-updated_at").first()
+    return redirect(
+        reverse_lazy(
+            "admin:analyses_study_change", kwargs={"object_id": latest_study.pk}
+        )
+    )
