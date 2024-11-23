@@ -205,6 +205,10 @@ def get_mgnify_analysis_with_annotations_of_type(
     "/analyses",
     response=List[MGnifyAnalysis],
     tags=[ApiSections.ANALYSES.value],
+    summary="List all analyses (MGYAs) available from MGnify",
+    description="Each analysis is the result of a Pipeline execution on a reads dataset "
+    "(either a raw read-run, or an assembly).",
+    operation_id="list_mgnify_analyses",
 )
 def list_mgnify_analyses(request):
     qs = analyses.models.Analysis.objects.all()

@@ -46,11 +46,17 @@ class MGnifyAnalysisDownloadFile(Schema, DownloadFile):
 
 
 class MGnifyAnalysis(ModelSchema):
-    study_accession: str
+    study_accession: str = Field(..., alias="study_id", examples=["MGYS000000001"])
+    accession: str = Field(..., examples=["MGYA000000001"])
+    experiment_type: analyses.models.Analysis.ExperimentTypes = Field(
+        ...,
+        examples=analyses.models.Analysis.ExperimentTypes.values,
+        description="Experiment type refers to the type of sequencing data that was analysed, e.g. amplicon reads or a metagenome assembly",
+    )
 
     class Meta:
         model = analyses.models.Analysis
-        fields = ["accession"]
+        fields = ["accession", "experiment_type"]
 
 
 class AnalysedRun(ModelSchema):
@@ -73,6 +79,7 @@ class MGnifyAnalysisDetail(MGnifyAnalysis):
         examples=["ERR0000001"],
     )
     sample_accession: Optional[str] = Field(..., examples=["ERS0000001"])
+    study_accession: str = Field(..., examples=["MGYS000000001"])
     assembly_accession: Optional[str] = Field(
         ...,
         description="Accession number of the assembly this analysis is of, if this is an assembly analysis.",
