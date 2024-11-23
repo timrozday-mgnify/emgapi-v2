@@ -255,7 +255,7 @@ class StudyAdmin(ENABrowserLinkMixin, ModelAdmin):
 
         def make_state_link(state: Analysis.AnalysisStates) -> str:
             url = reverse_lazy("admin:analyses_analysis_changelist")
-            url += f"?{AnalysisStatusListFilter.parameter_name}={state}&{StudyFilter.parameter_name}={study.accession}"
+            url += f"?{AnalysisStatusListFilter.parameter_name}={state.value}&{StudyFilter.parameter_name}={study.accession}"
             return format_html("<a href='{}'>{}</a>", url, state.value)
 
         analyses_status_table = {
