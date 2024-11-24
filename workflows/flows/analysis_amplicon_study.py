@@ -521,8 +521,8 @@ def set_post_analysis_states(amplicon_current_outdir: Path, amplicon_analyses: L
                 status=analyses.models.Analysis.AnalysisStates.ANALYSIS_COMPLETED,
                 reason=qc_completed_runs[analysis.run.first_accession],
                 unset_statuses=[
-                    analysis.models.Analysis.AnalysisStates.ANALYSIS_FAILED,
-                    analysis.models.Analysis.AnalysisStates.ANALYSIS_BLOCKED,
+                    analyses.models.Analysis.AnalysisStates.ANALYSIS_FAILED,
+                    analyses.models.Analysis.AnalysisStates.ANALYSIS_BLOCKED,
                 ],
             )
             sanity_check_amplicon_results(
