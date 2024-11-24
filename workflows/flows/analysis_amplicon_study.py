@@ -3,9 +3,10 @@ import re
 from datetime import timedelta
 from pathlib import Path
 from textwrap import dedent as _
-from typing import Any, List, Union
+from typing import List, Union
 
 import django
+from django.db.models import QuerySet
 
 from workflows.ena_utils.ena_file_fetching import convert_ena_ftp_to_fire_fastq
 from workflows.views import encode_samplesheet_path
@@ -29,11 +30,13 @@ from workflows.nextflow_utils.samplesheets import (
     queryset_hash,
     queryset_to_samplesheet,
 )
-from workflows.prefect_utils.analyses_models_helpers import task_mark_analysis_status
+from workflows.prefect_utils.analyses_models_helpers import (
+    chunk_list,
+    task_mark_analysis_status,
+)
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 from workflows.prefect_utils.slurm_flow import (
     ClusterJobFailedException,
-    compute_hash_of_input_file,
     run_cluster_job,
 )
 
@@ -44,39 +47,55 @@ METADATA__FASTQ_FTPS = f"{analyses.models.Run.metadata.field.name}__{FASTQ_FTPS}
 @task(
     log_prints=True,
 )
-def get_runs_to_attempt(study: analyses.models.Study) -> List[Union[str, int]]:
+def get_analyses_to_attempt(
+    study: analyses.models.Study,
+    for_experiment_type: analyses.models.WithExperimentTypeModel.ExperimentTypes,
+) -> List[Union[str, int]]:
     """
     Determine the list of runs worth trying currently for this study.
-    :param study:
-    :return:
+    :param study: MGYS study to look for to-be-completed analyses in
+    :param for_experiment_type: E.g. AMPLICON or WGS
+    :return: List of analysis object IDs
     """
     study.refresh_from_db()
-    runs_worth_trying = (
+    analyses_worth_trying = (
         study.analyses.filter(
             **{
                 f"status__{analyses.models.Analysis.AnalysisStates.ANALYSIS_COMPLETED}": False,
                 f"status__{analyses.models.Analysis.AnalysisStates.ANALYSIS_BLOCKED}": False,
             }
         )
-        .filter(
-            experiment_type=analyses.models.WithExperimentTypeModel.ExperimentTypes.AMPLICON.value
-        )
+        .filter(experiment_type=for_experiment_type)
         .order_by("id")
         .values_list("id", flat=True)
     )
-    print(f"Got {len(runs_worth_trying)} runs to attempt")
-    return runs_worth_trying
+    print(f"Got {len(analyses_worth_trying)} analyses to attempt")
+    return analyses_worth_trying
 
 
 @task(
     log_prints=True,
 )
-def create_analyses(study: analyses.models.Study, runs: List[str]):
+def create_analyses(
+    study: analyses.models.Study,
+    for_experiment_type: analyses.models.WithExperimentTypeModel.ExperimentTypes,
+    pipeline: analyses.models.Analysis.PipelineVersions = analyses.models.Analysis.PipelineVersions.v6,
+) -> List[analyses.models.Analysis]:
+    """
+    Get or create analysis objects for each run in the study that matches the given experiment type.
+    :param study: An MGYS study that already has runs to be analysed attached.
+    :param for_experiment_type: E.g. AMPLICON or WGS
+    :param pipeline: Pipeline version e.g. v6
+    :return: List of matching/created analysis objects.
+    """
     analyses_list = []
-    for run in runs:
-        run_obj = analyses.models.Run.objects.get(ena_accessions__contains=run)
+    for run in study.runs.filter(experiment_type=for_experiment_type):
         analysis, created = analyses.models.Analysis.objects.get_or_create(
-            study=study, sample=run_obj.sample, run=run_obj, ena_study=study.ena_study
+            study=study,
+            sample=run.sample,
+            run=run,
+            ena_study=study.ena_study,
+            pipeline_version=pipeline,
         )
         if created:
             print(
@@ -85,11 +104,6 @@ def create_analyses(study: analyses.models.Study, runs: List[str]):
         analysis.inherit_experiment_type()
         analyses_list.append(analysis)
     return analyses_list
-
-
-@task(log_prints=True)
-def chunk_amplicon_list(items: List[Any], chunk_size: int) -> List[List[Any]]:
-    return [items[j : j + chunk_size] for j in range(0, len(items), chunk_size)]
 
 
 @task(log_prints=True)
@@ -108,8 +122,16 @@ def mark_analysis_as_failed(analysis: analyses.models.Analysis):
 )
 def make_samplesheet_amplicon(
     mgnify_study: analyses.models.Study,
-    runs_ids: List[Union[str, int]],
-) -> Path:
+    amplicon_analyses: QuerySet,
+) -> (Path, str):
+    """
+    Makes a samplesheet CSV file for a set of amplicon analyses, suitable for amplicon pipeline.
+    :param mgnify_study: MGYS study
+    :param amplicon_analyses: QuerySet of the amplicon analyses to be executed
+    :return: Tuple of the Path to the samplesheet file, and a hash of the run IDs which is used in the SS filename.
+    """
+
+    runs_ids = amplicon_analyses.values_list("run_id", flat=True)
     runs = analyses.models.Run.objects.filter(id__in=runs_ids)
     print(f"Making amplicon samplesheet for runs {runs_ids}")
 
@@ -159,7 +181,7 @@ def make_samplesheet_amplicon(
             """
         ),
     )
-    return sample_sheet_csv
+    return sample_sheet_csv, ss_hash
 
 
 @task(
@@ -514,23 +536,24 @@ def set_post_analysis_states(amplicon_current_outdir: Path, amplicon_analyses: L
 @flow(name="Run analysis pipeline-v6 in parallel", log_prints=True)
 async def perform_amplicons_in_parallel(
     mgnify_study: analyses.models.Study,
-    amplicon_ids: List[Union[str, int]],
+    amplicon_analysis_ids: List[Union[str, int]],
 ):
     amplicon_analyses = analyses.models.Analysis.objects.select_related("run").filter(
-        id__in=amplicon_ids,
+        id__in=amplicon_analysis_ids,
         run__metadata__fastq_ftps__isnull=False,
     )
-    samplesheet = make_samplesheet_amplicon(mgnify_study, amplicon_ids)
+    samplesheet, ss_hash = make_samplesheet_amplicon(mgnify_study, amplicon_analyses)
 
-    async for run in amplicon_analyses:
-        mark_analysis_as_started(run)
+    async for analysis in amplicon_analyses:
+        mark_analysis_as_started(analysis)
 
     amplicon_current_outdir_parent = Path(
         f"{EMG_CONFIG.slurm.default_workdir}/{mgnify_study.ena_study.accession}_amplicon_v6"
     )
 
     amplicon_current_outdir = (
-        amplicon_current_outdir_parent / compute_hash_of_input_file([samplesheet])[:6]
+        amplicon_current_outdir_parent
+        / ss_hash[:6]  # uses samplesheet hash prefix as dir name for the chunk
     )
     print(f"Using output dir {amplicon_current_outdir} for this execution")
 
@@ -596,21 +619,30 @@ async def analysis_amplicon_study(study_accession: str):
 
     read_runs = get_study_readruns_from_ena(
         ena_study.accession,
-        limit=5000,
+        limit=10000,
         filter_library_strategy=EMG_CONFIG.amplicon_pipeline.amplicon_library_strategy,
     )
     logger.info(f"Returned {len(read_runs)} run from ENA portal API")
 
     # get or create Analysis for runs
-    mgnify_analyses = create_analyses(mgnify_study, read_runs)
-    runs_to_attempt = get_runs_to_attempt(mgnify_study)
+    mgnify_analyses = create_analyses(
+        mgnify_study,
+        for_experiment_type=analyses.models.WithExperimentTypeModel.ExperimentTypes.AMPLICON,
+        pipeline=analyses.models.Analysis.PipelineVersions.v6,
+    )
+    analyses_to_attempt = get_analyses_to_attempt(
+        mgnify_study,
+        for_experiment_type=analyses.models.WithExperimentTypeModel.ExperimentTypes.AMPLICON,
+    )
 
     # Work on chunks of 20 readruns at a time
     # Doing so means we don't use our entire cluster allocation for this study
-    chunked_runs = chunk_amplicon_list(
-        runs_to_attempt, EMG_CONFIG.amplicon_pipeline.samplesheet_chunk_size
+    chunked_runs = chunk_list(
+        analyses_to_attempt, EMG_CONFIG.amplicon_pipeline.samplesheet_chunk_size
     )
-    for runs_chunk in chunked_runs:
-        # launch jobs for all runs in this chunk in a single flow
-        logger.info(f"Working on amplicons: {runs_chunk[0]}-{runs_chunk[-1]}")
-        await perform_amplicons_in_parallel(mgnify_study, runs_chunk)
+    for analyses_chunk in chunked_runs:
+        # launch jobs for all analyses in this chunk in a single flow
+        logger.info(
+            f"Working on amplicon analyses: {analyses_chunk[0]}-{analyses_chunk[-1]}"
+        )
+        await perform_amplicons_in_parallel(mgnify_study, analyses_chunk)

@@ -299,9 +299,9 @@ def generate_fake_pipeline_no_asvs(amplicon_run_folder, run):
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
-@patch("workflows.flows.analysis_amplicon_study.compute_hash_of_input_file")
+@patch("workflows.flows.analysis_amplicon_study.queryset_hash")
 async def test_prefect_analyse_amplicon_flow(
-    mock_compute_hash_of_input_file_for_amplicon,
+    mock_queryset_hash_for_amplicon,
     prefect_harness,
     httpx_mock,
     mock_cluster_can_accept_jobs_yes,
@@ -314,7 +314,7 @@ async def test_prefect_analyse_amplicon_flow(
     Create analysis for amplicon runs and launch it with samplesheet.
     One run has all results, one run failed
     """
-    mock_compute_hash_of_input_file_for_amplicon.return_value = "abc123"
+    mock_queryset_hash_for_amplicon.return_value = "abc123"
 
     study_accession = "PRJNA398089"
     amplicon_run_all_results = "SRR_all_results"
@@ -335,7 +335,7 @@ async def test_prefect_analyse_amplicon_flow(
         url=f"{EMG_CONFIG.ena.portal_search_api}?"
         f"result=read_run"
         f"&query=%22(study_accession={study_accession}%20OR%20secondary_study_accession={study_accession})%20AND%20library_strategy=AMPLICON%22"
-        f"&limit=5000"
+        f"&limit=10000"
         f"&format=json"
         f"&fields={','.join(EMG_CONFIG.ena.readrun_metadata_fields)}"
         f"&dataPortal=metagenome",

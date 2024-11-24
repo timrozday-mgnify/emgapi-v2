@@ -42,7 +42,10 @@ from workflows.nextflow_utils.samplesheets import (
     queryset_hash,
     queryset_to_samplesheet,
 )
-from workflows.prefect_utils.analyses_models_helpers import task_mark_assembly_status
+from workflows.prefect_utils.analyses_models_helpers import (
+    chunk_list,
+    task_mark_assembly_status,
+)
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 from workflows.prefect_utils.slurm_flow import (
     ClusterJobFailedException,
@@ -128,11 +131,6 @@ def get_assemblies_to_attempt(study: analyses.models.Study) -> List[Union[str, i
         }
     ).values_list("id", flat=True)
     return assemblies_worth_trying
-
-
-@task
-def chunk_list(items: List[Any], chunk_size: int) -> List[List[Any]]:
-    return [items[j : j + chunk_size] for j in range(0, len(items), chunk_size)]
 
 
 EXPERIMENT_TYPES_TO_MIASSEMBLER_LIBRARY_STRATEGY = defaultdict(

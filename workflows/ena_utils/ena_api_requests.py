@@ -146,6 +146,15 @@ def check_reads_fastq(fastq: list, run_accession: str, library_layout: str):
 def get_study_readruns_from_ena(
     accession: str, limit: int = 20, filter_library_strategy: str = None
 ) -> List[str]:
+    """
+    Retrieve a list of read_runs from the ENA Portal API, for a given study.
+    Only read_runs with the matching library strategy metadata will be fetched.
+
+    :param accession: Study accession on ENA
+    :param limit: Maximum number of read_runs to fetch
+    :param filter_library_strategy: E.g. AMPLICON, to only fetch library-strategy: amplicon reads
+    :return: A list of run accessions that have been fetched and matched the specified library strategy. Study may also contain other non-matching runs.
+    """
     logger = get_run_logger()
 
     # api call arguments
@@ -171,6 +180,8 @@ def get_study_readruns_from_ena(
         raise Exception(f"Bad status! {portal.status_code} {portal}")
 
     logger.info("ENA portal responded ok.")
+
+    run_accessions = []
     for read_run in portal.json():
         # check scientific name and metagenome source
         if (
@@ -241,6 +252,6 @@ def get_study_readruns_from_ena(
         run.set_experiment_type_by_ena_library_strategy(
             read_run[analyses.models.Run.CommonMetadataKeys.LIBRARY_STRATEGY]
         )
+        run_accessions.append(run.first_accession)
 
-    mgys_study.refresh_from_db()
-    return [run.ena_accessions[0] for run in mgys_study.runs.all()]
+    return run_accessions

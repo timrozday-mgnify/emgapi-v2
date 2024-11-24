@@ -1,6 +1,8 @@
+from typing import List, TypeVar
+
 from prefect import task
 
-from analyses.models import Assembly, Analysis
+from analyses.models import Analysis, Assembly
 
 
 @task(log_prints=True)
@@ -75,3 +77,18 @@ def task_mark_analysis_status(
                 set_status_as=False,
                 reason=f"Explicitly unset when setting {status}",
             )
+
+
+I = TypeVar("I")
+
+
+@task
+def chunk_list(items: List[I], chunk_size: int) -> List[List[I]]:
+    """
+    Split list of items into chunks of up to specified size.
+    Useful for splitting a lot of parallelizable tasks into a sequence of smaller parallelizable groups.
+    :param items: List of things e.g. objects IDs
+    :param chunk_size: (Maximum) size of each chunks
+    :return: List of chunks, each chunk is a list of items up to chunk_size
+    """
+    return [items[j : j + chunk_size] for j in range(0, len(items), chunk_size)]
