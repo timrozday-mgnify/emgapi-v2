@@ -166,7 +166,14 @@ class StudyAdmin(ENABrowserLinkMixin, ModelAdmin):
         def make_state_link(state: Assembly.AssemblyStates) -> str:
             url = reverse_lazy("admin:analyses_assembly_changelist")
             url += f"?status={state}&study_accession={study.accession}"
-            return format_html("<a href='{}'>{}</a>", url, state.value)
+            return format_html(
+                "<a class='flex items-center' href='{}'>"
+                "<span>{}</span>"
+                "<span class='material-symbols-outlined ml-2'>arrow_forward</span>"
+                "</a>",
+                url,
+                state.value,
+            )
 
         assemblies_status_table = {
             "headers": ["Assemblies with state", "Count"],
@@ -214,7 +221,10 @@ class StudyAdmin(ENABrowserLinkMixin, ModelAdmin):
             url = reverse_lazy("admin:analyses_run_changelist")
             url += f"?experiment_type__exact={experiment_type_code}&study_accession={study.accession}"
             return format_html(
-                "<a href='{}'>{}</a>",
+                "<a class='flex items-center' href='{}'>"
+                "<span>{}</span>"
+                "<span class='material-symbols-outlined ml-2'>arrow_forward</span>"
+                "</a>",
                 url,
                 Run.ExperimentTypes(experiment_type_code).label,
             )
@@ -257,7 +267,14 @@ class StudyAdmin(ENABrowserLinkMixin, ModelAdmin):
         def make_state_link(state: Analysis.AnalysisStates) -> str:
             url = reverse_lazy("admin:analyses_analysis_changelist")
             url += f"?{AnalysisStatusListFilter.parameter_name}={state.value}&{StudyFilter.parameter_name}={study.accession}"
-            return format_html("<a href='{}'>{}</a>", url, state.value)
+            return format_html(
+                "<a class='flex items-center' href='{}'>"
+                "<span>{}</span>"
+                "<span class='material-symbols-outlined ml-2'>arrow_forward</span>"
+                "</a>",
+                url,
+                state.value,
+            )
 
         analyses_status_table = {
             "headers": ["Analyses with state", "Count"],
