@@ -1,16 +1,14 @@
 import pytest
 from pydantic import ValidationError
 
-from workflows.data_io_utils.file_rules import (
-    Directory,
+from workflows.data_io_utils.file_rules.base_rules import FileRule, GlobRule
+from workflows.data_io_utils.file_rules.common_rules import (
     DirectoryExistsRule,
-    File,
     FileExistsRule,
     FileIsNotEmptyRule,
     GlobHasFilesRule,
-    _FileRule,
-    _GlobRule,
 )
+from workflows.data_io_utils.file_rules.nodes import Directory, File
 
 
 def test_file_rules_utils(tmp_path):
@@ -33,7 +31,7 @@ def test_file_rules_utils(tmp_path):
         File(path=tmp_path / "empty.tsv", rules=[FileExistsRule, FileIsNotEmptyRule])
 
     # new custom rule to check content
-    MyRule = _FileRule(
+    MyRule = FileRule(
         rule_name="Text contains hello", test=lambda p: "hello" in p.read_text()
     )
 
@@ -74,7 +72,7 @@ def test_dir_rules_utils(tmp_path):
     Directory(path=empty, rules=[DirectoryExistsRule], glob_rules=[GlobHasFilesRule])
 
     # test custom glob test
-    ShouldContainHelloRule = _GlobRule(
+    ShouldContainHelloRule = GlobRule(
         rule_name="Directory contains a file matching hello",
         glob_patten="*hello*",
         test=lambda matches: len(list(matches)) > 0,

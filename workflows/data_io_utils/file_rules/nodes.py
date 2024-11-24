@@ -1,26 +1,16 @@
 import logging
 from pathlib import Path
-from typing import Callable, Iterable, List
+from typing import List
 
 from pydantic import BaseModel, Field, model_validator
 
-
-class _FileRule(BaseModel):
-    rule_name: str = Field(..., description="Nice name of the rule to be applied")
-    test: Callable[[Path], bool] = Field(
-        ..., description="Function to call on file to check if rule passes"
-    )
-
-
-FileExistsRule = _FileRule(
-    rule_name="File should exist",
-    test=lambda f: f.is_file(),
+from workflows.data_io_utils.file_rules.base_rules import (
+    DirectoryRule,
+    FileRule,
+    GlobRule,
 )
 
-FileIsNotEmptyRule = _FileRule(
-    rule_name="File should not be empty",
-    test=lambda f: f.stat().st_size > 0,
-)
+__all__ = ["File", "Directory"]
 
 
 class File(BaseModel):
@@ -29,7 +19,7 @@ class File(BaseModel):
     """
 
     path: Path = Field(..., description="pathlib.Path pointer to the file")
-    rules: List[_FileRule] = Field(
+    rules: List[FileRule] = Field(
         default_factory=list, description="List of rules to be applied", repr=False
     )
 
@@ -54,43 +44,17 @@ class File(BaseModel):
         return self
 
 
-class _DirectoryRule(_FileRule): ...
-
-
-DirectoryExistsRule = _DirectoryRule(
-    rule_name="Directory should exist",
-    test=lambda f: f.is_dir(),
-)
-
-
-class _GlobRule(_DirectoryRule):
-    glob_patten: str = Field(
-        default="*", description="Glob pattern to match within the dir"
-    )
-    test: Callable[[Iterable[Path]], bool] = Field(
-        ...,
-        description="Function to call on the result of glob pattern to check it passes",
-    )
-
-
-GlobHasFilesRule = _GlobRule(
-    rule_name="Dir should have at least one file",
-    glob_patten="*",
-    test=lambda matches: len(list(matches)) > 0,
-)
-
-
 class Directory(File):
     files: List[File] = Field(
         default_factory=list,
         description="File objects to specifically check in the directory",
     )
-    rules: List[_DirectoryRule] = Field(
+    rules: List[DirectoryRule] = Field(
         default_factory=list,
         description="List of rules to be applied to the directory path",
         repr=False,
     )
-    glob_rules: List[_GlobRule] = Field(
+    glob_rules: List[GlobRule] = Field(
         default_factory=list,
         description="List of glob rules to be applied to the dir",
         repr=False,
