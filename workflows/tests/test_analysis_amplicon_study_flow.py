@@ -153,6 +153,7 @@ def generate_fake_pipeline_all_results(amplicon_run_folder, run):
     ):
         ssu_tsv.writelines(
             [
+                "# Constructed from biome file\n",
                 "# OTU ID\tSSU\ttaxonomy\ttaxid\n",
                 "36901\t1.0\tsk__Bacteria;k__;p__Bacillota;c__Bacilli\t91061\n",
                 "60237\t2.0\tsk__Bacteria;k__;p__Bacillota;c__Bacilli;o__Lactobacillales;f__Carnobacteriaceae;g__Trichococcus\t82802\n"

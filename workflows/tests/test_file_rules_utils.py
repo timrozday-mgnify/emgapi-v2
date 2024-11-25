@@ -8,6 +8,9 @@ from workflows.data_io_utils.file_rules.common_rules import (
     FileIsNotEmptyRule,
     GlobHasFilesRule,
 )
+from workflows.data_io_utils.file_rules.mgnify_v6_result_rules import (
+    FileConformsToTaxonomyTSVSchemaRule,
+)
 from workflows.data_io_utils.file_rules.nodes import Directory, File
 
 
@@ -84,3 +87,52 @@ def test_dir_rules_utils(tmp_path):
 
     (empty / "hello.txt").touch()
     Directory(path=empty, glob_rules=[ShouldContainHelloRule])
+
+
+def test_csv_schema_rule_utils(tmp_path):
+    tsv_file = tmp_path / "data.tsv"
+    content = """\
+# Constructed from biom file
+# OTU ID	SSU	taxonomy	taxid
+36901	1.0	sk__Bacteria;k__;p__Bacillota;c__Bacilli	91061
+60237	2.0	sk__Bacteria;k__;p__Bacillota;c__Bacilli;o__Lactobacillales;f__Carnobacteriaceae;g__Trichococcus	82802\
+    """
+    with tsv_file.open("w", newline="") as fh:
+        fh.write(content)
+
+    # should adhere to MGnify V6 Taxonomy schema
+    file = File(path=tsv_file, rules=[FileConformsToTaxonomyTSVSchemaRule])
+
+    # should work with no leading comment line
+    content = """\
+# OTU ID	SSU	taxonomy	taxid
+36901	1.0	sk__Bacteria;k__;p__Bacillota;c__Bacilli	91061
+60237	2.0	sk__Bacteria;k__;p__Bacillota;c__Bacilli;o__Lactobacillales;f__Carnobacteriaceae;g__Trichococcus	82802\
+    """
+    with tsv_file.open("w", newline="") as fh:
+        fh.write(content)
+
+    file = File(path=tsv_file, rules=[FileConformsToTaxonomyTSVSchemaRule])
+
+    # should work with no # comment character on header
+    content = """\
+OTU ID	SSU	taxonomy	taxid
+36901	1.0	sk__Bacteria;k__;p__Bacillota;c__Bacilli	91061
+60237	2.0	sk__Bacteria;k__;p__Bacillota;c__Bacilli;o__Lactobacillales;f__Carnobacteriaceae;g__Trichococcus	82802\
+    """
+    with tsv_file.open("w", newline="") as fh:
+        fh.write(content)
+
+    file = File(path=tsv_file, rules=[FileConformsToTaxonomyTSVSchemaRule])
+
+    # should fail if missing taxonomy column
+    content = """\
+OTU ID	SSU	taxon	taxid
+36901	1.0	sk__Bacteria;k__;p__Bacillota;c__Bacilli	91061
+60237	2.0	sk__Bacteria;k__;p__Bacillota;c__Bacilli;o__Lactobacillales;f__Carnobacteriaceae;g__Trichococcus	82802\
+    """
+    with tsv_file.open("w", newline="") as fh:
+        fh.write(content)
+    with pytest.raises(ValidationError) as exc_info:
+        file = File(path=tsv_file, rules=[FileConformsToTaxonomyTSVSchemaRule])
+        assert "taxonomy" in exc_info.value

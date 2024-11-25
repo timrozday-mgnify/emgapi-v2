@@ -10,6 +10,10 @@ import pandas as pd
 from django.db.models import QuerySet
 
 from emgapiv2.settings import EMG_CONFIG
+from workflows.data_io_utils.csv.csv_comment_handler import (
+    CSVDelimiter,
+    move_file_pointer_past_comment_lines,
+)
 from workflows.data_io_utils.file_rules.common_rules import (
     DirectoryExistsRule,
     FileExistsRule,
@@ -20,7 +24,6 @@ from workflows.data_io_utils.file_rules.mgnify_v6_result_rules import (
     GlobOfTaxonomyFolderHasHtmlAndMseqRule,
 )
 from workflows.data_io_utils.file_rules.nodes import Directory, File
-from workflows.data_io_utils.file_rules.rule_factories import CSVDelimiter
 from workflows.ena_utils.ena_file_fetching import convert_ena_ftp_to_fire_fastq
 from workflows.views import encode_samplesheet_path
 
@@ -524,7 +527,12 @@ def import_completed_analysis(
             )
         )
 
-        tax_df = pd.read_csv(ssu_tax_dir.files[0].path, sep=CSVDelimiter.TAB)
+        with ssu_tax_dir.files[0].path.open("r") as ssu_tsv:
+            move_file_pointer_past_comment_lines(
+                ssu_tsv, delimiter=CSVDelimiter.TAB, comment_char="#"
+            )
+            tax_df = pd.read_csv(ssu_tsv, sep=CSVDelimiter.TAB)
+
         tax_df = tax_df.rename(columns={"taxonomy": "organism"})
         tax_df["count"] = None
         tax_df: pd.DataFrame = tax_df[["organism", "count"]]

@@ -2,9 +2,9 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from workflows.data_io_utils.csv.csv_comment_handler import CSVDelimiter
 from workflows.data_io_utils.file_rules.base_rules import GlobRule
 from workflows.data_io_utils.file_rules.rule_factories import (
-    CSVDelimiter,
     generate_csv_schema_file_rule,
 )
 
