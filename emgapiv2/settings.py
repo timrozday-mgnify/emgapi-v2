@@ -72,12 +72,14 @@ INSTALLED_APPS = [
     "django_ltree",  ## for hierarchical models like Biome
     "debug_toolbar",
     "django_admin_inline_paginator",
+    "corsheaders",
     "ena",
     "analyses",
     "workflows",
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "debug_toolbar.middleware.DebugToolbarMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -87,6 +89,18 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+]
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:9000",
+    "http://localhost:8000",
+    "https://www.ebi.ac.uk",
+    "http://www.ebi.ac.uk",
+    "https://wwwdev.ebi.ac.uk",
+    "http://wwwdev.ebi.ac.uk",
+    "https://wwwint.ebi.ac.uk",
+    "http://wwwint.ebi.ac.uk",
+    "http://apiv2-dev.mgnify.org",
 ]
 
 ROOT_URLCONF = "emgapiv2.urls"
