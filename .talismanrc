@@ -9,6 +9,8 @@ fileignoreconfig:
   checksum: ad0fde5a1d53ecc82dc214b93ccc253f5e17f9bea089c8d896aafeffafbabb63
 - filename: workflows/data_io_utils/file_rules.py
   checksum: 18b7d98b4778cf50b81961e026ef5ce8936692b2a2db11038656aca7940b6301
+- filename: .github/workflows/release_k8s.yml
+  checksum: 0e93196d244417801fd40ad6bfa01f53a6bf04257371378a1dc3e14cbc7a04d8
 allowed_patterns:
 - pagination_key
 - CommonMetadataKeys
