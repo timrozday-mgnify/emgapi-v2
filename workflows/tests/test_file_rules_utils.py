@@ -6,6 +6,7 @@ from workflows.data_io_utils.file_rules.common_rules import (
     DirectoryExistsRule,
     FileExistsRule,
     FileIsNotEmptyRule,
+    GlobHasFilesCountRule,
     GlobHasFilesRule,
 )
 from workflows.data_io_utils.file_rules.mgnify_v6_result_rules import (
@@ -136,3 +137,46 @@ OTU ID	SSU	taxon	taxid
     with pytest.raises(ValidationError) as exc_info:
         file = File(path=tsv_file, rules=[FileConformsToTaxonomyTSVSchemaRule])
         assert "taxonomy" in exc_info.value
+
+
+def test_glob_file_count_rules(tmp_path):
+    empty = tmp_path / "empty"
+    empty.mkdir(exist_ok=True, parents=True)
+
+    # should fail if we expect empty dir to have 1 file
+    with pytest.raises(ValidationError) as exc_info:
+        Directory(path=empty, glob_rules=[GlobHasFilesCountRule[1]])
+        assert "Glob should have 1 file(s)" in exc_info.value
+
+    # should pass if we expect it to have 0
+    Directory(path=empty, glob_rules=[GlobHasFilesCountRule[0]])
+
+    # should pass if we expect it to have 0 or more
+    Directory(path=empty, glob_rules=[GlobHasFilesCountRule[0:]])
+
+    # should pass if we expect it to have 0 to 2
+    Directory(path=empty, glob_rules=[GlobHasFilesCountRule[0:2]])
+
+    (empty / "something.txt").touch()
+
+    # should pass if we expect it to have 1 or more
+    Directory(path=empty, glob_rules=[GlobHasFilesCountRule[1:]])
+
+    # ... or exactly 1
+    Directory(path=empty, glob_rules=[GlobHasFilesCountRule[1]])
+
+    # ... or 1 to 10
+    Directory(path=empty, glob_rules=[GlobHasFilesCountRule[1:10]])
+
+    # ... or up to 10
+    Directory(path=empty, glob_rules=[GlobHasFilesCountRule[:10]])
+
+    # ... or up to 1
+    Directory(path=empty, glob_rules=[GlobHasFilesCountRule[:1]])
+
+    (empty / "something-else.txt").touch()
+
+    # should fail if max 1 is allowed
+    with pytest.raises(ValidationError) as exc_info:
+        Directory(path=empty, glob_rules=[GlobHasFilesCountRule[:1]])
+        assert "Glob should have :2 file(s)" in exc_info.value
