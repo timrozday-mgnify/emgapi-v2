@@ -147,11 +147,19 @@ def generate_fake_pipeline_all_results(amplicon_run_folder, run):
     ), open(
         f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/SILVA-SSU/{run}_SILVA-SSU.tsv",
         "w",
-    ), open(
+    ) as ssu_tsv, open(
         f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/SILVA-SSU/{run}_SILVA-SSU.txt",
         "w",
     ):
-        pass
+        ssu_tsv.writelines(
+            [
+                "# Constructed from biome file\n",
+                "# OTU ID\tSSU\ttaxonomy\ttaxid\n",
+                "36901\t1.0\tsk__Bacteria;k__;p__Bacillota;c__Bacilli\t91061\n",
+                "60237\t2.0\tsk__Bacteria;k__;p__Bacillota;c__Bacilli;o__Lactobacillales;f__Carnobacteriaceae;g__Trichococcus\t82802\n"
+                "65035\t1.0\tsk__Bacteria;k__;p__Bacillota;c__Clostridia;o__Eubacteriales;f__Eubacteriaceae;g__Eubacterium;s__Eubacterium_coprostanoligenes\t290054\n",
+            ]
+        )
     with open(
         f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/PR2/{run}.html",
         "w",
@@ -276,11 +284,16 @@ def generate_fake_pipeline_no_asvs(amplicon_run_folder, run):
     ), open(
         f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/SILVA-SSU/{run}_SILVA-SSU.tsv",
         "w",
-    ), open(
+    ) as ssu_tsv, open(
         f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/SILVA-SSU/{run}_SILVA-SSU.txt",
         "w",
     ):
-        pass
+        ssu_tsv.writelines(
+            [
+                "# OTU ID\tSSU\ttaxonomy\ttaxid\n",
+                "36901\t1.0\tsk__Bacteria;k__;p__Bacillota;c__Bacilli\t91061\n",
+            ]
+        )
     with open(
         f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/PR2/{run}.html",
         "w",
@@ -510,3 +523,24 @@ async def test_prefect_analyse_amplicon_flow(
         ).acount()
         == 1
     )
+
+    analysis_which_should_have_taxonomies_imported: analyses.models.Analysis = (
+        await analyses.models.Analysis.objects_and_annotations.aget(
+            run__ena_accessions__contains=amplicon_run_all_results
+        )
+    )
+    assert (
+        analyses.models.Analysis.TAXONOMIES
+        in analysis_which_should_have_taxonomies_imported.annotations
+    )
+    assert (
+        analyses.models.Analysis.TaxonomySources.SSU.value
+        in analysis_which_should_have_taxonomies_imported.annotations[
+            analyses.models.Analysis.TAXONOMIES
+        ]
+    )
+    ssu = analysis_which_should_have_taxonomies_imported.annotations[
+        analyses.models.Analysis.TAXONOMIES
+    ][analyses.models.Analysis.TaxonomySources.SSU.value]
+    assert len(ssu) == 3
+    assert ssu[0]["organism"] == "sk__Bacteria;k__;p__Bacillota;c__Bacilli"

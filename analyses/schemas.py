@@ -105,7 +105,7 @@ class MGnifyAnalysisDetail(MGnifyAnalysis):
 
 
 class MGnifyAnalysisTypedAnnotation(Schema):
-    count: int
+    count: Optional[int] = None  # sometimes it is just presence with no count
     description: Optional[str] = None  # for functional
     organism: Optional[str] = None  # for taxonomic
 

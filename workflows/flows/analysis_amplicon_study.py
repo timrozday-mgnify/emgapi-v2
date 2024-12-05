@@ -6,8 +6,24 @@ from textwrap import dedent as _
 from typing import List, Union
 
 import django
+import pandas as pd
 from django.db.models import QuerySet
 
+from emgapiv2.settings import EMG_CONFIG
+from workflows.data_io_utils.csv.csv_comment_handler import (
+    CSVDelimiter,
+    move_file_pointer_past_comment_lines,
+)
+from workflows.data_io_utils.file_rules.common_rules import (
+    DirectoryExistsRule,
+    FileExistsRule,
+    FileIsNotEmptyRule,
+)
+from workflows.data_io_utils.file_rules.mgnify_v6_result_rules import (
+    FileConformsToTaxonomyTSVSchemaRule,
+    GlobOfTaxonomyFolderHasHtmlAndMseqRule,
+)
+from workflows.data_io_utils.file_rules.nodes import Directory, File
 from workflows.ena_utils.ena_file_fetching import convert_ena_ftp_to_fire_fastq
 from workflows.views import encode_samplesheet_path
 
@@ -20,7 +36,6 @@ from prefect.task_runners import SequentialTaskRunner
 
 import analyses.models
 import ena.models
-from emgapiv2.settings import EMG_CONFIG
 from workflows.ena_utils.ena_api_requests import (
     get_study_from_ena,
     get_study_readruns_from_ena,
@@ -42,6 +57,7 @@ from workflows.prefect_utils.slurm_flow import (
 
 FASTQ_FTPS = analyses.models.Run.CommonMetadataKeys.FASTQ_FTPS
 METADATA__FASTQ_FTPS = f"{analyses.models.Run.metadata.field.name}__{FASTQ_FTPS}"
+EMG_CONFIG = settings.EMG_CONFIG
 
 
 @task(
@@ -476,6 +492,61 @@ def sanity_check_amplicon_results(
         )
 
 
+@task(log_prints=True)
+def import_completed_analysis(
+    amplicon_current_outdir: Path, amplicon_analyses: List[analyses.models.Analysis]
+):
+    for analysis in amplicon_analyses:
+        analysis.refresh_from_db()
+        if not analysis.status.get(analysis.AnalysisStates.ANALYSIS_COMPLETED):
+            print(f"{analysis} is not completed successfuly. Skipping.")
+            continue
+        if analysis.annotations.get(analysis.TAXONOMIES):
+            print(f"{analysis} already has taxonomic annotations. Skipping.")
+
+        dir_for_analysis = amplicon_current_outdir / analysis.run.first_accession
+
+        # TODO - merge with sanity check code, support other ref DBS. some kind of config for the ref dbs,
+        # and a factory for these taxonomy dir pattens
+        ssu_tax_dir = Directory(
+            path=dir_for_analysis
+            / EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder
+            / "SILVA-SSU",
+            rules=[DirectoryExistsRule],
+            glob_rules=[GlobOfTaxonomyFolderHasHtmlAndMseqRule],
+        )
+
+        ssu_tax_dir.files.append(
+            File(
+                path=ssu_tax_dir.path / f"{analysis.run.first_accession}_SILVA-SSU.tsv",
+                rules=[
+                    FileExistsRule,
+                    FileIsNotEmptyRule,
+                    FileConformsToTaxonomyTSVSchemaRule,
+                ],
+            )
+        )
+
+        with ssu_tax_dir.files[0].path.open("r") as ssu_tsv:
+            move_file_pointer_past_comment_lines(
+                ssu_tsv, delimiter=CSVDelimiter.TAB, comment_char="#"
+            )
+            tax_df = pd.read_csv(ssu_tsv, sep=CSVDelimiter.TAB)
+
+        tax_df = tax_df.rename(columns={"taxonomy": "organism"})
+        tax_df["count"] = None
+        tax_df: pd.DataFrame = tax_df[["organism", "count"]]
+
+        taxonomies = analysis.annotations.get(analysis.TAXONOMIES, {})
+        if not taxonomies:
+            taxonomies = {}
+        taxonomies[analysis.TaxonomySources.SSU.value] = tax_df.to_dict(
+            orient="records"
+        )
+        analysis.annotations[analysis.TAXONOMIES] = taxonomies
+        analysis.save()
+
+
 @task(
     cache_key_fn=context_agnostic_task_input_hash,
 )
@@ -592,6 +663,7 @@ async def perform_amplicons_in_parallel(
     else:
         # assume that if job finished, all finished... set statuses
         set_post_analysis_states(amplicon_current_outdir, amplicon_analyses)
+        import_completed_analysis(amplicon_current_outdir, amplicon_analyses)
 
 
 @flow(
