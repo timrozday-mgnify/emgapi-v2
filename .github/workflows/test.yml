@@ -23,10 +23,16 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+      - uses: actions/setup-python@v5
+      - uses: pre-commit/action@v3.0.1
 
       - name: Build Docker image
         run: |
           docker build --target django -t app:latest .
+
+      - name: Check for unmigrated code
+        run: |
+          docker run --rm app:latest -c makemigrations --check
 
       - name: Run tests
         run: |
