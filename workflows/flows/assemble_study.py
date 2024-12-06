@@ -5,38 +5,32 @@ from datetime import timedelta
 from enum import Enum
 from pathlib import Path
 from textwrap import dedent as _
-from typing import Any, List, Union
+from typing import List, Union
 
 import django
 import pandas as pd
 from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.urls import reverse_lazy
+from prefect import flow, get_run_logger, suspend_flow_run, task
 from prefect.artifacts import create_table_artifact
 from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 
-from analyses.models import Assembly
+django.setup()
+
+import analyses.models
+import ena.models
 from workflows.data_io_utils.filenames import (
     accession_prefix_separated_dir_path,
     file_path_shortener,
 )
-from workflows.ena_utils.ena_file_fetching import convert_ena_ftp_to_fire_fastq
-from workflows.flows.upload_assembly import upload_assembly
-from workflows.prefect_utils.slack_notification import notify_via_slack
-from workflows.views import encode_samplesheet_path
-
-django.setup()
-
-from prefect import flow, get_run_logger, suspend_flow_run, task
-
-import analyses.models
-import ena.models
-from emgapiv2.settings import EMG_CONFIG
 from workflows.ena_utils.ena_api_requests import (
     get_study_from_ena,
     get_study_readruns_from_ena,
 )
+from workflows.ena_utils.ena_file_fetching import convert_ena_ftp_to_fire_fastq
+from workflows.flows.upload_assembly import upload_assembly
 from workflows.nextflow_utils.samplesheets import (
     SamplesheetColumnSource,
     queryset_hash,
@@ -47,10 +41,14 @@ from workflows.prefect_utils.analyses_models_helpers import (
     task_mark_assembly_status,
 )
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
+from workflows.prefect_utils.slack_notification import notify_via_slack
 from workflows.prefect_utils.slurm_flow import (
     ClusterJobFailedException,
     run_cluster_job,
 )
+from workflows.views import encode_samplesheet_path
+
+EMG_CONFIG = settings.EMG_CONFIG
 
 
 @task()
@@ -402,8 +400,8 @@ def upload_assemblies(study: analyses.models.Study, dry_run: bool = False):
     """
     assemblies_to_upload = study.assemblies_reads.filter(
         **{
-            f"status__{Assembly.AssemblyStates.ASSEMBLY_COMPLETED}": True,
-            f"status__{Assembly.AssemblyStates.ASSEMBLY_UPLOADED}": False,
+            f"status__{analyses.models.Assembly.AssemblyStates.ASSEMBLY_COMPLETED}": True,
+            f"status__{analyses.models.Assembly.AssemblyStates.ASSEMBLY_UPLOADED}": False,
         }
     )
     for assembly in assemblies_to_upload:

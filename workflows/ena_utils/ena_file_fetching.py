@@ -1,6 +1,8 @@
 import logging
 
-from emgapiv2.settings import EMG_CONFIG
+from django.conf import settings
+
+EMG_CONFIG = settings.EMG_CONFIG
 
 
 def convert_ena_ftp_to_fire_fastq(

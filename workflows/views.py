@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import quote, unquote
 
 from asgiref.sync import async_to_sync
+from django.conf import settings
 from django.contrib.admin.views.decorators import staff_member_required
 from django.http import Http404
 from django.shortcuts import redirect, render
@@ -16,7 +17,6 @@ from prefect.exceptions import FlowRunWaitTimeout, ObjectNotFound
 from prefect.flow_runs import wait_for_flow_run
 from unfold.sites import UnfoldAdminSite
 
-from emgapiv2.settings import EMG_CONFIG
 from workflows.nextflow_utils.samplesheets import (
     location_for_samplesheet_to_be_edited,
     location_where_samplesheet_was_edited,
@@ -25,6 +25,7 @@ from workflows.nextflow_utils.samplesheets import (
 )
 
 logger = logging.getLogger(__name__)
+EMG_CONFIG = settings.EMG_CONFIG
 
 
 def encode_samplesheet_path(filepath: str | Path) -> str:

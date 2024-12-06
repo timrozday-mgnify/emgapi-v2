@@ -1,13 +1,15 @@
 import pytest
+from django.conf import settings
 from prefect.logging import disable_run_logger
 
 import analyses.models
 import ena.models
-from emgapiv2.settings import EMG_CONFIG
 from workflows.ena_utils.ena_api_requests import (
     get_study_from_ena,
     get_study_readruns_from_ena,
 )
+
+EMG_CONFIG = settings.EMG_CONFIG
 
 
 @pytest.mark.django_db(transaction=True)

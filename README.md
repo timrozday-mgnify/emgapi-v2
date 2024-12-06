@@ -135,6 +135,7 @@ task prefect -- deployment run "Download a study read-runs/realistic_example_dep
 * Use type hinting: `def my_func(param: List[str]) -> int:`
 * Prefer to use `pathlib` instead of `os.path`, e.g. for joining parts: `Path("/nfs/my/dir") / "subdir" / "file.txt"`
 * Config parameters (like the URL for ENA etc.) should use structured [Pydantic Settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/). See `settings.EMG_CONFIG`.
+* `EMG_CONFIG` should [always be imported via `django.conf.settings`](https://docs.djangoproject.com/en/5.1/topics/settings/#using-settings-in-python-code): e.g. `from django.conf import settings; EMG_CONFIG = settings.EMG_CONFIG`
 * When you have a list of acceptable options for something, use `Enum`s or `TextChoices` (a kind of enum for Django db fields): `class AssemblyStatuses(str, Enum):...`
 * Use Django/postgres JSONFields liberally (they can save a load of complicated JOINs)
 * Apply a schema to JSONFields, using Enums, default dicts, custom pydantic types... see `WithDownloadsModel` for an example

@@ -1,17 +1,19 @@
 from typing import List
 
 import httpx
+from django.conf import settings
 from prefect import get_run_logger, task
 
 import analyses.models
 import ena.models
-from emgapiv2.settings import EMG_CONFIG
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 
 ALLOWED_LIBRARY_SOURCE: list = ["METAGENOMIC", "METATRANSCRIPTOMIC"]
 SINGLE_END_LIBRARY_LAYOUT: str = "SINGLE"
 PAIRED_END_LIBRARY_LAYOUT: str = "PAIRED"
 METAGENOME_SCIENTIFIC_NAME: str = "metagenome"
+
+EMG_CONFIG = settings.EMG_CONFIG
 
 
 def create_ena_api_request(result_type, query, limit, fields, result_format="json"):

@@ -8,6 +8,7 @@ from typing import Optional
 import django
 from assembly_uploader import assembly_manifest, study_xmls, submit_study
 from Bio import SeqIO
+from django.conf import settings
 
 from workflows.prefect_utils.env_context import TemporaryEnv
 
@@ -19,13 +20,14 @@ from prefect.task_runners import SequentialTaskRunner
 
 import analyses.models
 import ena.models
-from emgapiv2.settings import EMG_CONFIG
 from workflows.prefect_utils.analyses_models_helpers import task_mark_assembly_status
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 from workflows.prefect_utils.slurm_flow import (
     ClusterJobFailedException,
     run_cluster_job,
 )
+
+EMG_CONFIG = settings.EMG_CONFIG
 
 OPTIONAL_SPADES_FILES = [
     ".assembly_graph.fastg.gz",
