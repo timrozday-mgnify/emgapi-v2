@@ -36,7 +36,7 @@ Make the secrets
 `kubectl apply -f ebi-wp-k8s-hl.yaml`
 
 ### Migrate
-`task exec -- migrate`
+`task migrate`
 
 # Auth (needed first, if this is a from-scratch setup)
 Auth is handled using an OAuth2-proxy in front of Prefect.
