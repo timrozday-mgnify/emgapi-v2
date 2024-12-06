@@ -6,18 +6,22 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('analyses', '0023_alter_run_metadata'),
+        ("analyses", "0023_alter_run_metadata"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='run',
-            name='instrument_model',
-            field=models.CharField(blank=True, db_column='instrument_model', max_length=100, null=True),
+            model_name="run",
+            name="instrument_model",
+            field=models.CharField(
+                blank=True, db_column="instrument_model", max_length=100, null=True
+            ),
         ),
         migrations.AddField(
-            model_name='run',
-            name='instrument_platform',
-            field=models.CharField(blank=True, db_column='instrument_platform', max_length=100, null=True),
+            model_name="run",
+            name="instrument_platform",
+            field=models.CharField(
+                blank=True, db_column="instrument_platform", max_length=100, null=True
+            ),
         ),
     ]

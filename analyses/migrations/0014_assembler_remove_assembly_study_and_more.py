@@ -7,50 +7,83 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('analyses', '0013_alter_assembly_options'),
-        ('ena', '0002_alter_study_options'),
+        ("analyses", "0013_alter_assembly_options"),
+        ("ena", "0002_alter_study_options"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Assembler',
+            name="Assembler",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('name', models.CharField(blank=True, max_length=20, null=True)),
-                ('version', models.CharField(max_length=20)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("name", models.CharField(blank=True, max_length=20, null=True)),
+                ("version", models.CharField(max_length=20)),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.RemoveField(
-            model_name='assembly',
-            name='study',
+            model_name="assembly",
+            name="study",
         ),
         migrations.AddField(
-            model_name='assembly',
-            name='assembly_study',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='assemblies_assembly', to='analyses.study'),
+            model_name="assembly",
+            name="assembly_study",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="assemblies_assembly",
+                to="analyses.study",
+            ),
         ),
         migrations.AddField(
-            model_name='assembly',
-            name='metadata',
+            model_name="assembly",
+            name="metadata",
             field=models.JSONField(blank=True, db_index=True, default=list),
         ),
         migrations.AddField(
-            model_name='assembly',
-            name='reads_study',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='assemblies_reads', to='analyses.study'),
+            model_name="assembly",
+            name="reads_study",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="assemblies_reads",
+                to="analyses.study",
+            ),
         ),
         migrations.AddField(
-            model_name='assembly',
-            name='assembler',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='assemblies', to='analyses.assembler'),
+            model_name="assembly",
+            name="assembler",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="assemblies",
+                to="analyses.assembler",
+            ),
         ),
         migrations.AddConstraint(
-            model_name='assembly',
-            constraint=models.CheckConstraint(check=models.Q(('reads_study__isnull', False), ('assembly_study__isnull', False), _connector='OR'), name='at_least_one_study_present'),
+            model_name="assembly",
+            constraint=models.CheckConstraint(
+                check=models.Q(
+                    ("reads_study__isnull", False),
+                    ("assembly_study__isnull", False),
+                    _connector="OR",
+                ),
+                name="at_least_one_study_present",
+            ),
         ),
     ]

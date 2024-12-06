@@ -1,6 +1,8 @@
 import logging
-from django.db import models
+
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
+from django.db import models
+
 # Some models that mirror ENA objects, like Study, Sample, Run etc
 
 
@@ -20,17 +22,20 @@ class StudyManager(models.Manager):
         logging.info(f"Will get ENA study for {ena_study_accession} from DB")
         ena_study = False
         try:
-            ena_study = await self.get_queryset().filter(
-                models.Q(accession=ena_study_accession)
-                | models.Q(additional_accessions__icontains=ena_study_accession)
-            ).afirst()
+            ena_study = (
+                await self.get_queryset()
+                .filter(
+                    models.Q(accession=ena_study_accession)
+                    | models.Q(additional_accessions__icontains=ena_study_accession)
+                )
+                .afirst()
+            )
             logging.debug(f"Got {ena_study}")
         except (MultipleObjectsReturned, ObjectDoesNotExist) as e:
             logging.warning(
                 f"Problem getting ENA study {ena_study_accession} from ENA models DB"
             )
         return ena_study
-
 
 
 class Study(ENAModel):

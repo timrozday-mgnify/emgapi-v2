@@ -34,11 +34,11 @@ async def test_prefect_assemble_study_flow(
 
     httpx_mock.add_response(
         url=f"{EMG_CONFIG.ena.portal_search_api}?"
-            f"result=study&"
-            f"query=study_accession={accession}%20OR%20secondary_study_accession={accession}&"
-            f"limit=10&"
-            f"format=json&"
-            f"fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}",
+        f"result=study&"
+        f"query=study_accession={accession}%20OR%20secondary_study_accession={accession}&"
+        f"limit=10&"
+        f"format=json&"
+        f"fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}",
         json=[
             {
                 "study_title": "Metagenome of a wookie",
@@ -50,13 +50,12 @@ async def test_prefect_assemble_study_flow(
 
     httpx_mock.add_response(
         url=f"{EMG_CONFIG.ena.portal_search_api}?"
-            f"result=read_run"
-            f"&query=%22(study_accession=PRJNA1%20OR%20secondary_study_accession=PRJNA1)%22"
-            f"&limit=5000"
-            f"&format=json"
-            f"&fields={','.join(EMG_CONFIG.ena.readrun_metadata_fields)}"
-            f"&dataPortal=metagenome",
-
+        f"result=read_run"
+        f"&query=%22(study_accession=PRJNA1%20OR%20secondary_study_accession=PRJNA1)%22"
+        f"&limit=5000"
+        f"&format=json"
+        f"&fields={','.join(EMG_CONFIG.ena.readrun_metadata_fields)}"
+        f"&dataPortal=metagenome",
         json=[
             {
                 "sample_accession": "SAMN01",
@@ -68,7 +67,7 @@ async def test_prefect_assemble_study_flow(
                 "library_layout": "PAIRED",
                 "library_strategy": "WGS",
                 "library_source": "METAGENOMIC",
-                "scientific_name": "metagenome"
+                "scientific_name": "metagenome",
             },
             {
                 "sample_accession": "SAMN02",
@@ -80,7 +79,7 @@ async def test_prefect_assemble_study_flow(
                 "library_layout": "PAIRED",
                 "library_strategy": "WGS",
                 "library_source": "METAGENOMIC",
-                "scientific_name": "metagenome"
+                "scientific_name": "metagenome",
             },
         ],
     )

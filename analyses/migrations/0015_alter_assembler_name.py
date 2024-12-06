@@ -6,13 +6,22 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('analyses', '0014_assembler_remove_assembly_study_and_more'),
+        ("analyses", "0014_assembler_remove_assembly_study_and_more"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='assembler',
-            name='name',
-            field=models.CharField(blank=True, choices=[('metaspades', 'MetaSPAdes'), ('megahit', 'MEGAHIT'), ('spades', 'SPAdes')], max_length=20, null=True),
+            model_name="assembler",
+            name="name",
+            field=models.CharField(
+                blank=True,
+                choices=[
+                    ("metaspades", "MetaSPAdes"),
+                    ("megahit", "MEGAHIT"),
+                    ("spades", "SPAdes"),
+                ],
+                max_length=20,
+                null=True,
+            ),
         ),
     ]

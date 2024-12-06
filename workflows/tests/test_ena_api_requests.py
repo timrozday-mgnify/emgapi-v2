@@ -1,13 +1,13 @@
+import pytest
 from prefect.logging import disable_run_logger
 
-import pytest
+import analyses.models
+import ena.models
 from emgapiv2.settings import EMG_CONFIG
 from workflows.ena_utils.ena_api_requests import (
     get_study_from_ena,
     get_study_readruns_from_ena,
 )
-import ena.models
-import analyses.models
 
 
 @pytest.mark.django_db(transaction=True)
@@ -22,8 +22,11 @@ async def test_get_study_from_ena_no_primary_accession(httpx_mock):
         json=[],
     )
     with disable_run_logger():
-        with pytest.raises(Exception, match=f"No study found for accession {study_accession}"):
+        with pytest.raises(
+            Exception, match=f"No study found for accession {study_accession}"
+        ):
             await get_study_from_ena.fn(study_accession, limit=10)
+
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
@@ -44,14 +47,14 @@ async def test_get_study_from_ena_two_secondary_accessions(httpx_mock):
     )
     with disable_run_logger():
         await get_study_from_ena.fn(study_accession, limit=10)
-        assert(
-                await ena.models.Study.objects.filter(
-                    accession=study_accession
-                ).acount() == 1
+        assert (
+            await ena.models.Study.objects.filter(accession=study_accession).acount()
+            == 1
         )
         created_study = await ena.models.Study.objects.get_ena_study(study_accession)
         assert created_study.accession == study_accession
         assert len(created_study.additional_accessions) == 2
+
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
@@ -72,14 +75,18 @@ async def test_get_study_from_ena_use_secondary_as_primary(httpx_mock):
     )
     with disable_run_logger():
         await get_study_from_ena.fn(sec_study_accession, limit=10)
-        assert(
-                await ena.models.Study.objects.filter(
-                    accession=sec_study_accession
-                ).acount() == 1
+        assert (
+            await ena.models.Study.objects.filter(
+                accession=sec_study_accession
+            ).acount()
+            == 1
         )
-        created_study = await ena.models.Study.objects.get_ena_study(sec_study_accession)
+        created_study = await ena.models.Study.objects.get_ena_study(
+            sec_study_accession
+        )
         assert created_study.accession == sec_study_accession
         assert len(created_study.additional_accessions) == 1
+
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
@@ -100,17 +107,19 @@ async def test_get_study_from_ena_no_secondary_accession(httpx_mock):
     )
     with disable_run_logger():
         await get_study_from_ena.fn(study_accession, limit=10)
-        assert(
-                await ena.models.Study.objects.filter(
-                    accession=study_accession
-                ).acount() == 1
+        assert (
+            await ena.models.Study.objects.filter(accession=study_accession).acount()
+            == 1
         )
         created_study = await ena.models.Study.objects.get_ena_study(study_accession)
         assert created_study.accession == study_accession
         assert len(created_study.additional_accessions) == 0
 
+
 @pytest.mark.django_db(transaction=True)
-def test_get_study_readruns_from_ena(httpx_mock, raw_read_ena_study, raw_reads_mgnify_study):
+def test_get_study_readruns_from_ena(
+    httpx_mock, raw_read_ena_study, raw_reads_mgnify_study
+):
     """
     run1 is not metagenomic/metatranscriptomic data
     run2 is correct
@@ -133,7 +142,7 @@ def test_get_study_readruns_from_ena(httpx_mock, raw_read_ena_study, raw_reads_m
                 "library_layout": "SINGLE",
                 "library_strategy": "AMPLICON",
                 "library_source": "GENOMIC",
-                "scientific_name": "genome"
+                "scientific_name": "genome",
             },
             {
                 "run_accession": "RUN2",
@@ -145,7 +154,7 @@ def test_get_study_readruns_from_ena(httpx_mock, raw_read_ena_study, raw_reads_m
                 "library_layout": "PAIRED",
                 "library_strategy": "AMPLICON",
                 "library_source": "METAGENOMIC",
-                "scientific_name": "metagenome"
+                "scientific_name": "metagenome",
             },
             {
                 "run_accession": "RUN3",
@@ -157,7 +166,7 @@ def test_get_study_readruns_from_ena(httpx_mock, raw_read_ena_study, raw_reads_m
                 "library_layout": "PAIRED",
                 "library_strategy": "AMPLICON",
                 "library_source": "METAGENOME",
-                "scientific_name": "uncultured bacteria"
+                "scientific_name": "uncultured bacteria",
             },
             {
                 "run_accession": "RUN4",
@@ -169,7 +178,7 @@ def test_get_study_readruns_from_ena(httpx_mock, raw_read_ena_study, raw_reads_m
                 "library_layout": "SINGLE",
                 "library_strategy": "AMPLICON",
                 "library_source": "METAGENOMIC",
-                "scientific_name": "metagenome"
+                "scientific_name": "metagenome",
             },
             {
                 "run_accession": "RUN5",
@@ -181,7 +190,7 @@ def test_get_study_readruns_from_ena(httpx_mock, raw_read_ena_study, raw_reads_m
                 "library_layout": "PAIRED",
                 "library_strategy": "AMPLICON",
                 "library_source": "METAGENOMIC",
-                "scientific_name": "metagenome"
+                "scientific_name": "metagenome",
             },
             {
                 "run_accession": "RUN6",
@@ -193,23 +202,45 @@ def test_get_study_readruns_from_ena(httpx_mock, raw_read_ena_study, raw_reads_m
                 "library_layout": "PAIRED",
                 "library_strategy": "AMPLICON",
                 "library_source": "METAGENOMIC",
-                "scientific_name": "metagenome"
-            }
+                "scientific_name": "metagenome",
+            },
         ],
     )
     with disable_run_logger():
         get_study_readruns_from_ena.fn(study_accession, limit=10)
         # run is not metagenome in scientific_name
-        assert (analyses.models.Run.objects.filter(ena_accessions__contains="RUN1").count() == 0)
+        assert (
+            analyses.models.Run.objects.filter(ena_accessions__contains="RUN1").count()
+            == 0
+        )
         # correct run
-        assert (analyses.models.Run.objects.filter(ena_accessions__contains="RUN2").count() == 1)
+        assert (
+            analyses.models.Run.objects.filter(ena_accessions__contains="RUN2").count()
+            == 1
+        )
         # incorrect library_source and scientific name
-        assert (analyses.models.Run.objects.filter(ena_accessions__contains="RUN3").count() == 0)
+        assert (
+            analyses.models.Run.objects.filter(ena_accessions__contains="RUN3").count()
+            == 0
+        )
         # incorrect library_layout single
-        assert (analyses.models.Run.objects.filter(ena_accessions__contains="RUN4").count() == 0)
+        assert (
+            analyses.models.Run.objects.filter(ena_accessions__contains="RUN4").count()
+            == 0
+        )
         # incorrect library_layout paired
-        assert (analyses.models.Run.objects.filter(ena_accessions__contains="RUN5").count() == 0)
+        assert (
+            analyses.models.Run.objects.filter(ena_accessions__contains="RUN5").count()
+            == 0
+        )
         # should return only 2 fq files in correct order
-        assert (analyses.models.Run.objects.filter(ena_accessions__contains="RUN6").count() == 1)
+        assert (
+            analyses.models.Run.objects.filter(ena_accessions__contains="RUN6").count()
+            == 1
+        )
         run = analyses.models.Run.objects.get(ena_accessions__contains="RUN6")
-        assert len(run.metadata["fastq_ftps"]) == 2 and '_1' in run.metadata["fastq_ftps"][0] and '_2' in run.metadata["fastq_ftps"][1]
+        assert (
+            len(run.metadata["fastq_ftps"]) == 2
+            and "_1" in run.metadata["fastq_ftps"][0]
+            and "_2" in run.metadata["fastq_ftps"][1]
+        )
