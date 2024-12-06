@@ -3,12 +3,14 @@ from __future__ import annotations
 from enum import Enum
 from typing import List, Optional, Union
 
+from django.conf import settings
 from ninja import Field, ModelSchema, Schema
 from typing_extensions import Annotated
 
 import analyses.models
 from analyses.base_models.with_downloads_models import DownloadFile
-from emgapiv2.settings import EMG_CONFIG
+
+EMG_CONFIG = settings.EMG_CONFIG
 
 
 class MGnifyStudy(ModelSchema):

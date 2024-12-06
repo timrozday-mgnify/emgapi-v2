@@ -9,7 +9,6 @@ import django
 import pandas as pd
 from django.db.models import QuerySet
 
-from emgapiv2.settings import EMG_CONFIG
 from workflows.data_io_utils.csv.csv_comment_handler import (
     CSVDelimiter,
     move_file_pointer_past_comment_lines,

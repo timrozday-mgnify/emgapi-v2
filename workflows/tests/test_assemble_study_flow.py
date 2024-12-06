@@ -4,14 +4,16 @@ import shutil
 from enum import Enum
 
 import pytest
+from django.conf import settings
 from prefect.artifacts import Artifact
 from pydantic import BaseModel
 
 import analyses.models
 import ena.models
-from emgapiv2.settings import EMG_CONFIG
 from workflows.flows.assemble_study import AssemblerChoices, assemble_study
 from workflows.prefect_utils.analyses_models_helpers import task_mark_assembly_status
+
+EMG_CONFIG = settings.EMG_CONFIG
 
 
 @pytest.mark.django_db(transaction=True)

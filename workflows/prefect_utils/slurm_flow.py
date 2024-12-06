@@ -10,6 +10,7 @@ from pathlib import Path
 from textwrap import dedent as _
 from typing import Callable, List, Optional, Union
 
+from django.conf import settings
 from django.utils.text import slugify
 from prefect import Flow, State, flow, get_run_logger, task
 from prefect.artifacts import create_markdown_artifact, create_table_artifact
@@ -21,7 +22,6 @@ from pydantic import AnyUrl
 from pydantic_core import Url
 
 from emgapiv2.log_utils import mask_sensitive_data as safe
-from emgapiv2.settings import EMG_CONFIG
 from workflows.data_io_utils.filenames import file_path_shortener
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 
@@ -35,6 +35,7 @@ else:
         logging.warning("No PySlurm available. Patching.")
         import workflows.prefect_utils.pyslurm_patch as pyslurm
 
+EMG_CONFIG = settings.EMG_CONFIG
 
 CLUSTER_WORKPOOL = "slurm"
 SLURM_JOB_ID = "Slurm Job ID"

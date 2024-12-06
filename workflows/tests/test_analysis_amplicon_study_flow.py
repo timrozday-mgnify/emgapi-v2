@@ -5,12 +5,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from django.conf import settings
 from django.db.models import Q
 from prefect.artifacts import Artifact
 
 import analyses.models
-from emgapiv2.settings import EMG_CONFIG
 from workflows.flows.analysis_amplicon_study import analysis_amplicon_study
+
+EMG_CONFIG = settings.EMG_CONFIG
 
 
 def generate_fake_pipeline_all_results(amplicon_run_folder, run):

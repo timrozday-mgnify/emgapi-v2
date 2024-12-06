@@ -7,11 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional, Union
 
+from django.conf import settings
 from django.db.models import QuerySet
 from prefect.client.schemas import FlowRun
 from prefect.deployments import run_deployment
 
-from emgapiv2.settings import EMG_CONFIG
+EMG_CONFIG = settings.EMG_CONFIG
 
 logger = logging.getLogger(__name__)
 

@@ -4,15 +4,17 @@ from unittest.mock import patch
 from urllib.parse import quote
 
 import pytest
+from django.conf import settings
 from django.http import Http404
 from django.urls import reverse
 
-from emgapiv2.settings import EMG_CONFIG
 from workflows.nextflow_utils.samplesheets import (
     location_for_samplesheet_to_be_edited,
     location_where_samplesheet_was_edited,
 )
 from workflows.views import encode_samplesheet_path, validate_samplesheet_path
+
+EMG_CONFIG = settings.EMG_CONFIG
 
 
 def test_samplesheet_editor_paths_validation(settings):
