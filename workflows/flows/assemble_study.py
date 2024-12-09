@@ -283,7 +283,7 @@ def update_assembly_metadata(
     assembly.save()
 
 
-@flow(flow_run_name="Assemble {samplesheet_csv}")
+@flow(flow_run_name="Assemble {samplesheet_csv}", persist_result=True)
 async def run_assembler_for_samplesheet(
     mgnify_study: analyses.models.Study,
     samplesheet_csv: Path,
@@ -392,7 +392,11 @@ async def run_assembler_for_samplesheet(
                 )
 
 
-@flow(log_prints=True, task_runner=SequentialTaskRunner)
+@flow(
+    log_prints=True,
+    task_runner=SequentialTaskRunner,
+    flow_run_name="Upload assemblies of: {study}",
+)
 def upload_assemblies(study: analyses.models.Study, dry_run: bool = False):
     """
     Uploads all completed, not-previously-uploaded assemblies to ENA.
