@@ -165,7 +165,6 @@ def process_study(
     dry_run: bool,
 ):
     logger = get_run_logger()
-    registered_study = None
 
     # ensure we have appropriate accessions
     assembly.reads_study.inherit_accessions_from_related_ena_object("ena_study")
@@ -173,7 +172,24 @@ def process_study(
     # if the assembly study (i.e. TPA study for public data) does not yet have an ENA study attached,
     # it means we need to register it.
 
-    if not (assembly.assembly_study and assembly.assembly_study.ena_study):
+    # check if any assemblies in the same reads study as this assembly have an assembly study already
+    assembly_study = None
+    assembly_from_same_reads_study_with_assembly_study = (
+        assembly.reads_study.assemblies_reads.filter(
+            assembly_study__isnull=False
+        ).first()
+    )
+    if assembly_from_same_reads_study_with_assembly_study:
+        logger.info(
+            f"Found {assembly_study = } on {assembly_from_same_reads_study_with_assembly_study}, "
+            f"which came from same reads study {assembly.reads_study} as {assembly}. "
+            f"Will assign that as assembly study."
+        )
+        assembly_study = (
+            assembly_from_same_reads_study_with_assembly_study.assembly_study
+        )
+
+    if not (assembly_study and assembly_study.ena_study):
         logger.info(
             f"Need to register an ENA (assembly) study for the assemblies of {assembly.reads_study.first_accession}"
         )
@@ -191,19 +207,28 @@ def process_study(
         )
         logger.info(f"Study submitted successfully under {registered_study}")
 
-        newly_registered_ena_study = ena.models.Study.objects.create(
+        newly_registered_ena_study, created = ena.models.Study.objects.get_or_create(
             accession=registered_study, title=assembly_study_title
         )
-        new_mgnify_study = analyses.models.Study.objects.create(
-            ena_study=newly_registered_ena_study,
-            title=newly_registered_ena_study.title,
-            biome=assembly.reads_study.biome,
-            ena_accessions=[registered_study],
-        )
-        assembly.assembly_study = new_mgnify_study
-        assembly.save()
+        if created:
+            logger.info(f"Created new ENA study {newly_registered_ena_study}")
 
-    return registered_study
+        new_mgnify_study, created = analyses.models.Study.objects.get_or_create(
+            ena_study=newly_registered_ena_study,
+            defaults={
+                "title": newly_registered_ena_study.title,
+                "biome": assembly.reads_study.biome,
+                "ena_accessions": [registered_study],
+            },
+        )
+        if created:
+            logger.info(f"Created new MGnify study {new_mgnify_study}")
+
+        assembly_study = new_mgnify_study
+    assembly.assembly_study = assembly_study
+    assembly.save()
+
+    return assembly_study
 
 
 @task(
