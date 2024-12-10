@@ -3,7 +3,8 @@ import responses
 from responses import matchers
 
 import analyses.models as mg_models
-from workflows.flows.upload_assembly import upload_assembly
+import ena.models
+from workflows.flows.upload_assembly import process_study, upload_assembly
 from workflows.prefect_utils.testing_utils import run_async_flow_and_capture_logs
 
 
@@ -167,3 +168,42 @@ async def test_prefect_assembly_upload_flow_post_assembly_sanity_check_not_passe
         ).acount()
         == 0
     )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_process_study_multiple_assemblies(
+    raw_reads_mgnify_study,
+    raw_read_run,
+    assemblers,
+    raw_read_ena_study,
+    tmp_path,
+    mgnify_assemblies,
+    prefect_harness,
+):
+    # On call of process_study for first assembly, a study should be made.
+    # Test that a call of if for SECOND assembly picks up the first assembly's assembly-study,
+    #  by virtue of sharing the same reads_study.
+
+    all_assemblies = list(mgnify_assemblies)
+    first_assembly = all_assemblies[0]
+    second_assembly = all_assemblies[1]
+
+    assembly_study_ena = ena.models.Study.objects.create(
+        title="TPA study",
+        accession="PRJ1",
+    )
+    assembly_study_mgnify = mg_models.Study.objects.create(
+        ena_study=assembly_study_ena,
+        title="TPA study",
+    )
+
+    first_assembly.assembly_study = assembly_study_mgnify
+    first_assembly.save()
+
+    should_be_same_as_assembly_study = process_study(
+        assembly=second_assembly,
+        upload_folder=tmp_path,
+        dry_run=True,
+    )
+
+    assert should_be_same_as_assembly_study == first_assembly.assembly_study
