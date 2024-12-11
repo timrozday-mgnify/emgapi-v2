@@ -34,12 +34,6 @@ class SlurmConfig(BaseModel):
 
     datamover_paritition: str = "datamover"
 
-    assembly_uploader_python_executable: str = "python3"
-    assembly_uploader_root_dir: str = ""
-    webin_cli_executor: str = "/usr/bin/webin-cli/webin-cli.jar"
-
-    amplicon_nextflow_master_job_memory: int = 1  # Gb
-
     shared_filesystem_root_on_slurm: str = "/nfs/public"
     shared_filesystem_root_on_server: str = "/app/data"
 
@@ -56,6 +50,11 @@ class AssemblerConfig(BaseModel):
         "main"  # branch or commit of ebi-metagenomics/miassembler
     )
     miassembler_nf_profile: str = "codon_slurm"
+    assembly_pipeline_time_limit_days: int = 5
+    assembly_nextflow_master_job_memory_gb: int = 8
+
+    assembly_uploader_mem_gb: int = 4
+    assembly_uploader_time_limit_hrs: int = 2
 
 
 class AmpliconPipelineConfig(BaseModel):
@@ -76,6 +75,9 @@ class AmpliconPipelineConfig(BaseModel):
     asv_folder: str = "asv"
     primer_identification_folder: str = "primer-identification"
     taxonomy_summary_folder: str = "taxonomy-summary"
+
+    amplicon_nextflow_master_job_memory_gb: int = 1
+    amplicon_pipeline_time_limit_days: int = 5
 
 
 class WebinConfig(BaseModel):
