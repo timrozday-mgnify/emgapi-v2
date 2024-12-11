@@ -357,8 +357,10 @@ async def submit_assembly_slurm(
         await run_cluster_job(
             name=f"Upload assembly for {mgnify_assembly} to ENA",
             command=command,
-            expected_time=timedelta(hours=1),
-            memory=f"4G",
+            expected_time=timedelta(
+                hours=EMG_CONFIG.assembler.assembly_uploader_time_limit_hrs
+            ),
+            memory=f"{EMG_CONFIG.assembler.assembly_uploader_mem_gb}G",
             environment="ALL",  # copy env vars from the prefect agent into the slurm job
             input_files_to_hash=[manifest],
         )

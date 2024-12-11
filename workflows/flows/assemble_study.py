@@ -288,7 +288,6 @@ async def run_assembler_for_samplesheet(
     mgnify_study: analyses.models.Study,
     samplesheet_csv: Path,
     assembler: analyses.models.Assembler,
-    memory_gb_for_head_job: int = 8,
 ):
     samplesheet_df = pd.read_csv(samplesheet_csv, sep=",")
     assemblies: list[analyses.models.Assembly] = mgnify_study.assemblies_reads.filter(
@@ -322,8 +321,10 @@ async def run_assembler_for_samplesheet(
         await run_cluster_job(
             name=f"Assemble study {mgnify_study.ena_study.accession} via samplesheet {file_path_shortener(samplesheet_csv, 1, 15, True)}",
             command=command,
-            expected_time=timedelta(days=5),
-            memory=f"{memory_gb_for_head_job}G",
+            expected_time=timedelta(
+                days=EMG_CONFIG.assembler.assembly_pipeline_time_limit_days
+            ),
+            memory=f"{EMG_CONFIG.assembler.assembly_nextflow_master_job_memory_gb}G",
             environment="ALL,TOWER_ACCESS_TOKEN,TOWER_WORKSPACE_ID",
             input_files_to_hash=[samplesheet_csv],
         )

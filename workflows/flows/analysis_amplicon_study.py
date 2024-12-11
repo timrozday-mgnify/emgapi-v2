@@ -651,8 +651,10 @@ async def perform_amplicons_in_parallel(
         await run_cluster_job(
             name=f"Analyse amplicon study {mgnify_study.ena_study.accession} via samplesheet {slugify(samplesheet)}",
             command=command,
-            expected_time=timedelta(days=5),
-            memory=f"{EMG_CONFIG.slurm.amplicon_nextflow_master_job_memory}G",
+            expected_time=timedelta(
+                days=EMG_CONFIG.amplicon_pipeline.amplicon_pipeline_time_limit_days
+            ),
+            memory=f"{EMG_CONFIG.amplicon_pipeline.amplicon_nextflow_master_job_memory_gb}G",
             environment=env_variables,
             input_files_to_hash=[samplesheet],
         )
