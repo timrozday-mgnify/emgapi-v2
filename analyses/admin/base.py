@@ -1,14 +1,17 @@
-from typing import Iterable
+from typing import Iterable, Optional
 
 from django.contrib import admin
 from django.core.validators import EMPTY_VALUES
-from django.db.models import Q
+from django.db.models import JSONField, Q
+from django.forms import Field
+from django.http import HttpRequest
 from django.shortcuts import redirect
 from django_admin_inline_paginator.admin import InlinePaginated
-from unfold.admin import TabularInline
+from unfold.admin import ModelAdmin, TabularInline
 from unfold.contrib.filters.admin import TextFilter
 from unfold.decorators import action
 
+from analyses.admin.widgets import ENAAccessionsListWidget, JSONTreeWidget
 from analyses.base_models.base_models import ENADerivedModel
 
 
@@ -70,3 +73,14 @@ class ENABrowserLinkMixin:
     def view_on_ena_browser(self, request, object_id):
         instance: type[ENADerivedModel] = self.model.objects.get(pk=object_id)
         return redirect(instance.ena_browser_url)
+
+
+class JSONFieldWidgetOverridesMixin(ModelAdmin):
+    def formfield_for_dbfield(
+        self, db_field: Field, request: HttpRequest, **kwargs
+    ) -> Optional[Field]:
+        if isinstance(db_field, JSONField) and db_field.name == "ena_accessions":
+            kwargs["widget"] = ENAAccessionsListWidget
+        elif isinstance(db_field, JSONField):
+            kwargs["widget"] = JSONTreeWidget
+        return super().formfield_for_dbfield(db_field, request, **kwargs)

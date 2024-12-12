@@ -2,12 +2,16 @@ from django.contrib import admin
 from unfold.admin import ModelAdmin
 from unfold.decorators import display
 
-from analyses.admin.base import ENABrowserLinkMixin, StudyFilter
+from analyses.admin.base import (
+    ENABrowserLinkMixin,
+    JSONFieldWidgetOverridesMixin,
+    StudyFilter,
+)
 from analyses.models import Run
 
 
 @admin.register(Run)
-class RunAdmin(ENABrowserLinkMixin, ModelAdmin):
+class RunAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin):
     class StudyFilterForRun(StudyFilter):
         study_accession_search_fields = [
             "ena_study__accession",
