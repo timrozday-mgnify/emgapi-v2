@@ -3,7 +3,7 @@ from pathlib import Path
 import django
 import pytest
 
-from workflows.data_io_utils.mgnify_v6_utils.amplicon import import_taxonomy
+from workflows.data_io_utils.mgnify_v6_utils.amplicon import import_qc, import_taxonomy
 
 django.setup()
 
@@ -37,6 +37,12 @@ def raw_read_analyses(raw_read_run):
 
     mgyas[0].results_dir = "/app/data/tests/amplicon_v6_output/SRR6180434"
     mgyas[0].save()
+
+    import_qc(
+        analysis=mgyas[0],
+        dir_for_analysis=Path(mgyas[0].results_dir),
+        allow_non_exist=False,
+    )
 
     import_taxonomy(
         analysis=mgyas[0],

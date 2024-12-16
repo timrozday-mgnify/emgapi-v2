@@ -94,6 +94,16 @@ class MGnifyAnalysisDetail(MGnifyAnalysis):
         alias="raw_run",
         description="Metadata associated with the original read run this analysis is based on, whether or not those reads were assembled.",
     )
+    quality_control_summary: Optional[dict] = Field(
+        ...,
+        alias="quality_control",
+        examples=[
+            {
+                "before_filtering": {"total_bases": 1000000},
+                "after_filtering": {"total_bases": 700000},
+            }
+        ],
+    )
 
     class Meta:
         model = analyses.models.Analysis

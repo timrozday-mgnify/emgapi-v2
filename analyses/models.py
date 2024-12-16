@@ -489,6 +489,7 @@ class Analysis(
         }
 
     annotations = models.JSONField(default=default_annotations.__func__)
+    quality_control = models.JSONField(default=dict, blank=True)
 
     class PipelineVersions(models.TextChoices):
         v5 = "V5", "v5.0"

@@ -70,6 +70,7 @@ class AnalysisAdmin(JSONFieldWidgetOverridesMixin, ModelAdmin):
             },
         ),
         ("Files", {"classes": ["tab"], "fields": ["downloads", "results_dir"]}),
+        ("QC", {"classes": ["tab"], "fields": ["quality_control"]}),
     )
 
     class StudyFilterForAnalysis(StudyFilter):

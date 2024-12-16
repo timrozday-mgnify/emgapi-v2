@@ -1,3 +1,4 @@
+import json
 import logging
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from workflows.data_io_utils.file_rules.common_rules import (
 )
 from workflows.data_io_utils.file_rules.mgnify_v6_result_rules import (
     FileConformsToTaxonomyTSVSchemaRule,
+    GlobOfQcFolderHasFastpAndMultiqc,
     GlobOfTaxonomyFolderHasHtmlAndMseqRule,
 )
 from workflows.data_io_utils.file_rules.nodes import Directory, File
@@ -132,4 +134,66 @@ def import_taxonomy(
             long_description=f"Krona plot webpage showing taxonomic assignments from {source.value} annotation",
         )
     )
+    analysis.save()
+
+
+def import_qc(
+    analysis: analyses.models.Analysis,
+    dir_for_analysis: Path,
+    allow_non_exist: bool = True,
+):
+    if not allow_non_exist:
+        qc_dir = Directory(
+            path=dir_for_analysis  # /hps/prod/...../abc123/SRR999/
+            / EMG_CONFIG.amplicon_pipeline.qc_folder,  # qc/
+            rules=[DirectoryExistsRule],
+            glob_rules=[GlobOfQcFolderHasFastpAndMultiqc],
+        )
+    else:
+        qc_dir = Directory(
+            path=dir_for_analysis  # /hps/prod/...../abc123/SRR999/
+            / EMG_CONFIG.amplicon_pipeline.qc_folder  # qc/
+        )
+
+    if not qc_dir.path.is_dir():
+        print(f"No qc dir at {qc_dir.path}. Nothing to import.")
+        return
+
+    # TODO rules and downloadfile for multiqc
+    qc_dir.files.append(
+        File(
+            path=qc_dir.path / f"{analysis.run.first_accession}_multiqc_report.tsv",
+            rules=[
+                # FileExistsRule,
+            ],
+        )
+    )
+
+    fastp = File(
+        path=qc_dir.path / f"{analysis.run.first_accession}.fastp.json",
+        rules=(
+            [
+                FileExistsRule,
+                FileIsNotEmptyRule,
+            ]
+            if not allow_non_exist
+            else []
+        ),
+    )
+    if not fastp.path.is_file():
+        print(f"No fastp file for {analysis.run.first_accession}.")
+        return
+
+    qc_dir.files.append(fastp)
+
+    with fastp.path.open("r") as fastp_reader:
+        fastp_content = json.load(fastp_reader)
+    fastp_summary = fastp_content.get("summary")
+
+    if not fastp_summary:
+        print(f"No fastp summary for {analysis.run.first_accession}.")
+        return
+
+    # TODO: a pydantic schema for this file would be nice
+    analysis.quality_control = fastp_summary
     analysis.save()

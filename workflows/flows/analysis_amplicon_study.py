@@ -8,7 +8,7 @@ from typing import List, Union
 import django
 from django.db.models import QuerySet
 
-from workflows.data_io_utils.mgnify_v6_utils.amplicon import import_taxonomy
+from workflows.data_io_utils.mgnify_v6_utils.amplicon import import_qc, import_taxonomy
 from workflows.ena_utils.ena_file_fetching import convert_ena_ftp_to_fire_fastq
 from workflows.views import encode_samplesheet_path
 
@@ -494,6 +494,8 @@ def import_completed_analysis(
 
         analysis.results_dir = str(dir_for_analysis)
         analysis.save()
+
+        import_qc(analysis, dir_for_analysis)
 
         for source in analyses.models.Analysis.TaxonomySources:
             if source in [

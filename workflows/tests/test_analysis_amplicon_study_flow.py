@@ -27,6 +27,11 @@ def generate_fake_pipeline_all_results(amplicon_run_folder, run):
         "w",
     ):
         pass
+    with open(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.qc_folder}/{run}.fastp.json",
+        "w",
+    ) as fastp:
+        json.dump({"summary": {"before_filtering": {"total_bases": 10}}}, fastp)
 
     # PRIMER IDENTIFICATION
     os.makedirs(
