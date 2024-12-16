@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from enum import Enum
+from pathlib import Path
 from typing import List, Optional, Union
 
 from django.db import models
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class DownloadType(str, Enum):
@@ -26,6 +27,7 @@ class DownloadFileType(str, Enum):
     JSON = "json"
     SVG = "svg"
     TREE = "tree"  # e.g. newick
+    HTML = "html"
     OTHER = "other"
 
 
@@ -44,6 +46,12 @@ class DownloadFile(BaseModel):
     parent_identifier: Optional[Union[str, int]] = (
         None  # e.g. the accession of an Analysis this download is for
     )
+
+    @field_validator("path", mode="before")
+    def coerce_path(cls, value):
+        if isinstance(value, Path):
+            return str(value)
+        return value
 
 
 class WithDownloadsModel(models.Model):

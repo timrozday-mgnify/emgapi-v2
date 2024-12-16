@@ -172,6 +172,8 @@ class MGnifyFunctionalAnalysisAnnotationType(Enum):
     taxonomies_itsonedb: str = analyses.models.Analysis.TAXONOMIES_ITS_ONE_DB
     taxonomies_unite: str = analyses.models.Analysis.TAXONOMIES_UNITE
     taxonomies_pr2: str = analyses.models.Analysis.TAXONOMIES_PR2
+    taxonomies_dada2_pr2: str = analyses.models.Analysis.TAXONOMIES_DADA2_PR2
+    taxonomies_dada2_silva: str = analyses.models.Analysis.TAXONOMIES_DADA2_SILVA
     antismash_gene_clusters: str = analyses.models.Analysis.ANTISMASH_GENE_CLUSTERS
     pfams: str = analyses.models.Analysis.PFAMS
 

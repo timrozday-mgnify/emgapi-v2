@@ -463,12 +463,16 @@ class Analysis(
         ITS_ONE_DB: str = "its_one_db"
         UNITE: str = "unite"
         PR2: str = "pr2"
+        DADA2_SILVA: str = "dada2_silva"
+        DADA2_PR2: str = "dada2_pr2"
 
     TAXONOMIES_SSU = f"{TAXONOMIES}__{TaxonomySources.SSU.value}"
     TAXONOMIES_LSU = f"{TAXONOMIES}__{TaxonomySources.LSU.value}"
     TAXONOMIES_ITS_ONE_DB = f"{TAXONOMIES}__{TaxonomySources.ITS_ONE_DB.value}"
     TAXONOMIES_UNITE = f"{TAXONOMIES}__{TaxonomySources.UNITE.value}"
     TAXONOMIES_PR2 = f"{TAXONOMIES}__{TaxonomySources.PR2.value}"
+    TAXONOMIES_DADA2_SILVA = f"{TAXONOMIES}__{TaxonomySources.DADA2_SILVA.value}"
+    TAXONOMIES_DADA2_PR2 = f"{TAXONOMIES}__{TaxonomySources.DADA2_PR2.value}"
 
     @staticmethod
     def default_annotations():

@@ -6,23 +6,9 @@ from textwrap import dedent as _
 from typing import List, Union
 
 import django
-import pandas as pd
 from django.db.models import QuerySet
 
-from workflows.data_io_utils.csv.csv_comment_handler import (
-    CSVDelimiter,
-    move_file_pointer_past_comment_lines,
-)
-from workflows.data_io_utils.file_rules.common_rules import (
-    DirectoryExistsRule,
-    FileExistsRule,
-    FileIsNotEmptyRule,
-)
-from workflows.data_io_utils.file_rules.mgnify_v6_result_rules import (
-    FileConformsToTaxonomyTSVSchemaRule,
-    GlobOfTaxonomyFolderHasHtmlAndMseqRule,
-)
-from workflows.data_io_utils.file_rules.nodes import Directory, File
+from workflows.data_io_utils.mgnify_v6_utils.amplicon import import_taxonomy
 from workflows.ena_utils.ena_file_fetching import convert_ena_ftp_to_fire_fastq
 from workflows.views import encode_samplesheet_path
 
@@ -502,48 +488,24 @@ def import_completed_analysis(
             continue
         if analysis.annotations.get(analysis.TAXONOMIES):
             print(f"{analysis} already has taxonomic annotations. Skipping.")
+            continue
 
         dir_for_analysis = amplicon_current_outdir / analysis.run.first_accession
 
-        # TODO - merge with sanity check code, support other ref DBS. some kind of config for the ref dbs,
-        # and a factory for these taxonomy dir pattens
-        ssu_tax_dir = Directory(
-            path=dir_for_analysis
-            / EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder
-            / "SILVA-SSU",
-            rules=[DirectoryExistsRule],
-            glob_rules=[GlobOfTaxonomyFolderHasHtmlAndMseqRule],
-        )
-
-        ssu_tax_dir.files.append(
-            File(
-                path=ssu_tax_dir.path / f"{analysis.run.first_accession}_SILVA-SSU.tsv",
-                rules=[
-                    FileExistsRule,
-                    FileIsNotEmptyRule,
-                    FileConformsToTaxonomyTSVSchemaRule,
-                ],
-            )
-        )
-
-        with ssu_tax_dir.files[0].path.open("r") as ssu_tsv:
-            move_file_pointer_past_comment_lines(
-                ssu_tsv, delimiter=CSVDelimiter.TAB, comment_char="#"
-            )
-            tax_df = pd.read_csv(ssu_tsv, sep=CSVDelimiter.TAB)
-
-        tax_df = tax_df.rename(columns={"taxonomy": "organism"})
-        tax_df["count"] = None
-        tax_df: pd.DataFrame = tax_df[["organism", "count"]]
-
-        taxonomies = analysis.annotations.get(analysis.TAXONOMIES, {})
-        if not taxonomies:
-            taxonomies = {}
-        taxonomies[analysis.TaxonomySources.SSU.value] = tax_df.to_dict(
-            orient="records"
-        )
-        analysis.annotations[analysis.TAXONOMIES] = taxonomies
+        analysis.results_dir = str(dir_for_analysis)
         analysis.save()
+
+        for source in analyses.models.Analysis.TaxonomySources:
+            if source in [
+                analyses.models.Analysis.TaxonomySources.DADA2_PR2,
+                analyses.models.Analysis.TaxonomySources.DADA2_SILVA,
+            ]:
+                print(f"IGNORING RESULTS FROM {source}! Not implemented yet.")
+                # TODO: handle variable region naming conventions...
+                continue
+            import_taxonomy(
+                analysis, dir_for_analysis, source=source, allow_non_exist=True
+            )
 
 
 @task(
