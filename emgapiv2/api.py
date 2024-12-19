@@ -170,11 +170,59 @@ def get_mgnify_analysis(request, accession: str):
     "and downloadable files (outputs from the pipeline execution).",
     tags=[ApiSections.ANALYSES.value],
 )
+# def get_mgnify_analysis_with_annotations(request, accession: str):
+#     analysis = get_object_or_404(
+#         analyses.models.Analysis.objects_and_annotations, accession=accession
+#     )
+#     run_accession = analysis.run.first_accession if analysis.run else None
+#     study_accession = analysis.study.accession if analysis.study else None
+#     sample_accession = analysis.sample.ena_sample.accession if analysis.sample else None
+#     assembly_accession = (
+#         analysis.assembly.first_accession if analysis.assembly else None
+#     )
+#     experiment_type = analysis.run.experiment_type if analysis.run else None
+#     raw_run = analysis.raw_run
+#     return {
+#         "accession": analysis.accession,
+#         "study_accession": study_accession,
+#         "run_accession": run_accession,
+#         "sample_accession": sample_accession,
+#         "experiment_type": experiment_type,
+#         "pipeline_version": analysis.pipeline_version,
+#         "downloads": analysis.downloads_as_objects,
+#         "read_run": raw_run,
+#         "quality_control_summary": analysis.quality_control,
+#         "assembly_accession": assembly_accession,
+#         "annotations": analysis.annotations,
+#     }
+#     # return analysis
+
 def get_mgnify_analysis_with_annotations(request, accession: str):
     analysis = get_object_or_404(
         analyses.models.Analysis.objects_and_annotations, accession=accession
     )
-    return analysis
+    run_accession = analysis.run.first_accession if analysis.run else None
+    study_accession = analysis.study.accession if analysis.study else None
+    sample_accession = analysis.sample.ena_sample.accession if analysis.sample else None
+    assembly_accession = (
+        analysis.assembly.first_accession if analysis.assembly else None
+    )
+    experiment_type = analysis.run.experiment_type if analysis.run else None
+    raw_run = analysis.raw_run
+
+    return {
+        "accession": analysis.accession,
+        "study_accession": study_accession,
+        "run_accession": run_accession,
+        "sample_accession": sample_accession,
+        "experiment_type": experiment_type,
+        "pipeline_version": analysis.pipeline_version,
+        "downloads_as_objects": analysis.downloads_as_objects,
+        "raw_run": raw_run,
+        "quality_control": analysis.quality_control,
+        "assembly_accession": assembly_accession,
+        "annotations": analysis.annotations,
+    }
 
 
 @api.get(
