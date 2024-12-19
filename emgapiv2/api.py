@@ -170,7 +170,6 @@ def get_mgnify_analysis(request, accession: str):
     "and downloadable files (outputs from the pipeline execution).",
     tags=[ApiSections.ANALYSES.value],
 )
-
 def get_mgnify_analysis_with_annotations(request, accession: str):
     analysis = get_object_or_404(
         analyses.models.Analysis.objects_and_annotations, accession=accession
