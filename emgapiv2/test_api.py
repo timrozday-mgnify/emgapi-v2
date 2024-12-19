@@ -54,3 +54,6 @@ def test_api_analysis_detail(raw_read_analyses, ninja_api_client):
     )
     assert analysis["accession"] == raw_read_analyses[0].accession
     assert analysis["study_accession"] == raw_read_analyses[0].study.accession
+    assert (
+        analysis["quality_control_summary"]["before_filtering"]["total_reads"] == 66124
+    )

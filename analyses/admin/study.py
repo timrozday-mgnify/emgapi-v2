@@ -13,6 +13,7 @@ from unfold.decorators import action, display
 from analyses.admin.analysis import AnalysisStatusListFilter
 from analyses.admin.base import (
     ENABrowserLinkMixin,
+    JSONFieldWidgetOverridesMixin,
     StudyFilter,
     TabularInlinePaginatedWithTabSupport,
 )
@@ -111,7 +112,7 @@ class StudyReadsInline(TabularInlinePaginatedWithTabSupport):
 
 
 @admin.register(Study)
-class StudyAdmin(ENABrowserLinkMixin, ModelAdmin):
+class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin):
     inlines = [StudyRunsInline, StudyAssembliesInline, StudyReadsInline]
     list_display = ["accession", "updated_at", "title", "display_accessions"]
     list_filter = ["updated_at", "created_at"]
@@ -146,7 +147,7 @@ class StudyAdmin(ENABrowserLinkMixin, ModelAdmin):
     )
 
     @display(description="ENA Accessions", label=True)
-    def display_accessions(self, instance: Run):
+    def display_accessions(self, instance: Study):
         return instance.ena_accessions
 
     @action(

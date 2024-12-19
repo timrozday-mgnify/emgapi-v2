@@ -26,3 +26,13 @@ GlobOfTaxonomyFolderHasHtmlAndMseqRule = GlobRule(
     glob_patten="*",
     test=lambda files: sum(f.suffix in [".html", ".mseq"] for f in files) == 2,
 )
+
+GlobOfQcFolderHasFastpAndMultiqc = GlobRule(
+    rule_name="Folder should contain fastp and multiqc files",
+    glob_patten="*",
+    test=lambda files: sum(
+        f.name.endswith("multiqc_report.html") or f.name.endswith("fastp.json")
+        for f in files
+    )
+    == 2,
+)

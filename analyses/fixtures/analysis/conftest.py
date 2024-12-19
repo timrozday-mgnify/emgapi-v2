@@ -1,11 +1,9 @@
+from pathlib import Path
+
 import django
 import pytest
 
-from analyses.base_models.with_downloads_models import (
-    DownloadFile,
-    DownloadFileType,
-    DownloadType,
-)
+from workflows.data_io_utils.mgnify_v6_utils.amplicon import import_qc, import_taxonomy
 
 django.setup()
 
@@ -37,15 +35,20 @@ def raw_read_analyses(raw_read_run):
     mgyas[0].save()
     mgyas[1].save()
 
-    mgyas[0].add_download(
-        DownloadFile(
-            file_type=DownloadFileType.TSV,
-            download_type=DownloadType.FUNCTIONAL_ANALYSIS,
-            long_description="Some PFAMs that were found",
-            short_description="PFAM table",
-            alias=f"PFAMS_{mgyas[0].accession}.tsv",
-            path="functional/pfam/annos.tsv",
-        )
+    mgyas[0].results_dir = "/app/data/tests/amplicon_v6_output/SRR6180434"
+    mgyas[0].save()
+
+    import_qc(
+        analysis=mgyas[0],
+        dir_for_analysis=Path(mgyas[0].results_dir),
+        allow_non_exist=False,
+    )
+
+    import_taxonomy(
+        analysis=mgyas[0],
+        dir_for_analysis=Path(mgyas[0].results_dir),
+        source=mg_models.Analysis.TaxonomySources.SSU,
+        allow_non_exist=False,
     )
 
     return mgyas

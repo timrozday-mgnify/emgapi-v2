@@ -3,7 +3,12 @@ from typing import Iterable
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 
-from analyses.admin.base import ENABrowserLinkMixin, StatusListFilter, StudyFilter
+from analyses.admin.base import (
+    ENABrowserLinkMixin,
+    JSONFieldWidgetOverridesMixin,
+    StatusListFilter,
+    StudyFilter,
+)
 from analyses.models import Assembler, Assembly
 
 
@@ -13,7 +18,7 @@ class AssemblyStatusListFilter(StatusListFilter):
 
 
 @admin.register(Assembly)
-class AssemblyAdmin(ENABrowserLinkMixin, ModelAdmin):
+class AssemblyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin):
     class StudyFilterForAssembly(StudyFilter):
         study_accession_search_fields = [
             "ena_study__accession",

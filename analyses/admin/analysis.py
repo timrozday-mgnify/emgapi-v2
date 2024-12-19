@@ -6,8 +6,12 @@ from django.shortcuts import get_object_or_404
 from unfold.admin import ModelAdmin
 from unfold.decorators import action
 
-from analyses.admin.base import StatusListFilter, StudyFilter
-from analyses.models import Analysis, Run
+from analyses.admin.base import (
+    JSONFieldWidgetOverridesMixin,
+    StatusListFilter,
+    StudyFilter,
+)
+from analyses.models import Analysis
 
 
 class AnalysisStatusListFilter(StatusListFilter):
@@ -16,7 +20,7 @@ class AnalysisStatusListFilter(StatusListFilter):
 
 
 @admin.register(Analysis)
-class AnalysisAdmin(ModelAdmin):
+class AnalysisAdmin(JSONFieldWidgetOverridesMixin, ModelAdmin):
     list_display = [
         "__str__",
         "assembly_or_run",
@@ -66,6 +70,7 @@ class AnalysisAdmin(ModelAdmin):
             },
         ),
         ("Files", {"classes": ["tab"], "fields": ["downloads", "results_dir"]}),
+        ("QC", {"classes": ["tab"], "fields": ["quality_control"]}),
     )
 
     class StudyFilterForAnalysis(StudyFilter):

@@ -10,6 +10,7 @@ from django.db.models import Q
 from prefect.artifacts import Artifact
 
 import analyses.models
+from workflows.data_io_utils.file_rules.base_rules import FileRule
 from workflows.flows.analysis_amplicon_study import analysis_amplicon_study
 
 EMG_CONFIG = settings.EMG_CONFIG
@@ -26,6 +27,11 @@ def generate_fake_pipeline_all_results(amplicon_run_folder, run):
         "w",
     ):
         pass
+    with open(
+        f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.qc_folder}/{run}.fastp.json",
+        "w",
+    ) as fastp:
+        json.dump({"summary": {"before_filtering": {"total_bases": 10}}}, fastp)
 
     # PRIMER IDENTIFICATION
     os.makedirs(
@@ -143,7 +149,7 @@ def generate_fake_pipeline_all_results(amplicon_run_folder, run):
     with open(
         f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/SILVA-SSU/{run}.html",
         "w",
-    ), open(
+    ) as ssu_krona, open(
         f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/SILVA-SSU/{run}_SILVA-SSU.mseq",
         "w",
     ), open(
@@ -162,6 +168,7 @@ def generate_fake_pipeline_all_results(amplicon_run_folder, run):
                 "65035\t1.0\tsk__Bacteria;k__;p__Bacillota;c__Clostridia;o__Eubacteriales;f__Eubacteriaceae;g__Eubacterium;s__Eubacterium_coprostanoligenes\t290054\n",
             ]
         )
+        ssu_krona.write("<html></html>")
     with open(
         f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/PR2/{run}.html",
         "w",
@@ -312,9 +319,19 @@ def generate_fake_pipeline_no_asvs(amplicon_run_folder, run):
         pass
 
 
+MockFileIsNotEmptyRule = FileRule(
+    rule_name="File should not be empty (unit test mock)",
+    test=lambda f: True,  # allows empty files created by mocks
+)
+
+
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
 @patch("workflows.flows.analysis_amplicon_study.queryset_hash")
+@patch(
+    "workflows.data_io_utils.mgnify_v6_utils.amplicon.FileIsNotEmptyRule",
+    MockFileIsNotEmptyRule,
+)
 async def test_prefect_analyse_amplicon_flow(
     mock_queryset_hash_for_amplicon,
     prefect_harness,

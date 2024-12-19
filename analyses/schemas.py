@@ -94,6 +94,16 @@ class MGnifyAnalysisDetail(MGnifyAnalysis):
         alias="raw_run",
         description="Metadata associated with the original read run this analysis is based on, whether or not those reads were assembled.",
     )
+    quality_control_summary: Optional[dict] = Field(
+        ...,
+        alias="quality_control",
+        examples=[
+            {
+                "before_filtering": {"total_bases": 1000000},
+                "after_filtering": {"total_bases": 700000},
+            }
+        ],
+    )
 
     class Meta:
         model = analyses.models.Analysis
@@ -172,6 +182,8 @@ class MGnifyFunctionalAnalysisAnnotationType(Enum):
     taxonomies_itsonedb: str = analyses.models.Analysis.TAXONOMIES_ITS_ONE_DB
     taxonomies_unite: str = analyses.models.Analysis.TAXONOMIES_UNITE
     taxonomies_pr2: str = analyses.models.Analysis.TAXONOMIES_PR2
+    taxonomies_dada2_pr2: str = analyses.models.Analysis.TAXONOMIES_DADA2_PR2
+    taxonomies_dada2_silva: str = analyses.models.Analysis.TAXONOMIES_DADA2_SILVA
     antismash_gene_clusters: str = analyses.models.Analysis.ANTISMASH_GENE_CLUSTERS
     pfams: str = analyses.models.Analysis.PFAMS
 

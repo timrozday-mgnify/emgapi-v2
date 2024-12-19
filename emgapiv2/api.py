@@ -156,6 +156,7 @@ def get_mgnify_analysis(request, accession: str):
         "experiment_type": experiment_type,
         "raw_run": raw_run,
         "pipeline_version": analysis.pipeline_version,
+        "quality_control": analysis.quality_control,
     }
 
     return response
