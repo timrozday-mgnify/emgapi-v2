@@ -239,6 +239,34 @@ def list_mgnify_analyses(request):
 
 #################################################################
 #                                                               #
+#                          My Data                             #
+#                                                               #
+#################################################################
+
+@api.get(
+    "/my-data/analyses",
+    response=List[MGnifyAnalysis],
+    tags=[ApiSections.ANALYSES.value],
+    summary="List all private analyses (MGYAs) available from MGnify",
+    operation_id="list_private_mgnify_analyses",
+)
+def list_private_mgnify_analyses(request):
+    qs = analyses.models.Analysis.objects.private_only()
+    return qs
+
+@api.get(
+    "/my-data/studies",
+    response=List[MGnifyStudy],
+    tags=[ApiSections.STUDIES.value],
+    summary="List all private studies available from MGnify",
+    operation_id="list_private_mgnify_studies",
+)
+def list_private_mgnify_studies(request):
+    qs = analyses.models.Study.objects.private_only()
+    return qs
+
+#################################################################
+#                                                               #
 #                          REQUESTS                             #
 #                                                               #
 #################################################################

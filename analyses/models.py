@@ -64,6 +64,31 @@ class Biome(TreeModel):
         return re.sub(r"[^a-zA-Z0-9._]", "", underscore_punctuated)
 
 
+
+class BasePublicStudyManager:
+    """
+    Base mixin providing common privacy filtering methods for studies
+    """
+    def get_queryset(self, include_private=False, private_only=False):
+        qs = super().get_queryset()
+        if private_only:
+            return qs.filter(is_private=True)
+        if not include_private:
+            return qs.filter(is_private=False)
+        return qs
+
+    def private_only(self):
+        """
+        Returns only private studies
+        """
+        return self.get_queryset(private_only=True)
+
+class PublicStudyManager(BasePublicStudyManager, models.Manager):
+    """
+    A custom manager that filters out private studies by default.
+    """
+    pass
+
 class StudyManager(models.Manager):
     async def get_or_create_for_ena_study(self, ena_study_accession):
         logging.info(f"Will get/create MGnify study for {ena_study_accession}")
@@ -87,6 +112,9 @@ class StudyManager(models.Manager):
 
 
 class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
+    objects = PublicStudyManager()
+    all_objects = models.Manager()
+
     accession = MGnifyAccessionField(
         accession_prefix="MGYS", accession_length=8, db_index=True
     )
@@ -94,10 +122,7 @@ class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
         ena.models.Study, on_delete=models.CASCADE, null=True, blank=True
     )
     biome = models.ForeignKey(Biome, on_delete=models.CASCADE, null=True, blank=True)
-
     title = models.CharField(max_length=255)
-
-    objects: StudyManager = StudyManager()
 
     def __str__(self):
         return self.accession
@@ -413,6 +438,37 @@ class AnalysisManagerIncludingAnnotations(models.Manager):
         return super().get_queryset()
 
 
+class BasePublicAnalysisManager:
+    """
+    Base mixin providing common privacy filtering methods
+    """
+    def get_queryset(self, include_private=False, private_only=False):
+        qs = super().get_queryset()
+        if private_only:
+            return qs.filter(is_private=True)
+        if not include_private:
+            return qs.filter(is_private=False)
+        return qs
+
+    def private_only(self):
+        """
+        Returns only private analyses
+        """
+        return self.get_queryset(private_only=True)
+
+
+class PublicAnalysisManager(BasePublicAnalysisManager, AnalysisManagerDeferringAnnotations):
+    """
+    A custom manager that filters out private analyses by default.
+    """
+    pass
+
+class PublicAnalysisManagerIncludingAnnotations(BasePublicAnalysisManager, AnalysisManagerIncludingAnnotations):
+    """
+    A custom manager that includes annotations but still filters out private analyses by default.
+    """
+    pass
+
 class Analysis(
     MGnifyAutomatedModel,
     TimeStampedModel,
@@ -420,8 +476,11 @@ class Analysis(
     WithDownloadsModel,
     WithExperimentTypeModel,
 ):
-    objects = AnalysisManagerDeferringAnnotations()
-    objects_and_annotations = AnalysisManagerIncludingAnnotations()
+    objects = PublicAnalysisManager()
+    objects_and_annotations = PublicAnalysisManagerIncludingAnnotations()
+
+    all_objects = AnalysisManagerDeferringAnnotations()
+    all_objects_and_annotations = AnalysisManagerIncludingAnnotations()
 
     DOWNLOAD_PARENT_IDENTIFIER_ATTR = "accession"
 
