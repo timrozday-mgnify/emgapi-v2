@@ -445,7 +445,11 @@ async def assemble_study(
 
     logger.info(f"MGnify study is {mgnify_study.accession}: {mgnify_study.title}.")
 
-    read_runs = get_study_readruns_from_ena(ena_study.accession, limit=5000)
+    read_runs = get_study_readruns_from_ena(
+        ena_study.accession,
+        limit=5000,
+        extra_cache_hash=ena_study.fetched_at.isoformat(),  # if ENA study is deleted/updated, the cache should be invalidated
+    )
     logger.info(f"Have {len(read_runs)} from ENA portal API")
 
     # define this within flow because it dynamically creates options from DB.

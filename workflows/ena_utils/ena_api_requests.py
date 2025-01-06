@@ -146,7 +146,10 @@ def check_reads_fastq(fastq: list, run_accession: str, library_layout: str):
     log_prints=True,
 )
 def get_study_readruns_from_ena(
-    accession: str, limit: int = 20, filter_library_strategy: str = None
+    accession: str,
+    limit: int = 20,
+    filter_library_strategy: str = None,
+    extra_cache_hash: str = None,
 ) -> List[str]:
     """
     Retrieve a list of read_runs from the ENA Portal API, for a given study.
@@ -155,9 +158,12 @@ def get_study_readruns_from_ena(
     :param accession: Study accession on ENA
     :param limit: Maximum number of read_runs to fetch
     :param filter_library_strategy: E.g. AMPLICON, to only fetch library-strategy: amplicon reads
+    :param extra_cache_hash: A string/hash that, when changed, will cause the cache to invalidate and so the task will run again.
     :return: A list of run accessions that have been fetched and matched the specified library strategy. Study may also contain other non-matching runs.
     """
     logger = get_run_logger()
+    if extra_cache_hash:
+        logger.info(f"Cache has additional hash of {extra_cache_hash}")
 
     # api call arguments
     query = f'"(study_accession={accession} OR secondary_study_accession={accession})"'
