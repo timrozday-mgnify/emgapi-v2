@@ -8,11 +8,8 @@ from typing import List, Union
 import django
 from django.db.models import QuerySet
 
-from workflows.data_io_utils.mgnify_v6_utils.amplicon import import_qc, import_taxonomy
-from workflows.ena_utils.ena_file_fetching import convert_ena_ftp_to_fire_fastq
-from workflows.views import encode_samplesheet_path
-
 django.setup()
+
 from django.conf import settings
 from django.utils.text import slugify
 from prefect import flow, get_run_logger, task
@@ -21,10 +18,12 @@ from prefect.task_runners import SequentialTaskRunner
 
 import analyses.models
 import ena.models
+from workflows.data_io_utils.mgnify_v6_utils.amplicon import import_qc, import_taxonomy
 from workflows.ena_utils.ena_api_requests import (
     get_study_from_ena,
     get_study_readruns_from_ena,
 )
+from workflows.ena_utils.ena_file_fetching import convert_ena_ftp_to_fire_fastq
 from workflows.nextflow_utils.samplesheets import (
     SamplesheetColumnSource,
     queryset_hash,
@@ -39,6 +38,7 @@ from workflows.prefect_utils.slurm_flow import (
     ClusterJobFailedException,
     run_cluster_job,
 )
+from workflows.views import encode_samplesheet_path
 
 FASTQ_FTPS = analyses.models.Run.CommonMetadataKeys.FASTQ_FTPS
 METADATA__FASTQ_FTPS = f"{analyses.models.Run.metadata.field.name}__{FASTQ_FTPS}"
