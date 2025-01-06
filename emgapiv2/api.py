@@ -243,6 +243,7 @@ def list_mgnify_analyses(request):
 #                                                               #
 #################################################################
 
+
 @api.get(
     "/my-data/analyses",
     response=List[MGnifyAnalysis],
@@ -254,6 +255,7 @@ def list_private_mgnify_analyses(request):
     qs = analyses.models.Analysis.objects.private_only()
     return qs
 
+
 @api.get(
     "/my-data/studies",
     response=List[MGnifyStudy],
@@ -264,6 +266,7 @@ def list_private_mgnify_analyses(request):
 def list_private_mgnify_studies(request):
     qs = analyses.models.Study.objects.private_only()
     return qs
+
 
 #################################################################
 #                                                               #

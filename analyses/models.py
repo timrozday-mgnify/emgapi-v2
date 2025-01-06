@@ -64,11 +64,11 @@ class Biome(TreeModel):
         return re.sub(r"[^a-zA-Z0-9._]", "", underscore_punctuated)
 
 
-
 class BasePublicStudyManager:
     """
     Base mixin providing common privacy filtering methods for studies
     """
+
     def get_queryset(self, include_private=False, private_only=False):
         qs = super().get_queryset()
         if private_only:
@@ -83,11 +83,14 @@ class BasePublicStudyManager:
         """
         return self.get_queryset(private_only=True)
 
+
 class PublicStudyManager(BasePublicStudyManager, models.Manager):
     """
     A custom manager that filters out private studies by default.
     """
+
     pass
+
 
 class StudyManager(models.Manager):
     async def get_or_create_for_ena_study(self, ena_study_accession):
@@ -442,6 +445,7 @@ class BasePublicAnalysisManager:
     """
     Base mixin providing common privacy filtering methods
     """
+
     def get_queryset(self, include_private=False, private_only=False):
         qs = super().get_queryset()
         if private_only:
@@ -457,17 +461,25 @@ class BasePublicAnalysisManager:
         return self.get_queryset(private_only=True)
 
 
-class PublicAnalysisManager(BasePublicAnalysisManager, AnalysisManagerDeferringAnnotations):
+class PublicAnalysisManager(
+    BasePublicAnalysisManager, AnalysisManagerDeferringAnnotations
+):
     """
     A custom manager that filters out private analyses by default.
     """
+
     pass
 
-class PublicAnalysisManagerIncludingAnnotations(BasePublicAnalysisManager, AnalysisManagerIncludingAnnotations):
+
+class PublicAnalysisManagerIncludingAnnotations(
+    BasePublicAnalysisManager, AnalysisManagerIncludingAnnotations
+):
     """
     A custom manager that includes annotations but still filters out private analyses by default.
     """
+
     pass
+
 
 class Analysis(
     MGnifyAutomatedModel,

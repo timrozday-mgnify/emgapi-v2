@@ -115,6 +115,7 @@ class StudyReadsInline(TabularInlinePaginatedWithTabSupport):
 class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin):
     def get_queryset(self, request):
         return self.model.all_objects.get_queryset()
+
     inlines = [StudyRunsInline, StudyAssembliesInline, StudyReadsInline]
     list_display = ["accession", "updated_at", "title", "display_accessions"]
     list_filter = ["updated_at", "created_at", "is_private"]
