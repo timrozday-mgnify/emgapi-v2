@@ -9,20 +9,19 @@ from django.urls import reverse
 from rest_framework import status
 
 from ena.models import Study as ENAStudy
+
 from .management.commands.import_v5_analysis import logger
-from .models import (
-    Analysis,
-    Assembler,
-    Biome,
-    ComputeResourceHeuristic,
-    Run,
-    Study, )
+from .models import Analysis, Assembler, Biome, ComputeResourceHeuristic, Run, Study
+
 
 def create_analysis(is_private=False):
     run = Run.objects.first()
     return Analysis.objects.create(
-        study=run.study, run=run, ena_study=run.ena_study, sample=run.sample,
-        is_private=is_private
+        study=run.study,
+        run=run,
+        ena_study=run.ena_study,
+        sample=run.sample,
+        is_private=is_private,
     )
 
 
@@ -38,12 +37,12 @@ def test_biome_lineage_path_generator():
     assert Biome.lineage_to_path("root") == "root"
     assert Biome.lineage_to_path("Root") == "root"
     assert (
-            Biome.lineage_to_path("root:Host-associated:Human:Digestive system")
-            == "root.host_associated.human.digestive_system"
+        Biome.lineage_to_path("root:Host-associated:Human:Digestive system")
+        == "root.host_associated.human.digestive_system"
     )
     assert (
-            Biome.lineage_to_path("root:Host-associated:Human:Digestive system (bowel)")
-            == "root.host_associated.human.digestive_system_bowel"
+        Biome.lineage_to_path("root:Host-associated:Human:Digestive system (bowel)")
+        == "root.host_associated.human.digestive_system_bowel"
     )
 
 
@@ -194,7 +193,7 @@ def test_biome_importer(httpx_mock):
 
 @pytest.mark.django_db(transaction=True)
 def test_analysis_inheritance(
-        raw_read_run,
+    raw_read_run,
 ):
     for run in Run.objects.all():
         analysis = Analysis.objects.create(

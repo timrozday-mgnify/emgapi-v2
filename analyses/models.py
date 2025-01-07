@@ -27,7 +27,6 @@ from analyses.base_models.mgnify_accessioned_models import MGnifyAccessionField
 from analyses.base_models.with_downloads_models import WithDownloadsModel
 from emgapiv2.async_utils import anysync_property
 
-
 # Some models associated with MGnify Analyses (MGYS, MGYA etc).
 
 
@@ -106,7 +105,8 @@ class StudyManager(models.Manager):
         )
         return study
 
-class PublicStudyManager(BasePublicStudyManager,  StudyManager):
+
+class PublicStudyManager(BasePublicStudyManager, StudyManager):
     """
     A custom manager that filters out private studies by default.
     """

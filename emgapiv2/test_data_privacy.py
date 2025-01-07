@@ -5,16 +5,20 @@ from django.urls import reverse
 from rest_framework import status
 
 from analyses.management.commands.import_v5_analysis import logger
-from analyses.models import Run, Analysis, Study
+from analyses.models import Analysis, Run, Study
 from ena.models import Study as ENAStudy
 
 
 def create_analysis(is_private=False):
     run = Run.objects.first()
     return Analysis.objects.create(
-        study=run.study, run=run, ena_study=run.ena_study, sample=run.sample,
-        is_private=is_private
+        study=run.study,
+        run=run,
+        ena_study=run.ena_study,
+        sample=run.sample,
+        is_private=is_private,
     )
+
 
 @pytest.mark.django_db(transaction=True)
 def test_public_api_studies_endpoint(api_client):
@@ -28,7 +32,7 @@ def test_public_api_studies_endpoint(api_client):
     response = api_client.get(url)
 
     assert response.status_code == status.HTTP_200_OK
-    assert len(response.json()['items']) == 1  # Only public study
+    assert len(response.json()["items"]) == 1  # Only public study
 
     assert response.json()["items"][0]["accession"] == public_study.accession
 
@@ -44,8 +48,8 @@ def test_public_api_analyses_endpoint(raw_read_run, api_client):
 
     assert response.status_code == status.HTTP_200_OK
     # Only public analysis should be returned
-    assert len(response.json()['items']) == 1
-    assert response.json()['items'][0]["accession"] == public_analysis.accession
+    assert len(response.json()["items"]) == 1
+    assert response.json()["items"][0]["accession"] == public_analysis.accession
 
 
 @pytest.mark.django_db(transaction=True)
@@ -80,10 +84,12 @@ def test_admin_view_analyses(raw_read_run, admin_client):
 
 @pytest.mark.django_db(transaction=True)
 def test_study_manager_methods():
-# def test_manager_methods(raw_read_run):
+    # def test_manager_methods(raw_read_run):
     """Test various manager methods for privacy handling"""
     ena_study = ENAStudy.objects.create(accession="PRJ1", title="Project 1")
-    public_study = Study.objects.create(ena_study=ena_study, title="Public Study", is_private=False)
+    public_study = Study.objects.create(
+        ena_study=ena_study, title="Public Study", is_private=False
+    )
     private_study = Study.objects.create(title="Private Study", is_private=True)
 
     assert Study.objects.count() == 1
@@ -92,6 +98,7 @@ def test_study_manager_methods():
     private_studies = Study.objects.private_only()
     assert private_studies.count() == 1
     assert private_studies.first() == private_study
+
 
 @pytest.mark.django_db(transaction=True)
 def test_manager_analysis_methods(raw_read_run):
