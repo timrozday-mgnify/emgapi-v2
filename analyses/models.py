@@ -64,7 +64,7 @@ class Biome(TreeModel):
         return re.sub(r"[^a-zA-Z0-9._]", "", underscore_punctuated)
 
 
-class BasePublicStudyManager:
+class BasePrivacyFilterManager:
     """
     Base mixin providing common privacy filtering methods for studies
     """
@@ -106,7 +106,7 @@ class StudyManager(models.Manager):
         return study
 
 
-class PublicStudyManager(BasePublicStudyManager, StudyManager):
+class PublicStudyManager(BasePrivacyFilterManager, StudyManager):
     """
     A custom manager that filters out private studies by default.
     """
@@ -441,28 +441,8 @@ class AnalysisManagerIncludingAnnotations(models.Manager):
         return super().get_queryset()
 
 
-class BasePublicAnalysisManager:
-    """
-    Base mixin providing common privacy filtering methods
-    """
-
-    def get_queryset(self, include_private=False, private_only=False):
-        qs = super().get_queryset()
-        if private_only:
-            return qs.filter(is_private=True)
-        if not include_private:
-            return qs.filter(is_private=False)
-        return qs
-
-    def private_only(self):
-        """
-        Returns only private analyses
-        """
-        return self.get_queryset(private_only=True)
-
-
 class PublicAnalysisManager(
-    BasePublicAnalysisManager, AnalysisManagerDeferringAnnotations
+    BasePrivacyFilterManager, AnalysisManagerDeferringAnnotations
 ):
     """
     A custom manager that filters out private analyses by default.
@@ -472,7 +452,7 @@ class PublicAnalysisManager(
 
 
 class PublicAnalysisManagerIncludingAnnotations(
-    BasePublicAnalysisManager, AnalysisManagerIncludingAnnotations
+    BasePrivacyFilterManager, AnalysisManagerIncludingAnnotations
 ):
     """
     A custom manager that includes annotations but still filters out private analyses by default.
