@@ -27,6 +27,7 @@ from analyses.base_models.mgnify_accessioned_models import MGnifyAccessionField
 from analyses.base_models.with_downloads_models import WithDownloadsModel
 from emgapiv2.async_utils import anysync_property
 
+
 # Some models associated with MGnify Analyses (MGYS, MGYA etc).
 
 
@@ -84,14 +85,6 @@ class BasePublicStudyManager:
         return self.get_queryset(private_only=True)
 
 
-class PublicStudyManager(BasePublicStudyManager, models.Manager):
-    """
-    A custom manager that filters out private studies by default.
-    """
-
-    pass
-
-
 class StudyManager(models.Manager):
     async def get_or_create_for_ena_study(self, ena_study_accession):
         logging.info(f"Will get/create MGnify study for {ena_study_accession}")
@@ -112,6 +105,13 @@ class StudyManager(models.Manager):
             "ena_study"
         )
         return study
+
+class PublicStudyManager(BasePublicStudyManager,  StudyManager):
+    """
+    A custom manager that filters out private studies by default.
+    """
+
+    pass
 
 
 class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
