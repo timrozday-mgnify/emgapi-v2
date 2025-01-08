@@ -1,10 +1,6 @@
 import pytest
-from django.contrib.auth.models import User
-from django.core.management import call_command
 from django.urls import reverse
-from rest_framework import status
 
-from analyses.management.commands.import_v5_analysis import logger
 from analyses.models import Analysis, Run, Study
 from ena.models import Study as ENAStudy
 
@@ -26,12 +22,11 @@ def test_public_api_studies_endpoint(api_client):
     public_study = Study.objects.create(title="Public Study", is_private=False)
     Study.objects.create(title="Private Study", is_private=True)
 
-    logger.info("Public study SURFACE  BEING TESTED IN NEW SEPARATE TEST FILE")
-
     url = reverse("api:list_mgnify_studies")
     response = api_client.get(url)
 
-    assert response.status_code == status.HTTP_200_OK
+    # assert response.status_code == status.HTTP_200_OK
+    assert response.status_code == 200
     assert len(response.json()["items"]) == 1  # Only public study
 
     assert response.json()["items"][0]["accession"] == public_study.accession
@@ -46,7 +41,8 @@ def test_public_api_analyses_endpoint(raw_read_run, api_client):
     url = reverse("api:list_mgnify_analyses")
     response = api_client.get(url)
 
-    assert response.status_code == status.HTTP_200_OK
+    # assert response.status_code == status.HTTP_200_OK
+    assert response.status_code == 200
     # Only public analysis should be returned
     assert len(response.json()["items"]) == 1
     assert response.json()["items"][0]["accession"] == public_analysis.accession
@@ -126,15 +122,3 @@ def api_client():
     from rest_framework.test import APIClient
 
     return APIClient()
-
-
-@pytest.fixture
-def admin_client():
-    from django.test import Client
-
-    admin_user = User.objects.create_superuser(
-        username="admin", email="admin@example.com", password="adminpass123"
-    )
-    client = Client()
-    client.force_login(admin_user)
-    return client
