@@ -25,6 +25,7 @@ from analyses.base_models.base_models import (
 )
 from analyses.base_models.mgnify_accessioned_models import MGnifyAccessionField
 from analyses.base_models.with_downloads_models import WithDownloadsModel
+from analyses.base_models.with_status_models import SelectByStatusManagerMixin
 from emgapiv2.async_utils import anysync_property
 
 # Some models associated with MGnify Analyses (MGYS, MGYA etc).
@@ -398,7 +399,7 @@ class ComputeResourceHeuristic(TimeStampedModel):
             return f"ComputeResourceHeuristic {self.id} ({self.process})"
 
 
-class AnalysisManagerDeferringAnnotations(models.Manager):
+class AnalysisManagerDeferringAnnotations(SelectByStatusManagerMixin, models.Manager):
     """
     The annotations field is a potentially large JSONB field.
     Defer it by default, since most queries don't need to transfer this large dataset.
@@ -408,7 +409,7 @@ class AnalysisManagerDeferringAnnotations(models.Manager):
         return super().get_queryset().defer("annotations")
 
 
-class AnalysisManagerIncludingAnnotations(models.Manager):
+class AnalysisManagerIncludingAnnotations(SelectByStatusManagerMixin, models.Manager):
     def get_queryset(self):
         return super().get_queryset()
 
