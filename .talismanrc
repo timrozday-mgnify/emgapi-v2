@@ -16,3 +16,4 @@ fileignoreconfig:
 allowed_patterns:
 - pagination_key
 - CommonMetadataKeys
+- primary_key

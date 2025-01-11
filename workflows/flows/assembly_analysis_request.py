@@ -8,11 +8,8 @@ from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
-from workflows.prefect_utils.slurm_flow import (
-    FINAL_SLURM_STATE,
-    run_cluster_jobs,
-    slurm_status_is_finished_successfully,
-)
+from workflows.prefect_utils.slurm_flow import FINAL_SLURM_STATE, run_cluster_jobs
+from workflows.prefect_utils.slurm_status import slurm_status_is_finished_successfully
 
 django.setup()
 

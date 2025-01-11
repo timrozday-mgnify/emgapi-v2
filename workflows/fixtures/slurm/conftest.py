@@ -5,7 +5,7 @@ import pytest
 from prefect import task
 
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
-from workflows.prefect_utils.slurm_flow import SlurmStatus
+from workflows.prefect_utils.slurm_status import SlurmStatus
 
 
 @pytest.fixture

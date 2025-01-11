@@ -18,8 +18,8 @@ from workflows.prefect_utils.slurm_flow import (
     FINAL_SLURM_STATE,
     SLURM_JOB_ID,
     run_cluster_jobs,
-    slurm_status_is_finished_successfully,
 )
+from workflows.prefect_utils.slurm_status import slurm_status_is_finished_successfully
 
 
 @task(

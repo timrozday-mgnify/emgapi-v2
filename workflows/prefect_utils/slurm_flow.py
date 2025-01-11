@@ -5,7 +5,6 @@ import time
 import uuid
 from collections import Counter
 from datetime import datetime, timedelta
-from enum import Enum
 from pathlib import Path
 from textwrap import dedent as _
 from typing import Callable, List, Optional, Union
@@ -24,6 +23,11 @@ from pydantic_core import Url
 from emgapiv2.log_utils import mask_sensitive_data as safe
 from workflows.data_io_utils.filenames import file_path_shortener
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
+from workflows.prefect_utils.slurm_status import (
+    SlurmStatus,
+    slurm_status_is_finished_successfully,
+    slurm_status_is_finished_unsuccessfully,
+)
 
 if "PYTEST_CURRENT_TEST" in os.environ:
     logging.warning("Unit testing, so patching pyslurm.")
@@ -40,56 +44,6 @@ EMG_CONFIG = settings.EMG_CONFIG
 CLUSTER_WORKPOOL = "slurm"
 SLURM_JOB_ID = "Slurm Job ID"
 FINAL_SLURM_STATE = "Final Slurm state"
-
-
-class SlurmStatus(str, Enum):
-    """
-    Possible Slurm Job Statuses. Slurm v 23.
-    """
-
-    pending = "PENDING"
-    running = "RUNNING"
-    completing = "COMPLETING"
-    completed = "COMPLETED"
-    failed = "FAILED"
-    terminated = "TERMINATED"
-    suspended = "SUSPENDED"
-    stopped = "STOPPED"
-    timeout = "TIMEOUT"
-    cancelled = "CANCELLED"
-    out_of_memory = "OUT_OF_MEMORY"
-
-    # Custom responses
-    unknown = "UNKNOWN"
-
-
-def slurm_status_is_okay(state: Union[SlurmStatus, str]):
-    return state in [
-        SlurmStatus.pending,
-        SlurmStatus.running,
-        SlurmStatus.unknown,
-        SlurmStatus.completed,
-    ]
-
-
-def slurm_status_is_finished_successfully(state: Union[SlurmStatus, str]):
-    return state in [SlurmStatus.completed]
-
-
-def slurm_status_is_finished_unsuccessfully(state: Union[SlurmStatus, str]):
-    return state in [
-        SlurmStatus.failed,
-        SlurmStatus.stopped,
-        SlurmStatus.timeout,
-        SlurmStatus.suspended,
-        SlurmStatus.terminated,
-        SlurmStatus.cancelled,
-        SlurmStatus.out_of_memory,
-    ]
-
-
-def slurm_status_is_running(state: Union[SlurmStatus, str]):
-    return state in [SlurmStatus.running, SlurmStatus.completing]
 
 
 def slurm_timedelta(delta: timedelta) -> str:
