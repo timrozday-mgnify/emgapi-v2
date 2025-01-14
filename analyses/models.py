@@ -422,7 +422,7 @@ class AnalysisManagerIncludingAnnotations(models.Manager):
         return super().get_queryset()
 
 
-class PublicAnalysisManagerMixin(
+class PublicAnalysisManager(
     PrivacyFilterManagerMixin, AnalysisManagerDeferringAnnotations
 ):
     """
