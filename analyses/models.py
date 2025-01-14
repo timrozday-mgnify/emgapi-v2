@@ -96,7 +96,7 @@ class PublicStudyManager(PrivacyFilterManagerMixin, StudyManager):
 
 
 class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
-    objects = PublicStudyManagerMixin()
+    objects = PublicStudyManager()
     all_objects = models.Manager()
 
     accession = MGnifyAccessionField(
