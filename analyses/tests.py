@@ -7,15 +7,18 @@ from django.core.management import call_command
 
 from ena.models import Study as ENAStudy
 
-from .models import (
-    Analysis,
-    Assembler,
-    Assembly,
-    Biome,
-    ComputeResourceHeuristic,
-    Run,
-    Study,
-)
+from .models import Analysis, Assembler, Biome, ComputeResourceHeuristic, Run, Study
+
+
+def create_analysis(is_private=False):
+    run = Run.objects.first()
+    return Analysis.objects.create(
+        study=run.study,
+        run=run,
+        ena_study=run.ena_study,
+        sample=run.sample,
+        is_private=is_private,
+    )
 
 
 @pytest.mark.django_db(transaction=True, reset_sequences=True)

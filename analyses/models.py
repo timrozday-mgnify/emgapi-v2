@@ -20,6 +20,7 @@ from analyses.base_models.base_models import (
     ENADerivedManager,
     ENADerivedModel,
     MGnifyAutomatedModel,
+    PrivacyFilterManagerMixin,
     TimeStampedModel,
     VisibilityControlledModel,
 )
@@ -86,7 +87,18 @@ class StudyManager(models.Manager):
         return study
 
 
+class PublicStudyManager(PrivacyFilterManagerMixin, StudyManager):
+    """
+    A custom manager that filters out private studies by default.
+    """
+
+    pass
+
+
 class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
+    objects = PublicStudyManager()
+    all_objects = models.Manager()
+
     accession = MGnifyAccessionField(
         accession_prefix="MGYS", accession_length=8, db_index=True
     )
@@ -94,10 +106,7 @@ class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
         ena.models.Study, on_delete=models.CASCADE, null=True, blank=True
     )
     biome = models.ForeignKey(Biome, on_delete=models.CASCADE, null=True, blank=True)
-
     title = models.CharField(max_length=255)
-
-    objects: StudyManager = StudyManager()
 
     def __str__(self):
         return self.accession
@@ -413,6 +422,26 @@ class AnalysisManagerIncludingAnnotations(models.Manager):
         return super().get_queryset()
 
 
+class PublicAnalysisManager(
+    PrivacyFilterManagerMixin, AnalysisManagerDeferringAnnotations
+):
+    """
+    A custom manager that filters out private analyses by default.
+    """
+
+    pass
+
+
+class PublicAnalysisManagerIncludingAnnotations(
+    PrivacyFilterManagerMixin, AnalysisManagerIncludingAnnotations
+):
+    """
+    A custom manager that includes annotations but still filters out private analyses by default.
+    """
+
+    pass
+
+
 class Analysis(
     MGnifyAutomatedModel,
     TimeStampedModel,
@@ -420,8 +449,11 @@ class Analysis(
     WithDownloadsModel,
     WithExperimentTypeModel,
 ):
-    objects = AnalysisManagerDeferringAnnotations()
-    objects_and_annotations = AnalysisManagerIncludingAnnotations()
+    objects = PublicAnalysisManager()
+    objects_and_annotations = PublicAnalysisManagerIncludingAnnotations()
+
+    all_objects = AnalysisManagerDeferringAnnotations()
+    all_objects_and_annotations = AnalysisManagerIncludingAnnotations()
 
     DOWNLOAD_PARENT_IDENTIFIER_ATTR = "accession"
 
