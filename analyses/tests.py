@@ -7,7 +7,6 @@ from django.core.management import call_command
 
 from ena.models import Study as ENAStudy
 
-from .management.commands.import_v5_analysis import logger
 from .models import Analysis, Assembler, Biome, ComputeResourceHeuristic, Run, Study
 
 
