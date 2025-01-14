@@ -15,11 +15,10 @@ django.setup()
 
 from ena.models import Sample, Study
 from workflows.prefect_utils.slurm_flow import (
-    FINAL_SLURM_STATE,
     SLURM_JOB_ID,
-    run_cluster_jobs,
+    ClusterJobFailedException,
+    run_cluster_job,
 )
-from workflows.prefect_utils.slurm_status import slurm_status_is_finished_successfully
 
 
 @task(
@@ -108,32 +107,38 @@ Please pick how many samples (the max limit) to download for the study {study.ac
     sample_accessions = fetch_samples(study.accession, download_options.samples_limit)
 
     # Now use our helpers to execute a nextflow pipeline on Slurm.
-    # This run_cluster_jobs helper launches multiple logically parallel jobs.
-    # This helper orchestrates the work on slurm, makes some Prefect Artefacts to document the jobs being run,
-    #   and waits until the job is done.
+    # This run_cluster_job helper orchestrates the work on slurm, makes some Django and Prefect Artefacts to document
+    #   the job being run, and waits until the job is done.
     # Should this top level "realistic example" flow crash and need to be re-run, this helper SHOULD connect to the
     #   previously started job - assuming all the options remain the same. This means cluster resources are not wasted.
 
-    slurm_job_results = await run_cluster_jobs(
-        names=[
-            f"Download read-runs for for study {study.accession} sample {sample}"
-            for sample in sample_accessions
-        ],
-        commands=[
-            f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/download_read_runs.nf "
-            f"-resume "
-            f"-name fetch-read-runs-{study.accession}-{sample} "
-            f"--sample {sample}"
-            for sample in sample_accessions
-        ],
-        expected_time=timedelta(hours=1),
-        memory=f"500M",
-        environment="ALL",  # copy env vars from the prefect agent into the slurm job
-        raise_on_job_failure=False,  # allows some jobs to fail without failing everything
-    )
+    slurm_job_results = []
+    for sample_accession in sample_accessions[:5]:
+        # limit to five sequential jobs.
+        # to achieve parallelisation, our approach is to use "samplesheets" in nextflow.
+        try:
+            slurm_job_result = await run_cluster_job(
+                name=f"Download read-runs for for study {study.accession} sample {sample_accession}",
+                command=(
+                    f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/download_read_runs.nf "
+                    f"-resume "
+                    f"-name fetch-read-runs-{study.accession}-{sample_accession} "
+                    f"--sample {sample_accession}"
+                ),
+                expected_time=timedelta(hours=1),
+                memory=f"500M",
+                environment="ALL",  # copy env vars from the prefect agent into the slurm job
+            )
+        except ClusterJobFailedException as e:
+            # We can optionally handle errors by catching this exception, rather than crashing the entire flow.
+            print(f"Something went wrong running pipeline for {sample_accession}")
+            print(e)
+            slurm_job_results.append(False)
+        else:
+            slurm_job_results.append(slurm_job_result)
 
     for sample, job_result in zip(sample_accessions, slurm_job_results):
-        if slurm_status_is_finished_successfully(job_result[FINAL_SLURM_STATE]):
+        if job_result:
             print(f"Successfully ran nextflow pipeline for {sample}")
             await notify_via_slack(f"✅ Downloaded read runs for {sample}")
         else:

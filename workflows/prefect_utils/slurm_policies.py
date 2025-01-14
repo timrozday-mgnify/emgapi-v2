@@ -1,4 +1,5 @@
 from datetime import timedelta
+from operator import truth
 from typing import Callable, List, Optional, Union
 
 from pydantic import BaseModel, Field
@@ -9,7 +10,7 @@ from workflows.prefect_utils.slurm_status import (
 )
 
 
-class SlurmResubmitPolicy(BaseModel):
+class _SlurmResubmitPolicy(BaseModel):
     policy_name: str = Field(..., description="Pretty name of this policy.")
     statuses_to_match: Union[List[SlurmStatus], Callable[[SlurmStatus], bool]] = Field(
         ...,
@@ -30,7 +31,15 @@ class SlurmResubmitPolicy(BaseModel):
     )
 
 
-ResubmitIfFailedPolicy = SlurmResubmitPolicy(
+ResubmitIfFailedPolicy = _SlurmResubmitPolicy(
     policy_name="Resubmit if identical job previously failed",
     statuses_to_match=slurm_status_is_finished_unsuccessfully,
+    resubmit=True,
+)
+
+ResubmitIfOlderThanAWeek = _SlurmResubmitPolicy(
+    policy_name="Resubmit if identical job ended a week or more ago",
+    statuses_to_match=truth,
+    ended_before=timedelta(weeks=-1),
+    resubmit=True,
 )

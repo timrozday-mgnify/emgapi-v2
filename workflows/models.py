@@ -4,6 +4,8 @@ from typing import Optional, Union
 from django.db import models
 from pydantic import BaseModel, ConfigDict, Field
 
+from emgapiv2.model_utils import JSONFieldWithSchema
+
 from .prefect_utils.slurm_status import SlurmStatus
 from .signals import ready
 
@@ -17,7 +19,7 @@ class OrchestratedClusterJob(models.Model):
 
         model_config = ConfigDict(extra="allow")
 
-        job_name: str = Field(..., description="Name of the job")
+        name: str = Field(..., description="Name of the job")
         script: str = Field(..., description="Path to the job script")
         memory_per_node: Optional[Union[str, int]] = Field(
             None, description="Memory required for the job"
@@ -50,13 +52,15 @@ class OrchestratedClusterJob(models.Model):
     )  # not pk because slurm recycles job IDs beyond a max int
     # N.B. this DOES NOT support array job IDs. Reasonable assumption for now since we do not have logic to launch these.
     flow_run_id = models.UUIDField(db_index=True)
-    job_submit_description = models.JSONField(
-        default=dict
-    )  # use SlurmJobSubmitDescription
-    input_files_hashes = models.JSONField(default=list)  # use [JobInputHash]
+    job_submit_description = JSONFieldWithSchema(schema=SlurmJobSubmitDescription)
+    input_files_hashes = JSONFieldWithSchema(schema=JobInputFile, is_list=True)
 
     last_known_state = models.TextField(
-        db_index=True, choices=SlurmStatus, null=True, blank=True, default=None
+        db_index=True,
+        choices=SlurmStatus.as_choices(),
+        null=True,
+        blank=True,
+        default=None,
     )
     state_checked_at = models.DateTimeField(null=True, blank=True, default=None)
 

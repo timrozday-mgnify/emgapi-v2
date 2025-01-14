@@ -1,8 +1,9 @@
-from enum import Enum
 from typing import Union
 
+from emgapiv2.enum_utils import DjangoChoicesCompatibleStrEnum
 
-class SlurmStatus(str, Enum):
+
+class SlurmStatus(DjangoChoicesCompatibleStrEnum):
     """
     Possible Slurm Job Statuses. Slurm v 23.
     """
