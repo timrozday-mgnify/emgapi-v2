@@ -253,7 +253,7 @@ def list_mgnify_analyses(request):
     operation_id="list_private_mgnify_analyses",
     auth=django_auth_superuser,
 )
-def list_private_mgnify_analyses(request):
+def list_private_mgnify_analyses():
     qs = analyses.models.Analysis.objects.private_only()
     return qs
 
@@ -264,8 +264,9 @@ def list_private_mgnify_analyses(request):
     tags=[ApiSections.STUDIES.value],
     summary="List all private studies available from MGnify",
     operation_id="list_private_mgnify_studies",
+    auth=django_auth_superuser,
 )
-def list_private_mgnify_studies(request):
+def list_private_mgnify_studies():
     qs = analyses.models.Study.objects.private_only()
     return qs
 
