@@ -87,7 +87,7 @@ class StudyManager(models.Manager):
         return study
 
 
-class PublicStudyManagerMixin(PrivacyFilterManagerMixin, StudyManager):
+class PublicStudyManager(PrivacyFilterManagerMixin, StudyManager):
     """
     A custom manager that filters out private studies by default.
     """
