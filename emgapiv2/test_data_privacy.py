@@ -17,14 +17,11 @@ def create_analysis(is_private=False):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_public_api_studies_endpoint(api_client):
+def test_public_api_studies_endpoint(ninja_api_client):
     """Test that public API only returns public studies"""
     public_study = Study.objects.create(title="Public Study", is_private=False)
     Study.objects.create(title="Private Study", is_private=True)
-
-    url = reverse("api:list_mgnify_studies")
-    response = api_client.get(url)
-
+    response = ninja_api_client.get("/studies")
     # assert response.status_code == status.HTTP_200_OK
     assert response.status_code == 200
     assert len(response.json()["items"]) == 1  # Only public study
@@ -33,13 +30,12 @@ def test_public_api_studies_endpoint(api_client):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_public_api_analyses_endpoint(raw_read_run, api_client):
+def test_public_api_analyses_endpoint(raw_read_run, ninja_api_client):
     """Test that public API only returns public analyses"""
     public_analysis = create_analysis(is_private=False)
     create_analysis(is_private=True)
 
-    url = reverse("api:list_mgnify_analyses")
-    response = api_client.get(url)
+    response = ninja_api_client.get("/analyses")
 
     # assert response.status_code == status.HTTP_200_OK
     assert response.status_code == 200
@@ -80,7 +76,6 @@ def test_admin_view_analyses(raw_read_run, admin_client):
 
 @pytest.mark.django_db(transaction=True)
 def test_study_manager_methods():
-    # def test_manager_methods(raw_read_run):
     """Test various manager methods for privacy handling"""
     ena_study = ENAStudy.objects.create(accession="PRJ1", title="Project 1")
     public_study = Study.objects.create(
@@ -115,10 +110,3 @@ def test_manager_analysis_methods(raw_read_run):
     assert analysis.annotations == {"test": "data"}
     all_analyses = Analysis.all_objects_and_annotations.all()
     assert len(all_analyses) == 2
-
-
-@pytest.fixture
-def api_client():
-    from rest_framework.test import APIClient
-
-    return APIClient()
