@@ -449,8 +449,8 @@ class Analysis(
     WithDownloadsModel,
     WithExperimentTypeModel,
 ):
-    objects = PublicAnalysisManagerMixin()
-    objects_and_annotations = PublicAnalysisManagerMixinIncludingAnnotations()
+    objects = PublicAnalysisManager()
+    objects_and_annotations = PublicAnalysisManagerIncludingAnnotations()
 
     all_objects = AnalysisManagerDeferringAnnotations()
     all_objects_and_annotations = AnalysisManagerIncludingAnnotations()
