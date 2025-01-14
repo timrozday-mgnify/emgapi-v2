@@ -432,7 +432,7 @@ class PublicAnalysisManager(
     pass
 
 
-class PublicAnalysisManagerMixinIncludingAnnotations(
+class PublicAnalysisManagerIncludingAnnotations(
     PrivacyFilterManagerMixin, AnalysisManagerIncludingAnnotations
 ):
     """
