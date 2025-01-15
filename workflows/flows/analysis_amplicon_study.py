@@ -61,12 +61,12 @@ def get_analyses_to_attempt(
     """
     study.refresh_from_db()
     analyses_worth_trying = (
-        study.analyses.filter(
-            **{
-                f"status__{analyses.models.Analysis.AnalysisStates.ANALYSIS_COMPLETED}": False,
-                f"status__{analyses.models.Analysis.AnalysisStates.ANALYSIS_BLOCKED}": False,
-                f"status__{analyses.models.Analysis.AnalysisStates.ANALYSIS_PRE_QC_FAILED}": False,
-            }
+        study.analyses.exclude_by_statuses(
+            [
+                analyses.models.Analysis.AnalysisStates.ANALYSIS_QC_FAILED,
+                analyses.models.Analysis.AnalysisStates.ANALYSIS_COMPLETED,
+                analyses.models.Analysis.AnalysisStates.ANALYSIS_BLOCKED,
+            ]
         )
         .filter(experiment_type=for_experiment_type.value)
         .order_by("id")
@@ -549,7 +549,7 @@ def set_post_analysis_states(amplicon_current_outdir: Path, amplicon_analyses: L
         if analysis.run.first_accession in qc_failed_runs:
             task_mark_analysis_status(
                 analysis,
-                status=AnalysisStates.ANALYSIS_PRE_QC_FAILED,
+                status=AnalysisStates.ANALYSIS_QC_FAILED,
                 reason=qc_failed_runs[analysis.run.first_accession],
             )
         elif analysis.run.first_accession in qc_completed_runs:

@@ -267,13 +267,13 @@ class Assembly(TimeStampedModel, ENADerivedModel):
         def default_status(cls):
             return {
                 cls.ASSEMBLY_STARTED: False,
+                cls.PRE_ASSEMBLY_QC_FAILED: False,
                 cls.ASSEMBLY_FAILED: False,
                 cls.ASSEMBLY_COMPLETED: False,
                 cls.ASSEMBLY_BLOCKED: False,
                 cls.ASSEMBLY_UPLOADED: False,
                 cls.ASSEMBLY_UPLOAD_FAILED: False,
                 cls.ASSEMBLY_UPLOAD_BLOCKED: False,
-                cls.PRE_ASSEMBLY_QC_FAILED: False,
             }
 
     status = models.JSONField(
@@ -506,17 +506,17 @@ class Analysis(
         ANALYSIS_COMPLETED = "analysis_completed"
         ANALYSIS_BLOCKED = "analysis_blocked"
         ANALYSIS_FAILED = "analysis_failed"
-        ANALYSIS_PRE_QC_FAILED = "analysis_pre_qc_failed"
+        ANALYSIS_QC_FAILED = "analysis_qc_failed"
         ANALYSIS_POST_SANITY_CHECK_FAILED = "analysis_post_sanity_check_failed"
 
         @classmethod
         def default_status(cls):
             return {
                 cls.ANALYSIS_STARTED: False,
+                cls.ANALYSIS_QC_FAILED: False,
                 cls.ANALYSIS_COMPLETED: False,
                 cls.ANALYSIS_BLOCKED: False,
                 cls.ANALYSIS_FAILED: False,
-                cls.ANALYSIS_PRE_QC_FAILED: False,
             }
 
     status = models.JSONField(
