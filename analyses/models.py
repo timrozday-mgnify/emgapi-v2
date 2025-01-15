@@ -207,7 +207,7 @@ class Assembler(TimeStampedModel):
         return f"{self.name} {self.version}" if self.version is not None else self.name
 
 
-class AssemblyManager(ENADerivedManager):
+class AssemblyManager(SelectByStatusManagerMixin, ENADerivedManager):
     def get_queryset(self):
         return super().get_queryset().select_related("run")
 
@@ -267,6 +267,7 @@ class Assembly(TimeStampedModel, ENADerivedModel):
         def default_status(cls):
             return {
                 cls.ASSEMBLY_STARTED: False,
+                cls.PRE_ASSEMBLY_QC_FAILED: False,
                 cls.ASSEMBLY_FAILED: False,
                 cls.ASSEMBLY_COMPLETED: False,
                 cls.ASSEMBLY_BLOCKED: False,
@@ -512,6 +513,7 @@ class Analysis(
         def default_status(cls):
             return {
                 cls.ANALYSIS_STARTED: False,
+                cls.ANALYSIS_QC_FAILED: False,
                 cls.ANALYSIS_COMPLETED: False,
                 cls.ANALYSIS_BLOCKED: False,
                 cls.ANALYSIS_FAILED: False,
