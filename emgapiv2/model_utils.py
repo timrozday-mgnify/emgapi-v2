@@ -1,9 +1,22 @@
+import json
 from typing import Type
 
 from django.core.exceptions import ValidationError as DjValidationError
 from django.db import models
 from pydantic import BaseModel
 from pydantic import ValidationError as PydValidationError
+
+
+class _PydanticDecoder(json.JSONDecoder):
+    def __init__(self, *args, schema=None, **kwargs):
+        self.pydantic_model = schema
+        super().__init__(*args, **kwargs)
+
+    def decode(self, s, **kwargs):
+        data = super().decode(s, **kwargs)
+        if self.pydantic_model:
+            return self.pydantic_model.model_validate(data)
+        return data
 
 
 class JSONFieldWithSchema(models.JSONField):
@@ -31,10 +44,34 @@ class JSONFieldWithSchema(models.JSONField):
         *args,
         **kwargs,
     ):
-        super().__init__(*args, **kwargs)
+        kwargs.pop("decoder", "")
         self.schema = schema
         self.is_list = is_list
         self.is_strict = strict
+        super().__init__(*args, decoder=self._make_decoder(), **kwargs)
+
+    def _make_decoder(self):
+        schema = self.schema
+
+        class SchemaDecoder(_PydanticDecoder):
+            def __init__(inner_self, *args, **kwargs):
+                super().__init__(schema=schema, *args, **kwargs)
+
+        return SchemaDecoder
+
+    def deconstruct(self):
+        """
+        Ensure the 'decoder' argument is excluded during migration serialization.
+        """
+        name, path, args, kwargs = super().deconstruct()
+
+        kwargs.pop("decoder", None)
+
+        kwargs["schema"] = self.schema
+        kwargs["is_list"] = self.is_list
+        kwargs["strict"] = self.is_strict
+
+        return name, path, args, kwargs
 
     def validate(self, value, model_instance):
         super().validate(value, model_instance)

@@ -20,7 +20,7 @@ class OrchestratedClusterJob(models.Model):
         model_config = ConfigDict(extra="allow")
 
         name: str = Field(..., description="Name of the job")
-        script: str = Field(..., description="Path to the job script")
+        script: str = Field(..., description="Content of the job script/command")
         memory_per_node: Optional[Union[str, int]] = Field(
             None, description="Memory required for the job"
         )

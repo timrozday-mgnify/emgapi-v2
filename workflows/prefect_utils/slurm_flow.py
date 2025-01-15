@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from textwrap import dedent as _
-from typing import List, Optional, Union
+from typing import List, Optional, Type, Union
 
 from django.conf import settings
 from django.urls import reverse
@@ -23,6 +23,7 @@ from emgapiv2.log_utils import mask_sensitive_data as safe
 from workflows.models import OrchestratedClusterJob
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 from workflows.prefect_utils.slurm_limits import delay_until_cluster_has_space
+from workflows.prefect_utils.slurm_policies import _SlurmResubmitPolicy
 from workflows.prefect_utils.slurm_status import (
     SlurmStatus,
     slurm_status_is_finished_successfully,
@@ -330,7 +331,7 @@ async def run_cluster_job(
     expected_time: timedelta,
     memory: Union[int, str],
     environment: Union[dict, str],
-    resubmit_even_if_identical: bool = False,
+    resubmit_policy: Optional[Type[_SlurmResubmitPolicy]] = None,
     input_files_to_hash: Optional[List[Union[Path, str]]] = None,
     **kwargs,
 ) -> str:

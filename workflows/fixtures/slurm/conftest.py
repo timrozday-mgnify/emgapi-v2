@@ -11,7 +11,7 @@ from workflows.prefect_utils.slurm_status import SlurmStatus
 @pytest.fixture
 def mock_cluster_can_accept_jobs_yes():
     with patch(
-        "workflows.prefect_utils.slurm_flow.cluster_can_accept_jobs"
+        "workflows.prefect_utils.slurm_limits.cluster_can_accept_jobs"
     ) as mock_cluster_can_accept_jobs:
         mock_cluster_can_accept_jobs.return_value = 1000
         yield mock_cluster_can_accept_jobs
