@@ -4,38 +4,37 @@ from typing import Callable, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
-from workflows.models import OrchestratedClusterJob
 from workflows.prefect_utils.slurm_status import (
     SlurmStatus,
     slurm_status_is_finished_unsuccessfully,
 )
 
-
-def job_submissions_are_identical(
-    a: OrchestratedClusterJob, b: OrchestratedClusterJob
-) -> bool:
-    return a.job_submit_description == b.job_submit_description
+ANYTHING = truth
 
 
 class _SlurmResubmitPolicy(BaseModel):
     policy_name: str = Field(..., description="Pretty name of this policy.")
-    comparator: Callable[[OrchestratedClusterJob, OrchestratedClusterJob], bool] = (
-        Field(
-            default=job_submissions_are_identical,
-            description="Comparator function to determine if the submitted jobs of two OrchestratedClusterJobs are identical.",
-        )
+    given_previous_job_matches: Optional[List[str]] = Field(
+        default=["script", "memory_per_node", "working_directory"],
+        description="List of fields in SlurmJobSubmitDescription which deem a previous job to be identical to the one under consideration.",
     )
-    if_status_matches: Union[List[SlurmStatus], Callable[[SlurmStatus], bool]] = Field(
-        ...,
+    given_previous_job_submitted_before: Optional[timedelta] = Field(
+        timedelta(seconds=0),  # now
+        description="If a job was submitted earlier than this timedelta before now, its resubmission will be controlled by this policy.",
+    )
+    given_previous_job_submitted_after: Optional[timedelta] = Field(
+        timedelta(weeks=-520),  # 10 years ago
+        description="If a job was submitted later than this timedelta before now, its resubmission will be controlled by this policy.",
+    )
+    considering_input_file_changes: Optional[bool] = Field(
+        default=True,
+        description="If True, the policy considers a previously submitted job to match the one under consideration if the input files are unchanged.",
+    )
+    if_status_matches: Optional[
+        Union[List[SlurmStatus], Callable[[SlurmStatus], bool]]
+    ] = Field(
+        default=truth,
         description="If a job is submitted and an identical job exists in one of these statues, its resubmission will be controlled by this policy.",
-    )
-    if_ended_before: Optional[timedelta] = Field(
-        ...,
-        description="If a job ended earlier than this timedelta before now, its resubmission will be controlled by this policy.",
-    )
-    if_ended_after: Optional[timedelta] = Field(
-        ...,
-        description="If a job ended later than this timedelta before now, its resubmission will be controlled by this policy.",
     )
     then_resubmit: bool = Field(
         default=True,
@@ -50,20 +49,27 @@ ResubmitIfFailedPolicy = _SlurmResubmitPolicy(
 )
 
 ResubmitIfOlderThanAWeekPolicy = _SlurmResubmitPolicy(
-    policy_name="Resubmit if identical job ended a week or more ago",
-    if_status_matches=truth,
-    if_ended_before=timedelta(weeks=-1),
+    policy_name="Resubmit if identical job was submitted a week or more ago",
+    given_previous_job_submitted_before=timedelta(weeks=-1),
+    if_status_matches=ANYTHING,
     then_resubmit=True,
 )
 
 ResubmitAlwaysPolicy = _SlurmResubmitPolicy(
     policy_name="Resubmit regardless of any previous jobs",
-    if_status_matches=truth,
+    if_status_matches=ANYTHING,
     then_resubmit=True,
 )
 
 NeverResubmitPolicy = _SlurmResubmitPolicy(
     policy_name="Never resubmit if a previous identical job exists",
-    if_status_matches=truth,
+    if_status_matches=ANYTHING,
+    then_resubmit=False,
+)
+
+DontResubmitIfOnlyInputFilesChangePolicy = _SlurmResubmitPolicy(
+    policy_name="Do not resubmit if the job is identical other than input file changes",
+    if_status_matches=ANYTHING,
+    considering_input_file_changes=False,
     then_resubmit=False,
 )

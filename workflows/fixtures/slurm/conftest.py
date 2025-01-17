@@ -29,7 +29,7 @@ def _dummy_start_cluster_job(*args, **kwargs):
 @pytest.fixture
 def mock_start_cluster_job():
     with patch(
-        "workflows.prefect_utils.slurm_flow.start_cluster_job",
+        "workflows.prefect_utils.slurm_flow.start_or_attach_cluster_job",
     ) as mock_start_cluster_job_task:
         mock_start_cluster_job_task.side_effect = MagicMock(
             wraps=_dummy_start_cluster_job

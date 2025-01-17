@@ -8,6 +8,8 @@ from typing import List, Union
 import django
 from django.db.models import QuerySet
 
+from workflows.prefect_utils.slurm_policies import ResubmitIfFailedPolicy
+
 django.setup()
 
 from django.conf import settings
@@ -621,6 +623,8 @@ async def perform_amplicons_in_parallel(
             memory=f"{EMG_CONFIG.amplicon_pipeline.amplicon_nextflow_master_job_memory_gb}G",
             environment=env_variables,
             input_files_to_hash=[samplesheet],
+            working_dir=amplicon_current_outdir,
+            resubmit_policy=ResubmitIfFailedPolicy,
         )
     except ClusterJobFailedException:
         for analysis in amplicon_analyses:

@@ -1,5 +1,5 @@
 import json
-from typing import Type
+from typing import Type, Union
 
 from django.core.exceptions import ValidationError as DjValidationError
 from django.db import models
@@ -8,15 +8,28 @@ from pydantic import ValidationError as PydValidationError
 
 
 class _PydanticDecoder(json.JSONDecoder):
-    def __init__(self, *args, schema=None, **kwargs):
+    def __init__(self, *args, schema=None, is_list: bool = False, **kwargs):
         self.pydantic_model = schema
+        self.is_list = is_list
         super().__init__(*args, **kwargs)
 
     def decode(self, s, **kwargs):
         data = super().decode(s, **kwargs)
         if self.pydantic_model:
+            if self.is_list:
+                return [self.pydantic_model.model_validate(d) for d in data]
             return self.pydantic_model.model_validate(data)
         return data
+
+
+class _PydanticEncoder(json.JSONEncoder):
+    def encode(self, obj: Union[Type[BaseModel], dict, list]):
+        if type(obj) is list and len(obj) > 0 and isinstance(obj[0], BaseModel):
+            return super().encode([m.model_dump() for m in obj])
+        if isinstance(obj, BaseModel):
+            return super().encode(obj.model_dump())
+        else:
+            return super().encode(obj)
 
 
 class JSONFieldWithSchema(models.JSONField):
@@ -45,17 +58,21 @@ class JSONFieldWithSchema(models.JSONField):
         **kwargs,
     ):
         kwargs.pop("decoder", "")
+        kwargs.pop("encoder", "")
         self.schema = schema
         self.is_list = is_list
         self.is_strict = strict
-        super().__init__(*args, decoder=self._make_decoder(), **kwargs)
+        super().__init__(
+            *args, decoder=self._make_decoder(), encoder=_PydanticEncoder, **kwargs
+        )
 
     def _make_decoder(self):
         schema = self.schema
+        is_list = self.is_list
 
         class SchemaDecoder(_PydanticDecoder):
             def __init__(inner_self, *args, **kwargs):
-                super().__init__(schema=schema, *args, **kwargs)
+                super().__init__(schema=schema, is_list=is_list, *args, **kwargs)
 
         return SchemaDecoder
 

@@ -10,3 +10,9 @@ class DjangoChoicesCompatibleStrEnum(str, Enum):
     @classmethod
     def as_choices(cls):
         return [(item.value, item.name) for item in cls]
+
+    @classmethod
+    def get_member_by_value(cls, value: str) -> "DjangoChoicesCompatibleStrEnum":
+        for item in cls:
+            if item.value == value:
+                return item

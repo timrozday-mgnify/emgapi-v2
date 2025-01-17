@@ -1,4 +1,5 @@
 from datetime import timedelta
+from pathlib import Path
 from typing import List
 
 import django
@@ -10,6 +11,7 @@ from prefect.task_runners import SequentialTaskRunner
 
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 from workflows.prefect_utils.slack_notification import notify_via_slack
+from workflows.prefect_utils.slurm_policies import ResubmitIfFailedPolicy
 
 django.setup()
 
@@ -117,7 +119,7 @@ Please pick how many samples (the max limit) to download for the study {study.ac
         # limit to five sequential jobs.
         # to achieve parallelisation, our approach is to use "samplesheets" in nextflow.
         try:
-            slurm_job_result = await run_cluster_job(
+            orchestrated_cluster_job = await run_cluster_job(
                 name=f"Download read-runs for for study {study.accession} sample {sample_accession}",
                 command=(
                     f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/download_read_runs.nf "
@@ -127,6 +129,13 @@ Please pick how many samples (the max limit) to download for the study {study.ac
                 ),
                 expected_time=timedelta(hours=1),
                 memory=f"500M",
+                resubmit_policy=ResubmitIfFailedPolicy,
+                # These policies control what happens when identical jobs are submitted in future,
+                #   including when a flow crashes and is restarted.
+                # This policy says that if an identical job is started in future, it won't actually start anything
+                #   in slurm, unless the last identical job resulted in a FAILED slurm job, in which case we will
+                #   start a new one to try again.
+                working_dir=Path("/tmp"),
                 environment="ALL",  # copy env vars from the prefect agent into the slurm job
             )
         except ClusterJobFailedException as e:
@@ -135,13 +144,11 @@ Please pick how many samples (the max limit) to download for the study {study.ac
             print(e)
             slurm_job_results.append(False)
         else:
-            slurm_job_results.append(slurm_job_result)
+            slurm_job_results.append(orchestrated_cluster_job)
 
     for sample, job_result in zip(sample_accessions, slurm_job_results):
         if job_result:
             print(f"Successfully ran nextflow pipeline for {sample}")
             await notify_via_slack(f"✅ Downloaded read runs for {sample}")
         else:
-            print(
-                f"Something went wrong running nextflow pipeline for {sample} in job {job_result[SLURM_JOB_ID]}"
-            )
+            print(f"Something went wrong running nextflow pipeline for {sample}")

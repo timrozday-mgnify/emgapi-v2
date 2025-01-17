@@ -5,6 +5,7 @@ from prefect.runtime import flow_run
 
 from workflows.data_io_utils.filenames import file_path_shortener
 from workflows.prefect_utils.slurm_flow import EMG_CONFIG, run_cluster_job
+from workflows.prefect_utils.slurm_policies import ResubmitAlwaysPolicy
 
 
 def move_data_flow_name() -> str:
@@ -37,7 +38,7 @@ async def move_data(source: str, target: str, move_command: str = "cp", **kwargs
         command=f"{move_command} {source} {target}",
         expected_time=expected_time,
         memory=memory,
-        resubmit_even_if_identical=True,
+        resubmit_policy=ResubmitAlwaysPolicy,
         partitions=[EMG_CONFIG.slurm.datamover_paritition],
         **kwargs,
     )
