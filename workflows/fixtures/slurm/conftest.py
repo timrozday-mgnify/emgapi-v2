@@ -23,13 +23,15 @@ def mock_cluster_can_accept_jobs_yes():
     cache_key_fn=context_agnostic_task_input_hash,
 )
 def _dummy_start_cluster_job(*args, **kwargs):
-    return int(time.time() * 1000)
+    return int(
+        str(int(time.time() * 1000))[-6:]
+    )  #  A 6-digit number that shouldn't clash within 1ms
 
 
 @pytest.fixture
 def mock_start_cluster_job():
     with patch(
-        "workflows.prefect_utils.slurm_flow.start_or_attach_cluster_job",
+        "workflows.prefect_utils.slurm_flow.submit_cluster_job",
     ) as mock_start_cluster_job_task:
         mock_start_cluster_job_task.side_effect = MagicMock(
             wraps=_dummy_start_cluster_job
