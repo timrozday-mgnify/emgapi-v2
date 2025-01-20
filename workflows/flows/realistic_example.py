@@ -17,7 +17,6 @@ django.setup()
 
 from ena.models import Sample, Study
 from workflows.prefect_utils.slurm_flow import (
-    SLURM_JOB_ID,
     ClusterJobFailedException,
     run_cluster_job,
 )
@@ -122,10 +121,13 @@ Please pick how many samples (the max limit) to download for the study {study.ac
             orchestrated_cluster_job = await run_cluster_job(
                 name=f"Download read-runs for for study {study.accession} sample {sample_accession}",
                 command=(
+                    f"nextflow clean -f fetch-read-runs-{study.accession}-{sample_accession}; "  # remove any previous runs
                     f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/download_read_runs.nf "
                     f"-resume "
                     f"-name fetch-read-runs-{study.accession}-{sample_accession} "
-                    f"--sample {sample_accession}"
+                    f"--sample {sample_accession} "
+                    f"-ansi-log false "  # otherwise the logs in prefect/django are full of control characters
+                    f"-with-trace trace-{sample_accession}.txt"
                 ),
                 expected_time=timedelta(hours=1),
                 memory=f"500M",
@@ -135,7 +137,8 @@ Please pick how many samples (the max limit) to download for the study {study.ac
                 # This policy says that if an identical job is started in future, it won't actually start anything
                 #   in slurm, unless the last identical job resulted in a FAILED slurm job, in which case we will
                 #   start a new one to try again.
-                working_dir=Path("/tmp"),
+                working_dir=Path(settings.EMG_CONFIG.slurm.default_workdir)
+                / "realistic-example-workdir",
                 environment="ALL",  # copy env vars from the prefect agent into the slurm job
             )
         except ClusterJobFailedException as e:

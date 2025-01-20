@@ -14,11 +14,11 @@ from prefect import Flow, State, flow, get_run_logger, task
 from prefect.artifacts import create_markdown_artifact
 from prefect.client.schemas import FlowRun
 from prefect.runtime import flow_run
-from pydantic import AnyUrl
-from pydantic_core import Url
 
 from emgapiv2.log_utils import mask_sensitive_data as safe
 from workflows.models import OrchestratedClusterJob
+from workflows.nextflow_utils.tower import maybe_get_nextflow_tower_browse_url
+from workflows.nextflow_utils.trace import maybe_get_nextflow_trace_df
 from workflows.prefect_utils.slurm_limits import delay_until_cluster_has_space
 from workflows.prefect_utils.slurm_policies import _SlurmResubmitPolicy
 from workflows.prefect_utils.slurm_status import (
@@ -104,26 +104,6 @@ async def check_cluster_job(
         logger.info(f"No Slurm Job Stdout available at {job_log_path}")
     await orchestrated_cluster_job.asave()
     return job.state
-
-
-def maybe_get_nextflow_tower_browse_url(command: str) -> Optional[AnyUrl]:
-    """
-    If the command looks like a nextflow run with tower enabled and an explicitly defined name,
-    return the Nextflow Tower URL for it (to be browsed).
-    :param command: A command-line instruction e.g. nextflow run....
-    :return: A Nextflow Tower / Seqera Platform URL, or None
-    """
-    if "nextflow run" in command and "-tower" in command and "-name" in command:
-        try:
-            wf_name = command.split("-name")[1].strip().split(" ")[0]
-        except KeyError:
-            logging.warning(
-                f"Could not determine nextflow workflow run name from {command}"
-            )
-            return
-        return Url(
-            f"https://cloud.seqera.io/orgs/{EMG_CONFIG.slurm.nextflow_tower_org}/workspaces/{EMG_CONFIG.slurm.nextflow_tower_workspace}/watch?search={wf_name}"
-        )
 
 
 def _ensure_absolute_workdir(workdir):
@@ -372,10 +352,22 @@ def compute_hash_of_input_file(
     return input_files_hash.hexdigest()
 
 
+@task(log_prints=True)
+def store_nextflow_trace(orchestrated_cluster_job: OrchestratedClusterJob):
+    job_description: OrchestratedClusterJob.SlurmJobSubmitDescription = (
+        orchestrated_cluster_job.job_submit_description
+    )
+    maybe_trace = maybe_get_nextflow_trace_df(
+        workdir=Path(job_description.working_directory), command=job_description.script
+    )
+    if maybe_trace is not None:
+        orchestrated_cluster_job.nextflow_trace = maybe_trace.to_dict(orient="index")
+        orchestrated_cluster_job.save()
+
+
 @flow(
     flow_run_name="Cluster job: {name}",
     persist_result=True,
-    retries=10,
     on_cancellation=[cancel_cluster_jobs_if_flow_cancelled],
 )
 async def run_cluster_job(
@@ -438,6 +430,7 @@ async def run_cluster_job(
         job_state = await check_cluster_job(orchestrated_cluster_job)
         if slurm_status_is_finished_successfully(job_state):
             logger.info(f"Job {orchestrated_cluster_job} finished successfully.")
+            store_nextflow_trace(orchestrated_cluster_job)
             is_job_in_terminal_state = True
 
         if slurm_status_is_finished_unsuccessfully(job_state):
