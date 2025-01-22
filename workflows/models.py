@@ -78,10 +78,10 @@ class OrchestratedClusterJob(models.Model):
         script: str = Field(..., description="Content of the job script/command")
         memory_per_node: Optional[Union[str, int]] = Field(
             None, description="Memory required for the job"
-        )
+        )  # TODO: normalise to a less ambiguous form
         time_limit: Optional[str] = Field(
             None, description="Wall time required for the job in HH:MM:SS format"
-        )
+        )  # TODO: store as a timedelta-derived type?
         working_directory: Optional[str] = Field(
             None, description="Working directory for the job"
         )
