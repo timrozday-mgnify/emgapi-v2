@@ -322,8 +322,18 @@ def cancel_cluster_job(name: str):
         )
 
 
-class ClusterJobFailedException(Exception): ...
+class ClusterJobFailedException(Exception):
+    def __init__(self, job_id, state, message=None):
+        self.job_id = job_id
+        self.state = state
+        self.message = message
+        super().__init__(self._format_message())
 
+    def _format_message(self):
+        msg = f"Cluster job {self.job_id} failed with state {self.state}"
+        if self.message:
+            msg += f"\nDetails: {self.message}"
+        return msg
 
 class ClusterPendingJobsLimitReachedException(Exception): ...
 
@@ -489,7 +499,18 @@ async def run_cluster_job(
             is_job_in_terminal_state = True
 
         if slurm_status_is_finished_unsuccessfully(job_state):
-            raise ClusterJobFailedException()
+            logger.info(f"MGS Job {job_id} finished unsuccessfully.")
+            error_details = None
+            try:
+                job = pyslurm.db.Job(job_id).load(job_id)
+                job_log_path = Path(job.working_directory) / Path(f"slurm-{job_id}.out")
+                if job_log_path.exists():
+                    with open(job_log_path, "r") as f:
+                        error_details = f.read()
+            except Exception as e:
+                logger.warning(f"Failed to get job error details: {e}")
+
+            raise ClusterJobFailedException(job_id, job_state, error_details)
 
         else:
             logger.debug(
