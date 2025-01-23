@@ -335,6 +335,7 @@ class ClusterJobFailedException(Exception):
             msg += f"\nDetails: {self.message}"
         return msg
 
+
 class ClusterPendingJobsLimitReachedException(Exception): ...
 
 
