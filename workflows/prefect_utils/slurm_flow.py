@@ -499,7 +499,6 @@ async def run_cluster_job(
             is_job_in_terminal_state = True
 
         if slurm_status_is_finished_unsuccessfully(job_state):
-            logger.info(f"MGS Job {job_id} finished unsuccessfully.")
             error_details = None
             try:
                 job = pyslurm.db.Job(job_id).load(job_id)
