@@ -7,15 +7,18 @@ from django.core.management import call_command
 
 from ena.models import Study as ENAStudy
 
-from .models import (
-    Analysis,
-    Assembler,
-    Assembly,
-    Biome,
-    ComputeResourceHeuristic,
-    Run,
-    Study,
-)
+from .models import Analysis, Assembler, Biome, ComputeResourceHeuristic, Run, Study
+
+
+def create_analysis(is_private=False):
+    run = Run.objects.first()
+    return Analysis.objects.create(
+        study=run.study,
+        run=run,
+        ena_study=run.ena_study,
+        sample=run.sample,
+        is_private=is_private,
+    )
 
 
 @pytest.mark.django_db(transaction=True, reset_sequences=True)
@@ -196,3 +199,112 @@ def test_analysis_inheritance(
         analysis.refresh_from_db()
         assert analysis.experiment_type != analysis.ExperimentTypes.UNKNOWN
         assert analysis.experiment_type == run.experiment_type
+
+
+@pytest.mark.django_db(transaction=True)
+def test_status_filtering(
+    raw_read_run,
+):
+    run = Run.objects.first()
+    analysis = Analysis.objects.create(
+        study=run.study, run=run, ena_study=run.ena_study, sample=run.sample
+    )
+    assert analysis.AnalysisStates.ANALYSIS_COMPLETED.value in analysis.status
+    assert analysis.status[analysis.AnalysisStates.ANALYSIS_COMPLETED.value] == False
+
+    assert run.study.analyses.count() == 1
+
+    assert (
+        run.study.analyses.filter(
+            **{f"status__{analysis.AnalysisStates.ANALYSIS_COMPLETED.value}": False}
+        ).count()
+        == 1
+    )
+    assert (
+        run.study.analyses.filter(
+            **{f"status__{analysis.AnalysisStates.ANALYSIS_COMPLETED.value}": True}
+        ).count()
+        == 0
+    )
+
+    assert (
+        run.study.analyses.filter_by_statuses(
+            [analysis.AnalysisStates.ANALYSIS_COMPLETED]
+        ).count()
+        == 0
+    )
+
+    # should include a missing key if not strict
+    assert run.study.analyses.filter_by_statuses(["non_existent_key"]).count() == 0
+    assert (
+        run.study.analyses.filter_by_statuses(
+            ["non_existent_key"], strict=False
+        ).count()
+        == 1
+    )
+
+    analysis.status[analysis.AnalysisStates.ANALYSIS_COMPLETED] = True
+    analysis.save()
+    assert (
+        run.study.analyses.filter_by_statuses(
+            [analysis.AnalysisStates.ANALYSIS_COMPLETED]
+        ).count()
+        == 1
+    )
+
+    assert (
+        run.study.analyses.filter_by_statuses(
+            [analysis.AnalysisStates.ANALYSIS_COMPLETED, "non_existent_key"]
+        ).count()
+        == 0
+    )
+    assert (
+        run.study.analyses.filter_by_statuses(
+            [analysis.AnalysisStates.ANALYSIS_COMPLETED, "non_existent_key"],
+            strict=False,
+        ).count()
+        == 1
+    )
+
+    analysis.status["an_extra_key"] = True
+    analysis.save()
+    assert (
+        run.study.analyses.filter_by_statuses(
+            [analysis.AnalysisStates.ANALYSIS_COMPLETED, "an_extra_key"]
+        ).count()
+        == 1
+    )
+
+    # EXCLUSIONS
+    assert run.study.analyses.count() == 1
+    assert (
+        run.study.analyses.exclude_by_statuses(
+            [analysis.AnalysisStates.ANALYSIS_COMPLETED]
+        ).count()
+        == 0
+    )
+    assert (
+        run.study.analyses.exclude_by_statuses(
+            [analysis.AnalysisStates.ANALYSIS_FAILED]
+        ).count()
+        == 1
+    )
+    assert (
+        run.study.analyses.exclude_by_statuses(
+            [analysis.AnalysisStates.ANALYSIS_FAILED, "an_extra_key"]
+        ).count()
+        == 0
+    )
+
+    assert (
+        run.study.analyses.exclude_by_statuses(
+            [analysis.AnalysisStates.ANALYSIS_FAILED, "non_existent_key"]
+        ).count()
+        == 1
+    )
+    assert (
+        run.study.analyses.exclude_by_statuses(
+            [analysis.AnalysisStates.ANALYSIS_FAILED, "non_existent_key"], strict=False
+        ).count()
+        == 0
+    )
