@@ -11,6 +11,7 @@ from Bio import SeqIO
 from django.conf import settings
 
 from workflows.prefect_utils.env_context import TemporaryEnv
+from workflows.prefect_utils.slurm_policies import ResubmitIfFailedPolicy
 
 django.setup()
 
@@ -363,6 +364,8 @@ async def submit_assembly_slurm(
             memory=f"{EMG_CONFIG.assembler.assembly_uploader_mem_gb}G",
             environment="ALL",  # copy env vars from the prefect agent into the slurm job
             input_files_to_hash=[manifest],
+            resubmit_policy=ResubmitIfFailedPolicy,
+            working_dir=manifest.parent,
         )
     except ClusterJobFailedException:
         logger.error(

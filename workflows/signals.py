@@ -12,23 +12,23 @@ import analyses.models
 # For example, if a flow should being running when a model instance is created.
 
 
-@receiver(post_save, sender=analyses.models.AssemblyAnalysisRequest)
-def on_assembly_analysis_saved(
-    sender, instance: analyses.models.AssemblyAnalysisRequest, created, **kwargs
-):
-    if not created:
-        return
-    flowrun = async_to_sync(run_deployment)(
-        "Assemble and analyse a study/assembly_analysis_request_deployment",
-        timeout=0,
-        parameters={
-            "accession": instance.requested_study,
-            "request_id": instance.id,
-        },
-        idempotency_key=f"assembly_analysis_request_deployment__request_id_{instance.id}",
-    )
-    instance.request_metadata[instance.RequestMetadata.FLOW_RUN_ID] = str(flowrun.id)
-    instance.save()
+# @receiver(post_save, sender=analyses.models.AssemblyAnalysisRequest)
+# def on_assembly_analysis_saved(
+#     sender, instance: analyses.models.AssemblyAnalysisRequest, created, **kwargs
+# ):
+#     if not created:
+#         return
+#     flowrun = async_to_sync(run_deployment)(
+#         "Assemble and analyse a study/assembly_analysis_request_deployment",
+#         timeout=0,
+#         parameters={
+#             "accession": instance.requested_study,
+#             "request_id": instance.id,
+#         },
+#         idempotency_key=f"assembly_analysis_request_deployment__request_id_{instance.id}",
+#     )
+#     instance.request_metadata[instance.RequestMetadata.FLOW_RUN_ID] = str(flowrun.id)
+#     instance.save()
 
 
 # Add hooks above.

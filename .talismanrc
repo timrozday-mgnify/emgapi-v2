@@ -20,3 +20,8 @@ fileignoreconfig:
 allowed_patterns:
 - pagination_key
 - CommonMetadataKeys
+- primary_key
+- delay_key
+- idempotency_key
+- cache_key_fn
+- context_agnostic_task_input_hash
