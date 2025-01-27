@@ -5,9 +5,15 @@ import tempfile
 import pytest
 from django.core.management import call_command
 
+from analyses.models import (
+    Analysis,
+    Assembler,
+    Biome,
+    ComputeResourceHeuristic,
+    Run,
+    Study,
+)
 from ena.models import Study as ENAStudy
-
-from .models import Analysis, Assembler, Biome, ComputeResourceHeuristic, Run, Study
 
 
 def create_analysis(is_private=False):
