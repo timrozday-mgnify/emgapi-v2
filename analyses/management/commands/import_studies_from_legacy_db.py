@@ -8,6 +8,8 @@ import ena.models
 from analyses.models import Biome, Study
 from workflows.data_io_utils.legacy_emg_dbs import LegacyStudy, legacy_emg_db_session
 
+logger = logging.getLogger(__name__)
+
 
 class Command(BaseCommand):
     help = "Imports studies from the legacy DB, without any contents - study metadata only."
@@ -38,7 +40,7 @@ class Command(BaseCommand):
             },
         )
         if created:
-            logging.info(f"Created new ENA study object {ena_study}")
+            logger.info(f"Created new ENA study object {ena_study}")
 
         biome = Biome.objects.get(
             path=Biome.lineage_to_path(legacy_biome.lineage),
@@ -55,7 +57,7 @@ class Command(BaseCommand):
             has_legacy_data=True,
         )
         if created:
-            logging.info(f"Created new study object {mg_study}")
+            logger.info(f"Created new study object {mg_study}")
         return mg_study
 
     def handle(self, *args, **options):
@@ -63,7 +65,7 @@ class Command(BaseCommand):
         after = options.get("mgys_after")
 
         if after:
-            logging.warning(f"Only importing studies with MGYS > {after}")
+            logger.warning(f"Only importing studies with MGYS > {after}")
 
         with legacy_emg_db_session() as session:
             studies_select_stmt = select(LegacyStudy).where(LegacyStudy.id > after)
@@ -72,19 +74,17 @@ class Command(BaseCommand):
             for legacy_study in session.execute(
                 studies_select_stmt
             ).scalars():  # type: LegacyStudy
-                print("THE STUDY")
-                print(legacy_study)
                 if Study.objects.filter(id=legacy_study.id).exists():
                     raise ValidationError(
                         f"Study {legacy_study.id} already exists in the non-legacy DB."
                     )
 
                 if dry_run:
-                    logging.info(
+                    logger.info(
                         f"Would make study for MGYS {legacy_study.id} / {legacy_study.ext_study_id}"
                     )
                 else:
                     self._make_study(legacy_study)
                 count += 1
 
-        logging.info(f"{'Would have' if dry_run else ''} Imported {count} studies")
+        logger.info(f"{'Would have' if dry_run else ''} Imported {count} studies")

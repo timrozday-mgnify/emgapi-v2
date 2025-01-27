@@ -144,6 +144,7 @@ class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin)
                     "is_private",
                     "is_suppressed",
                     "webin_submitter",
+                    "has_legacy_data",
                 ],
             },
         ),

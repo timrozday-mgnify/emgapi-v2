@@ -111,7 +111,7 @@ class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
         default=False, help_text="If the study has legacy data (pre V6)"
     )
 
-    title = models.CharField(max_length=255)
+    title = models.CharField(max_length=4000)  # same max as ENA DB
 
     def __str__(self):
         return self.accession
