@@ -121,7 +121,13 @@ class TimeStampedModel(models.Model):
         abstract = True
 
 
-class PrivacyFilterManagerMixin:
+class SuppressionFilterManagerMixin:
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return qs.filter(is_suppressed=False)
+
+
+class PrivacyFilterManagerMixin(SuppressionFilterManagerMixin):
     """
     Base mixin providing common privacy filtering methods for studies
     """

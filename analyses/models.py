@@ -483,6 +483,7 @@ class Analysis(
         blank=True,
         related_name="analyses",
     )
+    is_suppressed = models.BooleanField(default=False)
 
     GENOME_PROPERTIES = "genome_properties"
     GO_TERMS = "go_terms"
@@ -594,8 +595,32 @@ class Analysis(
 
 @receiver(post_save, sender=Analysis)
 def on_analysis_saved(sender, instance: Analysis, created, **kwargs):
+    """
+    Whenever an Analysis is saved, determine its experiment type based on the runs/assemblies it is associated with.
+    """
     if instance.experiment_type in [None, "", instance.ExperimentTypes.UNKNOWN]:
         instance.inherit_experiment_type()
+
+
+@receiver(post_save, sender=Study)
+def on_study_saved_update_analyses_suppression_states(
+    sender, instance: Study, created, **kwargs
+):
+    """
+    (Un)suppress the analyses associated with a Study whenever the Study is updated.
+    All other models are directly related to ENA objects, so their suppression is handled directly.
+    Analyses are different (no ENA accession/equivalent object) hence they follow this study-down propagation.
+    This means there is no current way to suppress one analysis of a study, only entire studies.
+    This is how ENA's documentation suggests suppression should work.
+    """
+    analyses_to_update_suppression_of = instance.analyses.exclude(
+        is_suppressed=instance.is_suppressed
+    )
+    for analysis in analyses_to_update_suppression_of:
+        analysis.is_suppressed = instance.is_suppressed
+    Analysis.all_objects.bulk_update(
+        analyses_to_update_suppression_of, ["is_suppressed"]
+    )
 
 
 class AnalysedContig(TimeStampedModel):

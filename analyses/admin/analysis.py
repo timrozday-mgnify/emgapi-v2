@@ -69,7 +69,13 @@ class AnalysisAdmin(JSONFieldWidgetOverridesMixin, ModelAdmin):
             "Status and ownership",
             {
                 "classes": ["tab"],
-                "fields": ["is_ready", "is_private", "webin_submitter", "status"],
+                "fields": [
+                    "is_ready",
+                    "is_private",
+                    "webin_submitter",
+                    "status",
+                    "is_suppressed",
+                ],
             },
         ),
         ("Files", {"classes": ["tab"], "fields": ["downloads", "results_dir"]}),
