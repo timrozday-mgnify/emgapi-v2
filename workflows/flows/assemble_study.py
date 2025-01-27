@@ -11,12 +11,14 @@ import django
 import pandas as pd
 from asgiref.sync import sync_to_async
 from django.conf import settings
+from django.db.models import QuerySet
 from django.urls import reverse_lazy
 from prefect import flow, get_run_logger, suspend_flow_run, task
 from prefect.artifacts import create_table_artifact
 from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 
+from analyses.models import Assembly
 from workflows.prefect_utils.slurm_policies import ResubmitIfFailedPolicy
 
 django.setup()
@@ -293,15 +295,16 @@ async def run_assembler_for_samplesheet(
     assembler: analyses.models.Assembler,
 ):
     samplesheet_df = pd.read_csv(samplesheet_csv, sep=",")
-    assemblies: list[analyses.models.Assembly] = mgnify_study.assemblies_reads.filter(
+    assemblies: Union[QuerySet, List[Assembly]] = mgnify_study.assemblies_reads.filter(
         run__ena_accessions__0__in=samplesheet_df["reads_accession"]
     )
 
     async for assembly in assemblies:
-        task_mark_assembly_status(
+        await task_mark_assembly_status(
             assembly,
             status=assembly.AssemblyStates.ASSEMBLY_STARTED,
             unset_statuses=[assembly.AssemblyStates.ASSEMBLY_BLOCKED],
+            reason=None,
         )
 
     miassembler_outdir = Path(
@@ -334,8 +337,8 @@ async def run_assembler_for_samplesheet(
             working_dir=miassembler_outdir,
         )
     except ClusterJobFailedException:
-        for assembly in assemblies:
-            task_mark_assembly_status(
+        async for assembly in assemblies:
+            await task_mark_assembly_status(
                 assembly, status=analyses.models.Assembly.AssemblyStates.ASSEMBLY_FAILED
             )
     else:
@@ -360,7 +363,7 @@ async def run_assembler_for_samplesheet(
 
         if not assembled_runs_csv.is_file():
             for assembly in assemblies:
-                task_mark_assembly_status(
+                await task_mark_assembly_status(
                     assembly,
                     status=analyses.models.Assembly.AssemblyStates.ASSEMBLY_FAILED,
                     reason=f"The miassembler output is missing the {assembled_runs_csv} file.",
@@ -376,13 +379,13 @@ async def run_assembler_for_samplesheet(
 
         for assembly in assemblies:
             if assembly.run.first_accession in qc_failed_runs:
-                task_mark_assembly_status(
+                await task_mark_assembly_status(
                     assembly,
                     status=analyses.models.Assembly.AssemblyStates.PRE_ASSEMBLY_QC_FAILED,
                     reason=qc_failed_runs[assembly.run.first_accession],
                 )
             elif assembly.run.first_accession in assembled_runs:
-                task_mark_assembly_status(
+                await task_mark_assembly_status(
                     assembly,
                     status=analyses.models.Assembly.AssemblyStates.ASSEMBLY_COMPLETED,
                     unset_statuses=[
@@ -391,7 +394,7 @@ async def run_assembler_for_samplesheet(
                 )
                 update_assembly_metadata(miassembler_outdir, assembly, assembler)
             else:
-                task_mark_assembly_status(
+                await task_mark_assembly_status(
                     assembly,
                     status=analyses.models.Assembly.AssemblyStates.ASSEMBLY_FAILED,
                     reason="The assembly is missing from the pipeline end-of-run reports",

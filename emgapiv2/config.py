@@ -94,7 +94,7 @@ class ENAConfig(BaseModel):
     portal_search_api: AnyHttpUrl = "https://www.ebi.ac.uk/ena/portal/api/search"
     browser_view_url_prefix: AnyHttpUrl = "https://www.ebi.ac.uk/ena/browser/view"
     # TODO: migrate to the ENA Handler
-    study_metadata_fields: list = ["study_title", "secondary_study_accession"]
+    study_metadata_fields: list[str] = ["study_title", "secondary_study_accession"]
     # TODO: migrate to the ENA Handler
     readrun_metadata_fields: list = [
         "sample_accession",

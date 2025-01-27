@@ -266,7 +266,7 @@ def start_or_attach_cluster_job(
         markdown=_(
             f"""\
             # Slurm job {job_id}
-            [Orchestrated Cluster Job {ocj.id}]({reverse("admin:workflows_orchestratedclusterjob_change", kwargs={"object_id": ocj.id})})
+            [Orchestrated Cluster Job {ocj.id}]({EMG_CONFIG.service_urls.app_root}/{reverse("admin:workflows_orchestratedclusterjob_change", kwargs={"object_id": ocj.id})})
             Submitted a script to Slurm cluster:
             ~~~
             <<SCRIPT>>

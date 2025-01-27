@@ -25,3 +25,7 @@ allowed_patterns:
 - idempotency_key
 - cache_key_fn
 - context_agnostic_task_input_hash
+- keywords
+- KEYWORDS
+- key1=val1
+- key2=val2

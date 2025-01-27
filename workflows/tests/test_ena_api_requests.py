@@ -5,6 +5,13 @@ from prefect.logging import disable_run_logger
 import analyses.models
 import ena.models
 from workflows.ena_utils.ena_api_requests import (
+    ENAAPIRequest,
+    ENAPortalResultType,
+    ENAQueryClause,
+    ENAQueryOperators,
+    ENAQueryPair,
+    ENAStudyFields,
+    ENAStudyQuery,
     get_study_from_ena,
     get_study_readruns_from_ena,
 )
@@ -20,7 +27,7 @@ async def test_get_study_from_ena_no_primary_accession(httpx_mock):
     """
     study_accession = "SRP012064"  # study doesn't have primary accession
     httpx_mock.add_response(
-        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=study_accession={study_accession}%20OR%20secondary_study_accession={study_accession}&limit=10&format=json&fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}",
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession={study_accession}%20OR%20secondary_study_accession={study_accession}%29%22&limit=10&format=json&fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}",
         json=[],
     )
     with disable_run_logger():
@@ -38,7 +45,7 @@ async def test_get_study_from_ena_two_secondary_accessions(httpx_mock):
     """
     study_accession = "PRJNA109315"  # has SRP000903;SRP001212 secondary accessions
     httpx_mock.add_response(
-        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=study_accession={study_accession}%20OR%20secondary_study_accession={study_accession}&limit=10&format=json&fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}",
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession={study_accession}%20OR%20secondary_study_accession={study_accession}%29%22&limit=10&format=json&fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}",
         json=[
             {
                 "study_title": "Weird study",
@@ -66,7 +73,7 @@ async def test_get_study_from_ena_use_secondary_as_primary(httpx_mock):
     """
     sec_study_accession = "SRP0009034"
     httpx_mock.add_response(
-        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=study_accession={sec_study_accession}%20OR%20secondary_study_accession={sec_study_accession}&limit=10&format=json&fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}",
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession={sec_study_accession}%20OR%20secondary_study_accession={sec_study_accession}%29%22&limit=10&format=json&fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}",
         json=[
             {
                 "study_title": "More weird study",
@@ -98,7 +105,7 @@ async def test_get_study_from_ena_no_secondary_accession(httpx_mock):
     """
     study_accession = "PRJNA109315"
     httpx_mock.add_response(
-        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=study_accession={study_accession}%20OR%20secondary_study_accession={study_accession}&limit=10&format=json&fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}",
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession={study_accession}%20OR%20secondary_study_accession={study_accession}%29%22&limit=10&format=json&fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}",
         json=[
             {
                 "study_title": "Weird study without secondary accession",
@@ -246,3 +253,100 @@ def test_get_study_readruns_from_ena(
             and "_1" in run.metadata["fastq_ftps"][0]
             and "_2" in run.metadata["fastq_ftps"][1]
         )
+
+
+def test_ena_api_query_maker(httpx_mock):
+    # test generic part combiners
+    planet_is_tatooine = ENAQueryClause(search_field="planet", value="tatooine")
+    assert str(planet_is_tatooine) == "planet=tatooine"
+    assert str(~planet_is_tatooine) == "NOT planet=tatooine"
+    planet_is_naboo = ENAQueryClause(search_field="planet", value="naboo")
+    assert str(planet_is_naboo) == "planet=naboo"
+    planet_is_either = planet_is_tatooine | planet_is_naboo
+    assert isinstance(planet_is_either, ENAQueryPair)
+    assert str(planet_is_either) == "(planet=tatooine OR planet=naboo)"
+    assert (
+        str(planet_is_tatooine | planet_is_naboo) == "(planet=tatooine OR planet=naboo)"
+    )
+
+    species_is_jawas = ENAQueryClause(search_field="species", value="jawas")
+    assert (
+        str(planet_is_tatooine & species_is_jawas)
+        == "(planet=tatooine AND species=jawas)"
+    )
+    assert (
+        str(planet_is_tatooine & ~planet_is_naboo)
+        == "(planet=tatooine AND NOT planet=naboo)"
+    )
+
+    tatooine_and_jawas = ENAQueryPair(
+        left=planet_is_tatooine, right=species_is_jawas, operator=ENAQueryOperators.AND
+    )
+    assert str(tatooine_and_jawas) == "(planet=tatooine AND species=jawas)"
+
+    tatooine_or_naboo = ENAQueryPair(
+        left=planet_is_tatooine, right=planet_is_naboo, operator=ENAQueryOperators.OR
+    )
+    assert str(tatooine_or_naboo) == "(planet=tatooine OR planet=naboo)"
+
+    not_tatooine_or_naboo = ENAQueryPair(
+        left=planet_is_tatooine,
+        right=planet_is_naboo,
+        operator=ENAQueryOperators.OR,
+        is_not=True,
+    )
+    assert str(not_tatooine_or_naboo) == "NOT (planet=tatooine OR planet=naboo)"
+
+    not_tatooine_or_naboo = ~tatooine_or_naboo
+    assert str(not_tatooine_or_naboo) == "NOT (planet=tatooine OR planet=naboo)"
+
+    # test ena study query maker
+    # default combination is AND (like django filter)
+    study_is_erp1_and_public = ENAStudyQuery(study_accession="ERP1", status=1)
+    assert str(study_is_erp1_and_public) == "(status=1 AND study_accession=ERP1)"
+    # order because of field declaration order on ENAStudyQueyr
+
+    one_accession_is_erp1 = ENAStudyQuery(study_accession="ERP1") | ENAStudyQuery(
+        secondary_study_accession="ERP1"
+    )
+    assert (
+        str(one_accession_is_erp1)
+        == "(study_accession=ERP1 OR secondary_study_accession=ERP1)"
+    )
+
+    # constructing full query params
+    request = ENAAPIRequest(
+        result=ENAPortalResultType.STUDY,
+        query=(
+            ENAStudyQuery(study_accession="ERP1")
+            | ENAStudyQuery(secondary_study_accession="ERP1")
+        )
+        & ENAStudyQuery(tax_id="408170"),
+        fields=[
+            ENAStudyFields.STUDY_NAME,
+            ENAStudyFields.STUDY_ACCESSION,
+            ENAStudyFields.TAX_ID,
+            ENAStudyFields.SECONDARY_STUDY_ACCESSION,
+        ],
+        limit=10,
+    )
+
+    assert request.model_dump() == {
+        "query": '"((study_accession=ERP1 OR secondary_study_accession=ERP1) AND tax_id=408170)"',
+        "fields": "study_name,study_accession,tax_id,secondary_study_accession",
+        "limit": 10,
+        "format": "json",
+        "result": "study",
+    }
+
+    # calling API
+    httpx_mock.add_response(
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28%28study_accession%3DERP1%20OR%20secondary_study_accession%3DERP1%29%20AND%20tax_id%3D408170%29%22&fields=study_name,study_accession,tax_id,secondary_study_accession&limit=10&format=json",
+        json=[
+            {"study_accession": "ERP1"},
+        ],
+    )
+
+    response = request.get()
+    assert response.status_code == 200
+    assert response.json() == [{"study_accession": "ERP1"}]

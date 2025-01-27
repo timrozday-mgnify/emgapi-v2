@@ -37,7 +37,7 @@ async def test_prefect_assemble_study_flow(
     httpx_mock.add_response(
         url=f"{EMG_CONFIG.ena.portal_search_api}?"
         f"result=study&"
-        f"query=study_accession={accession}%20OR%20secondary_study_accession={accession}&"
+        f"query=%22%28study_accession={accession}%20OR%20secondary_study_accession={accession}%29%22&"
         f"limit=10&"
         f"format=json&"
         f"fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}",
@@ -53,7 +53,7 @@ async def test_prefect_assemble_study_flow(
     httpx_mock.add_response(
         url=f"{EMG_CONFIG.ena.portal_search_api}?"
         f"result=read_run"
-        f"&query=%22(study_accession=PRJNA1%20OR%20secondary_study_accession=PRJNA1)%22"
+        f"&query=%22%28study_accession=PRJNA1%20OR%20secondary_study_accession=PRJNA1%29%22"
         f"&limit=5000"
         f"&format=json"
         f"&fields={','.join(EMG_CONFIG.ena.readrun_metadata_fields)}"
@@ -173,19 +173,20 @@ async def test_prefect_assemble_study_flow(
 
 
 @pytest.mark.django_db(transaction=True)
-def test_assembly_statuses(prefect_harness, mgnify_assemblies):
+@pytest.mark.asyncio
+async def test_assembly_statuses(prefect_harness, mgnify_assemblies):
     assembly = mgnify_assemblies[0]
     assert not any(assembly.status.values())
 
     # marking as failed should work
-    task_mark_assembly_status(
+    await task_mark_assembly_status(
         assembly, assembly.AssemblyStates.ASSEMBLY_FAILED, reason="It broke"
     )
-    assembly.refresh_from_db()
+    assembly.arefresh_from_db()
     assert assembly.status[assembly.AssemblyStates.ASSEMBLY_FAILED]
 
     # making as complete later (perhaps a retry) should work, and can unset failed at same time
-    task_mark_assembly_status(
+    await task_mark_assembly_status(
         assembly,
         assembly.AssemblyStates.ASSEMBLY_COMPLETED,
         unset_statuses=[
@@ -193,7 +194,7 @@ def test_assembly_statuses(prefect_harness, mgnify_assemblies):
             assembly.AssemblyStates.ASSEMBLY_BLOCKED,
         ],
     )
-    assembly.refresh_from_db()
+    assembly.arefresh_from_db()
 
     assert not assembly.status[assembly.AssemblyStates.ASSEMBLY_FAILED]
     assert not assembly.status[assembly.AssemblyStates.ASSEMBLY_BLOCKED]
