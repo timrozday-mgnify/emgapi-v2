@@ -52,7 +52,9 @@ def queryset_to_samplesheet(
                     lookup_string=field.name
                 )
 
-    logger.info(f"Will write columns: {_column_map.keys()} to samplesheet")
+    logger.info(
+        f"Will write columns: {_column_map.keys()} to samplesheet at {filename}"
+    )
 
     _filename = Path(filename)
     folder = _filename.parent

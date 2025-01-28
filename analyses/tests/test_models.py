@@ -314,3 +314,46 @@ def test_status_filtering(
         ).count()
         == 0
     )
+
+    # FILTERING/EXCLUDING WITH CHAINING
+    assert run.study.analyses.count() == 1
+    assert (
+        run.study.analyses.filter(pipeline_version=Analysis.PipelineVersions.v6).count()
+        == 1
+    )
+    assert (
+        run.study.analyses.filter(pipeline_version=Analysis.PipelineVersions.v5).count()
+        == 0
+    )
+
+    analysis.status[analysis.AnalysisStates.ANALYSIS_COMPLETED] = True
+    analysis.save()
+
+    assert (
+        run.study.analyses.filter(pipeline_version=Analysis.PipelineVersions.v6)
+        .filter_by_statuses([analysis.AnalysisStates.ANALYSIS_COMPLETED])
+        .count()
+        == 1
+    )
+    assert (
+        run.study.analyses.filter(pipeline_version=Analysis.PipelineVersions.v6)
+        .exclude_by_statuses([analysis.AnalysisStates.ANALYSIS_COMPLETED])
+        .count()
+        == 0
+    )
+
+    analysis.status[analysis.AnalysisStates.ANALYSIS_COMPLETED] = False
+    analysis.save()
+
+    assert (
+        run.study.analyses.filter(pipeline_version=Analysis.PipelineVersions.v6)
+        .filter_by_statuses([analysis.AnalysisStates.ANALYSIS_COMPLETED])
+        .count()
+        == 0
+    )
+    assert (
+        run.study.analyses.filter(pipeline_version=Analysis.PipelineVersions.v6)
+        .exclude_by_statuses([analysis.AnalysisStates.ANALYSIS_COMPLETED])
+        .count()
+        == 1
+    )
