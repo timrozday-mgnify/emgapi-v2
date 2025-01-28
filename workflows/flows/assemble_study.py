@@ -17,7 +17,9 @@ from prefect.artifacts import create_table_artifact
 from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 
-from workflows.prefect_utils.slurm_policies import ResubmitIfFailedPolicy
+from workflows.prefect_utils.slurm_policies import (
+    ResubmitWithCleanedNextflowIfFailedPolicy,
+)
 
 django.setup()
 
@@ -131,6 +133,7 @@ def get_assemblies_to_attempt(study: analyses.models.Study) -> List[Union[str, i
             analyses.models.Assembly.AssemblyStates.ASSEMBLY_BLOCKED,
         ]
     ).values_list("id", flat=True)
+    print(f"Assemblies worth attempting are: {assemblies_worth_trying}")
     return assemblies_worth_trying
 
 
@@ -330,7 +333,7 @@ async def run_assembler_for_samplesheet(
             memory=f"{EMG_CONFIG.assembler.assembly_nextflow_master_job_memory_gb}G",
             environment="ALL,TOWER_ACCESS_TOKEN,TOWER_WORKSPACE_ID",
             input_files_to_hash=[samplesheet_csv],
-            resubmit_policy=ResubmitIfFailedPolicy,
+            resubmit_policy=ResubmitWithCleanedNextflowIfFailedPolicy,
             working_dir=miassembler_outdir,
         )
     except ClusterJobFailedException:

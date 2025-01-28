@@ -11,7 +11,9 @@ from prefect.task_runners import SequentialTaskRunner
 
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 from workflows.prefect_utils.slack_notification import notify_via_slack
-from workflows.prefect_utils.slurm_policies import ResubmitIfFailedPolicy
+from workflows.prefect_utils.slurm_policies import (
+    ResubmitWithCleanedNextflowIfFailedPolicy,
+)
 
 django.setup()
 
@@ -121,7 +123,6 @@ Please pick how many samples (the max limit) to download for the study {study.ac
             orchestrated_cluster_job = await run_cluster_job(
                 name=f"Download read-runs for for study {study.accession} sample {sample_accession}",
                 command=(
-                    f"nextflow clean -f fetch-read-runs-{study.accession}-{sample_accession}; "  # remove any previous runs
                     f"nextflow run {settings.EMG_CONFIG.slurm.pipelines_root_dir}/download_read_runs.nf "
                     f"-resume "
                     f"-name fetch-read-runs-{study.accession}-{sample_accession} "
@@ -131,13 +132,14 @@ Please pick how many samples (the max limit) to download for the study {study.ac
                 ),
                 expected_time=timedelta(hours=1),
                 memory=f"500M",
-                resubmit_policy=ResubmitIfFailedPolicy,
+                resubmit_policy=ResubmitWithCleanedNextflowIfFailedPolicy,
                 # These policies control what happens when identical jobs are submitted in future,
                 #   including when a flow crashes and is restarted.
                 # This policy says that if an identical job is started in future, it won't actually start anything
                 #   in slurm, unless the last identical job resulted in a FAILED slurm job, in which case we will
                 #   start a new one to try again.
                 working_dir=Path(settings.EMG_CONFIG.slurm.default_workdir)
+                / "realistic-example"
                 / "realistic-example-workdir",
                 environment="ALL",  # copy env vars from the prefect agent into the slurm job
             )
