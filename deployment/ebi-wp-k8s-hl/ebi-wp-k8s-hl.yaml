@@ -227,6 +227,10 @@ items:
                   value: /app/data/prefect/storage
                 - name: PREFECT_LOGGING_LEVEL
                   value: DEBUG
+                - name: CURL_CA_BUNDLE  # for prefect-slack
+                  value: ""
+                - name: PYTHONHTTPSVERIFY  # for prefect-slack
+                  value: "false"
               ports:
                 - containerPort: 4200
 
