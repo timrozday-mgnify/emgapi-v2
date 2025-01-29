@@ -1,7 +1,10 @@
 from datetime import timedelta
 
+import django
 from prefect import flow
 from prefect.runtime import flow_run
+
+django.setup()
 
 from workflows.data_io_utils.filenames import file_path_shortener
 from workflows.prefect_utils.slurm_flow import EMG_CONFIG, run_cluster_job

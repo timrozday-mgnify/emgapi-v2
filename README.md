@@ -68,7 +68,7 @@ task prefect -- block register -m prefect_slack.credentials  # this enables a pr
 FLOW=realistic_example task deploy-flow  # this "deploys" workflows/flows/realistic_example.py:realistic_example to your local prefect server
 # This flow is just a minimal demo to show how the prefect+django integration works.
 
-FILE=workflows/prefect_utils/slurm_flow.py FLOW=move_data task deploy-flow
+FILE=workflows/prefect_utils/datamovers.py FLOW=move_data task deploy-flow
 # if a flow filename + function name don't match, specify FILE separately.
 # This move_data flow needs to be deployed, because it is used by other flows.
 ```
