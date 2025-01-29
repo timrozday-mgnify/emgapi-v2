@@ -11,6 +11,7 @@ import django
 import pandas as pd
 from asgiref.sync import sync_to_async
 from django.conf import settings
+from django.db.models import QuerySet
 from django.urls import reverse_lazy
 from prefect import flow, get_run_logger, suspend_flow_run, task
 from prefect.artifacts import create_table_artifact
@@ -406,19 +407,17 @@ async def run_assembler_for_samplesheet(
     task_runner=SequentialTaskRunner,
     flow_run_name="Upload assemblies of: {study}",
 )
-def upload_assemblies(study: analyses.models.Study, dry_run: bool = False):
+async def upload_assemblies(study: analyses.models.Study, dry_run: bool = False):
     """
     Uploads all completed, not-previously-uploaded assemblies to ENA.
     The first assembly upload will usually trigger a TPA study to be created.
     """
-    assemblies_to_upload = study.assemblies_reads.filter(
-        **{
-            f"status__{analyses.models.Assembly.AssemblyStates.ASSEMBLY_COMPLETED}": True,
-            f"status__{analyses.models.Assembly.AssemblyStates.ASSEMBLY_UPLOADED}": False,
-        }
-    )
-    for assembly in assemblies_to_upload:
-        upload_assembly(assembly.id, dry_run=dry_run)
+    assemblies_to_upload: QuerySet = study.assemblies_reads.filter_by_statuses(
+        [analyses.models.Assembly.AssemblyStates.ASSEMBLY_COMPLETED]
+    ).exclude_by_statuses([analyses.models.Assembly.AssemblyStates.ASSEMBLY_UPLOADED])
+    print(f"Will upload assemblies: {assemblies_to_upload.acount()}")
+    async for assembly in assemblies_to_upload:
+        await upload_assembly(assembly.id, dry_run=dry_run)
 
 
 @flow(
@@ -520,4 +519,4 @@ which you can edit in the [admin panel]({EMG_CONFIG.service_urls.app_root}/{reve
     await notify_via_slack(f"Assembly of {mgnify_study} / {accession} is finished")
 
     if upload:
-        upload_assemblies(mgnify_study, dry_run=use_ena_dropbox_dev)
+        await upload_assemblies(mgnify_study, dry_run=use_ena_dropbox_dev)
