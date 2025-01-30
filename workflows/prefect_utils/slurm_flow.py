@@ -428,7 +428,7 @@ async def run_cluster_job(
         memory=memory,
         input_files=input_files_to_hash,
         slurm_resubmit_policy=resubmit_policy,
-        workdir=working_dir or settings.EMG_CONFIG.slurm.default_workdir,
+        workdir=working_dir or Path(settings.EMG_CONFIG.slurm.default_workdir),
         make_workdir_first=True,
         environment=environment,
         **kwargs,
