@@ -5,7 +5,7 @@ from typing import List, Literal, Optional, Type, TypeVar, Union
 
 import httpx
 from django.conf import settings
-from httpx import Auth, Response
+from httpx import Auth, BasicAuth, Response
 from prefect import flow, get_run_logger, task
 from pydantic import BaseModel, Field, computed_field, field_serializer, model_validator
 from typing_extensions import Self
@@ -534,28 +534,31 @@ def get_study_readruns_from_ena(
     return run_accessions
 
 
-@task(
-    task_run_name="Determine if {accession} is public in ENA",
-    retries=4,
-    retry_delay_seconds=15,
-)
-def is_ena_study_public(accession: str):
+def is_study_available(accession: str, auth: Optional[Type[Auth]] = None) -> bool:
     logger = get_run_logger()
+    logger.info(f"Checking ENA Portal for {accession}")
+    if auth is None:
+        logger.info(f"Checking publicly, without auth")
+    else:
+        logger.info(f"Checking privately, with auth")
 
-    fields = "study_accession"
-    result_type = "study"
-    query = (
-        f"study_accession%3D{accession}%20OR%20secondary_study_accession%3D{accession}"
-    )
+    portal = ENAAPIRequest(
+        result=ENAPortalResultType.STUDY,
+        query=(
+            ENAStudyQuery(study_accession=accession)
+            | ENAStudyQuery(secondary_study_accession=accession)
+        ),
+        format="json",
+        fields=[ENAStudyFields.STUDY_ACCESSION],
+    ).get(auth=auth)
+    logger.info(f"Got {portal.status_code} response from ENA")
+    logger.info(portal.text)
 
-    logger.info(f"Will fetch from ENA Portal API Study {accession}")
-    portal = httpx.get(
-        create_ena_api_request(
-            result_type=result_type, query=query, limit=1, fields=fields
-        )
-    )
     if portal.status_code == httpx.codes.OK:
         response_json = portal.json()
+        if "message" in response_json:
+            # that is an error response then
+            return False
         return not not response_json
     else:
         raise Exception(
@@ -563,23 +566,64 @@ def is_ena_study_public(accession: str):
         )
 
 
-@task
-def is_ena_study_private(accession: str):
+@task(
+    task_run_name="Determine if {accession} is public in ENA",
+    retries=4,
+    retry_delay_seconds=15,
+)
+def is_ena_study_public(accession: str):
     logger = get_run_logger()
-    fields = "study_accession"
+    is_public = is_study_available(accession=accession)
+    logger.info(f"Is {accession} public? {is_public}")
+    return is_public
+
+
+@task(
+    task_run_name="Determine if {accession} is public in ENA",
+    retries=4,
+    retry_delay_seconds=15,
+)
+def is_ena_study_available_privately(accession: str):
+    logger = get_run_logger()
+    auth = BasicAuth(
+        username=EMG_CONFIG.webin.emg_webin_account,
+        password=EMG_CONFIG.webin.emg_webin_password,
+    )
+    is_available_privately = is_study_available(accession=accession, auth=auth)
+    logger.info(
+        f"Is {accession} available privately to {EMG_CONFIG.webin.emg_webin_account}? {is_available_privately}"
+    )
+    return is_available_privately
 
 
 @flow
 def sync_privacy_state_of_ena_study_and_derived_objects(
     ena_study: Union[ena.models.Study, str]
 ):
+    logger = get_run_logger()
+
     if isinstance(ena_study, str):
         ena_study = ena.models.Study.objects.get_ena_study(ena_study)
 
     # call portal api to check visibility
     public = is_ena_study_public(ena_study.accession)
+    if public:
+        logger.info(f"Study {ena_study} is available publicly in ENA Portal")
+    private = None
 
     # call portal api logged in to check if it is private
-    # if not public:
+    if not public:
+        # Use authentication, where the Webin account must be a member of the ENA Data Hub (dcc).
+        private = is_ena_study_available_privately(ena_study.accession)
+        if private:
+            logger.info(f"Study {ena_study} is available privately in ENA Portal")
 
-    # otherwise it must be suppressed. pause and wait for user confirmation? slack notification?    q
+    suppressed = not (public or private)
+    if suppressed:
+        logger.warning(
+            f"ENA Study {ena_study} is not available via portal API, either publicly or privately. Assuming it has been suppressed."
+        )
+        ena_study.is_suppressed = True
+    else:
+        ena_study.is_private = private
+    ena_study.save()

@@ -14,6 +14,9 @@ from workflows.ena_utils.ena_api_requests import (
     ENAStudyQuery,
     get_study_from_ena,
     get_study_readruns_from_ena,
+    is_ena_study_available_privately,
+    is_ena_study_public,
+    sync_privacy_state_of_ena_study_and_derived_objects,
 )
 
 EMG_CONFIG = settings.EMG_CONFIG
@@ -350,3 +353,64 @@ def test_ena_api_query_maker(httpx_mock):
     response = request.get()
     assert response.status_code == 200
     assert response.json() == [{"study_accession": "ERP1"}]
+
+
+def test_is_study_public(httpx_mock, prefect_harness):
+    httpx_mock.add_response(
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3DERP1+OR+secondary_study_accession%3DERP1%29%22&fields=study_accession&limit=&format=json",
+        json=[
+            {"study_accession": "ERP1"},
+        ],
+    )
+    with disable_run_logger():
+        assert is_ena_study_public("ERP1") == True
+
+    httpx_mock.add_response(
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3DERP1+OR+secondary_study_accession%3DERP1%29%22&fields=study_accession&limit=&format=json",
+        json=[],
+    )
+    with disable_run_logger():
+        assert is_ena_study_public("ERP1") == False
+
+    httpx_mock.add_response(
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3DERP1+OR+secondary_study_accession%3DERP1%29%22&fields=study_accession&limit=&format=json",
+        json={"message": "bad call"},
+    )
+    with disable_run_logger():
+        assert is_ena_study_public("ERP1") == False
+
+
+def test_is_study_private(httpx_mock, prefect_harness):
+    httpx_mock.add_response(
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3DERP1+OR+secondary_study_accession%3DERP1%29%22&fields=study_accession&limit=&format=json",
+        json=[
+            {"study_accession": "ERP1"},
+        ],
+    )
+    with disable_run_logger():
+        assert is_ena_study_available_privately("ERP1") == True
+
+
+@pytest.mark.django_db
+def test_sync_privacy_state_of_ena_study_and_derived_objects(
+    httpx_mock, prefect_harness, raw_read_run
+):
+
+    ena_study: ena.models.Study = ena.models.Study.objects.first()
+
+    httpx_mock.add_response(
+        match_headers={
+            "Authorization": "Basic d2ViaW4tZmFrZTpub3QtYS1wdw=="
+        },  # webin-fake:not-a-pw
+        json=[
+            {"study_accession": "ERP1"},
+        ],
+    )  # is available privately
+
+    httpx_mock.add_response(json=[])  # not available publicly
+
+    sync_privacy_state_of_ena_study_and_derived_objects(ena_study)
+    ena_study.refresh_from_db()
+
+    assert ena_study.is_private
+    assert not ena_study.is_suppressed

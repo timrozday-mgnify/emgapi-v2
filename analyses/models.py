@@ -617,6 +617,9 @@ def on_study_saved_update_analyses_suppression_states(
         is_suppressed=instance.is_suppressed
     )
     for analysis in analyses_to_update_suppression_of:
+        logging.info(
+            f"Setting is_suppressed to {instance.is_suppressed} on {analysis.accession} via {instance.accession}"
+        )
         analysis.is_suppressed = instance.is_suppressed
     Analysis.all_objects.bulk_update(
         analyses_to_update_suppression_of, ["is_suppressed"]
