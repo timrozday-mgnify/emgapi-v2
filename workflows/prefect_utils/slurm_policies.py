@@ -40,6 +40,11 @@ class _SlurmResubmitPolicy(BaseModel):
         default=True,
         description="If True, jobs submitting following this policy will be resubmitted even if identical jobs already exist that match the policy criteria.",
     )
+    resubmit_needs_preparation_command: Optional[str] = Field(
+        default=None,
+        description="If set, this command will be run before resubmitting a job.",
+        examples=["nextflow clean -f"],
+    )
 
 
 ResubmitIfFailedPolicy = _SlurmResubmitPolicy(
@@ -72,4 +77,11 @@ DontResubmitIfOnlyInputFilesChangePolicy = _SlurmResubmitPolicy(
     if_status_matches=ANYTHING,
     considering_input_file_changes=False,
     then_resubmit=False,
+)
+
+ResubmitWithCleanedNextflowIfFailedPolicy = _SlurmResubmitPolicy(
+    policy_name="Resubmit if identical job previously failed",
+    if_status_matches=slurm_status_is_finished_unsuccessfully,
+    then_resubmit=True,
+    resubmit_needs_preparation_command="nextflow clean -f",
 )

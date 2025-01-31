@@ -5,9 +5,15 @@ import tempfile
 import pytest
 from django.core.management import call_command
 
+from analyses.models import (
+    Analysis,
+    Assembler,
+    Biome,
+    ComputeResourceHeuristic,
+    Run,
+    Study,
+)
 from ena.models import Study as ENAStudy
-
-from .models import Analysis, Assembler, Biome, ComputeResourceHeuristic, Run, Study
 
 
 def create_analysis(is_private=False):
@@ -307,4 +313,47 @@ def test_status_filtering(
             [analysis.AnalysisStates.ANALYSIS_FAILED, "non_existent_key"], strict=False
         ).count()
         == 0
+    )
+
+    # FILTERING/EXCLUDING WITH CHAINING
+    assert run.study.analyses.count() == 1
+    assert (
+        run.study.analyses.filter(pipeline_version=Analysis.PipelineVersions.v6).count()
+        == 1
+    )
+    assert (
+        run.study.analyses.filter(pipeline_version=Analysis.PipelineVersions.v5).count()
+        == 0
+    )
+
+    analysis.status[analysis.AnalysisStates.ANALYSIS_COMPLETED] = True
+    analysis.save()
+
+    assert (
+        run.study.analyses.filter(pipeline_version=Analysis.PipelineVersions.v6)
+        .filter_by_statuses([analysis.AnalysisStates.ANALYSIS_COMPLETED])
+        .count()
+        == 1
+    )
+    assert (
+        run.study.analyses.filter(pipeline_version=Analysis.PipelineVersions.v6)
+        .exclude_by_statuses([analysis.AnalysisStates.ANALYSIS_COMPLETED])
+        .count()
+        == 0
+    )
+
+    analysis.status[analysis.AnalysisStates.ANALYSIS_COMPLETED] = False
+    analysis.save()
+
+    assert (
+        run.study.analyses.filter(pipeline_version=Analysis.PipelineVersions.v6)
+        .filter_by_statuses([analysis.AnalysisStates.ANALYSIS_COMPLETED])
+        .count()
+        == 0
+    )
+    assert (
+        run.study.analyses.filter(pipeline_version=Analysis.PipelineVersions.v6)
+        .exclude_by_statuses([analysis.AnalysisStates.ANALYSIS_COMPLETED])
+        .count()
+        == 1
     )

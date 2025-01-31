@@ -19,6 +19,7 @@ from emgapiv2.log_utils import mask_sensitive_data as safe
 from workflows.models import OrchestratedClusterJob
 from workflows.nextflow_utils.tower import maybe_get_nextflow_tower_browse_url
 from workflows.nextflow_utils.trace import maybe_get_nextflow_trace_df
+from workflows.prefect_utils.shell_task import run_shell_command
 from workflows.prefect_utils.slurm_limits import delay_until_cluster_has_space
 from workflows.prefect_utils.slurm_policies import _SlurmResubmitPolicy
 from workflows.prefect_utils.slurm_status import (
@@ -245,6 +246,18 @@ def start_or_attach_cluster_job(
             )
             return last_submitted_similar_job
 
+    if (
+        last_submitted_similar_job
+        and slurm_resubmit_policy.resubmit_needs_preparation_command
+    ):
+        logger.info(
+            f"Policy {slurm_resubmit_policy.policy_name} requires a pre-resubmit command: {slurm_resubmit_policy.resubmit_needs_preparation_command}."
+        )
+        run_shell_command(
+            command=slurm_resubmit_policy.resubmit_needs_preparation_command,
+            workdir=job_workdir,
+        )
+
     # need to submit new job
     job_id = submit_cluster_job(
         name=job_submit_description.name,
@@ -415,7 +428,7 @@ async def run_cluster_job(
         memory=memory,
         input_files=input_files_to_hash,
         slurm_resubmit_policy=resubmit_policy,
-        workdir=working_dir or settings.EMG_CONFIG.slurm.default_workdir,
+        workdir=working_dir or Path(settings.EMG_CONFIG.slurm.default_workdir),
         make_workdir_first=True,
         environment=environment,
         **kwargs,

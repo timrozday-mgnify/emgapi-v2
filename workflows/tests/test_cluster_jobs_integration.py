@@ -18,7 +18,6 @@ from workflows.prefect_utils.slurm_policies import (
     DontResubmitIfOnlyInputFilesChangePolicy,
     ResubmitAlwaysPolicy,
     ResubmitIfFailedPolicy,
-    _SlurmResubmitPolicy,
 )
 from workflows.prefect_utils.slurm_status import SlurmStatus
 from workflows.prefect_utils.testing_utils import run_async_flow_and_capture_logs

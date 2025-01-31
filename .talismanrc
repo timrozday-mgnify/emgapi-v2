@@ -17,6 +17,8 @@ fileignoreconfig:
   allowed_patterns: [key]
 - filename: analyses/base_models/with_status_models.py
   allowed_patterns: [key]
+- filename: analyses/tests/test_models.py
+  allowed_patterns: [key]
 allowed_patterns:
 - pagination_key
 - CommonMetadataKeys

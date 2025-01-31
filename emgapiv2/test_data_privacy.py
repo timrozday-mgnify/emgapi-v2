@@ -92,6 +92,40 @@ def test_study_manager_methods():
 
 
 @pytest.mark.django_db(transaction=True)
+def test_suppressed_study_manager_methods():
+    ena_study = ENAStudy.objects.create(accession="PRJ1", title="Project 1")
+    public_study = Study.objects.create(
+        ena_study=ena_study, title="Public Study", is_private=False
+    )
+    private_study = Study.objects.create(title="Private Study", is_private=True)
+
+    assert Study.objects.count() == 1
+    assert Study.all_objects.count() == 2
+
+    public_study.is_suppressed = True
+    private_study.is_suppressed = True
+    public_study.save()
+    private_study.save()
+    assert Study.objects.count() == 0
+    assert Study.all_objects.count() == 2
+
+
+@pytest.mark.django_db(transaction=True)
+def test_suppressed_study_propagates_to_analyses(raw_read_run):
+    public_analysis = create_analysis(is_private=False)
+    assert public_analysis.study.is_suppressed is False
+    assert Analysis.objects.count() == 1
+    public_analysis.study.is_suppressed = True
+    public_analysis.study.save()
+    # should have triggered analysis to be suppressed
+    public_analysis.refresh_from_db()
+    assert public_analysis.study.is_suppressed
+
+    assert Analysis.objects.count() == 0
+    assert Analysis.all_objects.count() == 1
+
+
+@pytest.mark.django_db(transaction=True)
 def test_manager_analysis_methods(raw_read_run):
     public_analysis = create_analysis(is_private=False)
     private_analysis = create_analysis(is_private=True)

@@ -18,8 +18,9 @@ from prefect.artifacts import create_table_artifact
 from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 
-from analyses.models import Assembly
-from workflows.prefect_utils.slurm_policies import ResubmitIfFailedPolicy
+from workflows.prefect_utils.slurm_policies import (
+    ResubmitWithCleanedNextflowIfFailedPolicy,
+)
 
 django.setup()
 
@@ -133,6 +134,7 @@ def get_assemblies_to_attempt(study: analyses.models.Study) -> List[Union[str, i
             analyses.models.Assembly.AssemblyStates.ASSEMBLY_BLOCKED,
         ]
     ).values_list("id", flat=True)
+    print(f"Assemblies worth attempting are: {assemblies_worth_trying}")
     return assemblies_worth_trying
 
 
@@ -333,7 +335,7 @@ async def run_assembler_for_samplesheet(
             memory=f"{EMG_CONFIG.assembler.assembly_nextflow_master_job_memory_gb}G",
             environment="ALL,TOWER_ACCESS_TOKEN,TOWER_WORKSPACE_ID",
             input_files_to_hash=[samplesheet_csv],
-            resubmit_policy=ResubmitIfFailedPolicy,
+            resubmit_policy=ResubmitWithCleanedNextflowIfFailedPolicy,
             working_dir=miassembler_outdir,
         )
     except ClusterJobFailedException:
@@ -406,19 +408,17 @@ async def run_assembler_for_samplesheet(
     task_runner=SequentialTaskRunner,
     flow_run_name="Upload assemblies of: {study}",
 )
-def upload_assemblies(study: analyses.models.Study, dry_run: bool = False):
+async def upload_assemblies(study: analyses.models.Study, dry_run: bool = False):
     """
     Uploads all completed, not-previously-uploaded assemblies to ENA.
     The first assembly upload will usually trigger a TPA study to be created.
     """
-    assemblies_to_upload = study.assemblies_reads.filter(
-        **{
-            f"status__{analyses.models.Assembly.AssemblyStates.ASSEMBLY_COMPLETED}": True,
-            f"status__{analyses.models.Assembly.AssemblyStates.ASSEMBLY_UPLOADED}": False,
-        }
-    )
-    for assembly in assemblies_to_upload:
-        upload_assembly(assembly.id, dry_run=dry_run)
+    assemblies_to_upload: QuerySet = study.assemblies_reads.filter_by_statuses(
+        [analyses.models.Assembly.AssemblyStates.ASSEMBLY_COMPLETED]
+    ).exclude_by_statuses([analyses.models.Assembly.AssemblyStates.ASSEMBLY_UPLOADED])
+    print(f"Will upload assemblies: {assemblies_to_upload.acount()}")
+    async for assembly in assemblies_to_upload:
+        await upload_assembly(assembly.id, dry_run=dry_run)
 
 
 @flow(
@@ -520,4 +520,4 @@ which you can edit in the [admin panel]({EMG_CONFIG.service_urls.app_root}/{reve
     await notify_via_slack(f"Assembly of {mgnify_study} / {accession} is finished")
 
     if upload:
-        upload_assemblies(mgnify_study, dry_run=use_ena_dropbox_dev)
+        await upload_assemblies(mgnify_study, dry_run=use_ena_dropbox_dev)
