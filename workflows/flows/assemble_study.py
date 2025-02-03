@@ -297,8 +297,10 @@ async def run_assembler_for_samplesheet(
     assembler: analyses.models.Assembler,
 ):
     samplesheet_df = pd.read_csv(samplesheet_csv, sep=",")
-    assemblies: Union[QuerySet, List[Assembly]] = mgnify_study.assemblies_reads.filter(
-        run__ena_accessions__0__in=samplesheet_df["reads_accession"]
+    assemblies: Union[QuerySet, List[analyses.models.Assembly]] = (
+        mgnify_study.assemblies_reads.filter(
+            run__ena_accessions__0__in=samplesheet_df["reads_accession"]
+        )
     )
 
     async for assembly in assemblies:
