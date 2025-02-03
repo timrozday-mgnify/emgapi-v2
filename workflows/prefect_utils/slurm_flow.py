@@ -7,6 +7,7 @@ from pathlib import Path
 from textwrap import dedent as _
 from typing import List, Optional, Union
 
+from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.urls import reverse
 from django.utils.timezone import now
@@ -253,7 +254,7 @@ def start_or_attach_cluster_job(
         logger.info(
             f"Policy {slurm_resubmit_policy.policy_name} requires a pre-resubmit command: {slurm_resubmit_policy.resubmit_needs_preparation_command}."
         )
-        run_shell_command(
+        async_to_sync(run_shell_command)(
             command=slurm_resubmit_policy.resubmit_needs_preparation_command,
             workdir=job_workdir,
         )
