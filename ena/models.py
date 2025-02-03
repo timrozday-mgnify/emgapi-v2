@@ -59,13 +59,16 @@ class Study(ENAModel):
 
 
 @receiver(post_save, sender=Study)
-def on_ena_study_saved_update_derived_suppression_states(
+def on_ena_study_saved_update_derived_suppression_and_privacy_states(
     sender, instance: Study, created, **kwargs
 ):
     """
-    (Un)suppress the MGnify ("Analyses" app) objects associated with an ENA Study whenever the ENA Study is updated.
+    (Un)suppress the MGnify ("Analyses" app) objects associated with an ENA Study whenever the ENA Study is updated,
+    and update their private/public state.
     Typically, an ENA study might be suppressed if it was submitted with erroneous data.
     At present, suppression is handled study-wide. I.e. data are suppressed if and only if an ENA study is suppressed.
+    Likewise, data can be private if an entire ENA study is private.
+    After embargo date expires, the study and all associated data become public.
     """
     for field in instance._meta.get_fields():
         if field.is_relation and field.auto_created and not field.concrete:
@@ -74,31 +77,50 @@ def on_ena_study_saved_update_derived_suppression_states(
                 field.name for field in related_model._meta.get_fields()
             ]
             if "ena_study" in fields_of_related:
-                if not "is_suppressed" in fields_of_related:
-                    logging.warning(
-                        f"Model {related_model._meta.model_name} looks like it is derived from ENA Study, but doesn't have an is_suppressed field to update"
-                    )
-                    continue
-                # Related_model is probably one that inherits from (or is compatible with) analyses:ENADerivedModel.
-                # We didn't check explicitly because ENADerivedModel is an abstract model,
-                #  we want to avoid circular imports, and because Analysis works slightly differently
-                #  but is caught by this.
-                related_objects_to_update_suppression_of = related_model.objects.filter(
-                    ena_study=instance
-                ).exclude(is_suppressed=instance.is_suppressed)
-                logging.info(
-                    f"Will update suppression state of {related_objects_to_update_suppression_of.count()} {related_model._meta.verbose_name_plural} to suppressed={instance.is_suppressed} via {instance.accession}."
-                )
-                for related_object in related_objects_to_update_suppression_of:
-                    related_object.is_suppressed = instance.is_suppressed
+                for field_to_propagate in ["is_suppressed", "is_private"]:
+                    if field_to_propagate not in fields_of_related:
+                        logging.warning(
+                            f"Model {related_model._meta.model_name} looks like it is derived from ENA Study, but doesn't have an {field_to_propagate} field to update."
+                        )
+                        continue
+                    else:
+                        # Related_model is probably one that inherits from (or is compatible with) analyses:ENADerivedModel.
+                        # We didn't check explicitly because ENADerivedModel is an abstract model,
+                        #  we want to avoid circular imports, and because Analysis works slightly differently
+                        #  but is caught by this.
 
-                qs: QuerySet = related_model.objects
-                if hasattr(related_model, "all_objects"):
-                    qs = related_model.all_objects
+                        related_qs: QuerySet = related_model.objects
+                        if hasattr(related_model, "all_objects"):
+                            related_qs = related_model.all_objects
 
-                qs.bulk_update(
-                    related_objects_to_update_suppression_of, ["is_suppressed"]
-                )
+                        related_objects_to_update_status_of = related_qs.filter(
+                            ena_study=instance
+                        ).exclude(
+                            **{
+                                field_to_propagate: getattr(
+                                    instance, field_to_propagate
+                                )
+                            }  # optimisation so only select derived objects that are not already up to date
+                        )
+                        if related_objects_to_update_status_of.exists():
+                            logging.info(
+                                f"Will update {field_to_propagate} state of "
+                                f"{related_objects_to_update_status_of.count()} "
+                                f"{related_model._meta.app_label}.{related_model._meta.verbose_name_plural} "
+                                f"to {field_to_propagate}={getattr(instance, field_to_propagate)} "
+                                f"via {instance.accession}."
+                            )
+                            for related_object in related_objects_to_update_status_of:
+                                setattr(
+                                    related_object,
+                                    field_to_propagate,
+                                    getattr(instance, field_to_propagate),
+                                )
+
+                            related_qs.bulk_update(
+                                related_objects_to_update_status_of,
+                                [field_to_propagate],
+                            )
 
 
 class Sample(ENAModel):
