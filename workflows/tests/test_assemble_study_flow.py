@@ -2,15 +2,24 @@ import json
 import os
 import shutil
 from enum import Enum
+from pathlib import Path
 
+import pandas as pd
 import pytest
 from django.conf import settings
 from prefect.artifacts import Artifact
+from prefect.logging import disable_run_logger
 from pydantic import BaseModel
 
 import analyses.models
 import ena.models
 from workflows.flows.assemble_study import AssemblerChoices, assemble_study
+from workflows.flows.assemble_study_tasks.assemble_samplesheets import (
+    update_assemblies_assemblers_from_samplesheet,
+)
+from workflows.flows.assemble_study_tasks.make_samplesheets import (
+    make_samplesheets_for_runs_to_assemble,
+)
 from workflows.prefect_utils.analyses_models_helpers import task_mark_assembly_status
 
 EMG_CONFIG = settings.EMG_CONFIG
@@ -207,3 +216,59 @@ def test_assembly_statuses(prefect_harness, mgnify_assemblies):
 
     # reason should not have been updated for a status that was not previously set
     assert "assembly_blocked_reason" not in assembly.status
+
+
+@pytest.mark.django_db(transaction=True)
+def test_assembler_changed_in_samplesheet(
+    prefect_harness,
+    mgnify_assemblies,
+    mock_cluster_can_accept_jobs_yes,
+    mock_start_cluster_job,
+    mock_check_cluster_job_all_completed,
+    top_level_biomes,
+):
+    # all assemblies should be initially metaspades, except one which was initially megahit
+    assert (
+        analyses.models.Assembly.objects.filter(
+            assembler__name__iexact=analyses.models.Assembler.METASPADES
+        ).count()
+        > 1
+    )
+    assert (
+        analyses.models.Assembly.objects.filter(
+            assembler__name__iexact=analyses.models.Assembler.MEGAHIT
+        ).count()
+        == 1
+    )
+
+    study = mgnify_assemblies[0].reads_study
+    study.biome = analyses.models.Biome.objects.first()
+    study.save()
+    metaspades = mgnify_assemblies[0].assembler
+
+    samplesheets = make_samplesheets_for_runs_to_assemble(
+        mgnify_study=study, assembler=mgnify_assemblies[0].assembler
+    )
+    samplesheet: Path = samplesheets[0]
+    assert samplesheet.exists()
+
+    # edit samplesheet, change assembler
+    with samplesheet.open("r") as ss_handle:
+        ss = ss_handle.read()
+    ss = ss.replace("metaspades", "megahit")
+    with samplesheet.open("w") as ss_handle:
+        ss_handle.write(ss)
+
+    # run assembly on samplesheet
+    # note that assembler arg will be metaspades
+    ss_df = pd.read_csv(samplesheet)
+    with disable_run_logger():
+        update_assemblies_assemblers_from_samplesheet(ss_df)
+
+    # flow should have updated assemblies to have megahit assembler, as per edited samplesheet
+    assert (
+        analyses.models.Assembly.objects.filter(
+            assembler__name__iexact=analyses.models.Assembler.MEGAHIT
+        ).count()
+        > 1
+    )
