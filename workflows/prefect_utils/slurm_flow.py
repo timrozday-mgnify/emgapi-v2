@@ -7,6 +7,7 @@ from pathlib import Path
 from textwrap import dedent as _
 from typing import List, Optional, Union
 
+from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.urls import reverse
 from django.utils.timezone import now
@@ -253,7 +254,7 @@ def start_or_attach_cluster_job(
         logger.info(
             f"Policy {slurm_resubmit_policy.policy_name} requires a pre-resubmit command: {slurm_resubmit_policy.resubmit_needs_preparation_command}."
         )
-        run_shell_command(
+        async_to_sync(run_shell_command)(
             command=slurm_resubmit_policy.resubmit_needs_preparation_command,
             workdir=job_workdir,
         )
@@ -279,7 +280,7 @@ def start_or_attach_cluster_job(
         markdown=_(
             f"""\
             # Slurm job {job_id}
-            [Orchestrated Cluster Job {ocj.id}]({reverse("admin:workflows_orchestratedclusterjob_change", kwargs={"object_id": ocj.id})})
+            [Orchestrated Cluster Job {ocj.id}]({EMG_CONFIG.service_urls.app_root}/{reverse("admin:workflows_orchestratedclusterjob_change", kwargs={"object_id": ocj.id})})
             Submitted a script to Slurm cluster:
             ~~~
             <<SCRIPT>>

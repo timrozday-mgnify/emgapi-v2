@@ -23,6 +23,8 @@ fileignoreconfig:
   allowed_patterns: [key]
 - filename: workflows/flows/assemble_study_tasks/assemble_samplesheets.py
   allowed_patterns: [key]
+- filename: workflows/ena_utils/ena_api_requests.py
+  allowed_patterns: [password=EMG_CONFIG.webin.emg_webin_password]
 allowed_patterns:
 - pagination_key
 - CommonMetadataKeys
@@ -31,3 +33,7 @@ allowed_patterns:
 - idempotency_key
 - cache_key_fn
 - context_agnostic_task_input_hash
+- keywords
+- KEYWORDS
+- key1=val1
+- key2=val2
