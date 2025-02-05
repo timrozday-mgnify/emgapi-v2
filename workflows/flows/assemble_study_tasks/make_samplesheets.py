@@ -98,6 +98,7 @@ def make_samplesheet(
             f"""\
             Sample sheet created for run of MIAssembler.
             Saved to `{sample_sheet_tsv}`
+            **Warning!** This table is the *initial* content of the samplesheet, when it was first made. Any edits made since are not shown here.
             [Edit it]({EMG_CONFIG.service_urls.app_root}/workflows/edit-samplesheet/fetch/{encode_samplesheet_path(sample_sheet_tsv)})
             """
         ),
