@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import os
 import re
-from enum import Enum
 from pathlib import Path
 from typing import ClassVar, Union
 
