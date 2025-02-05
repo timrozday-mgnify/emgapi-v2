@@ -1,6 +1,7 @@
 import logging
 from datetime import date
 from enum import Enum
+from json import JSONDecodeError
 from typing import List, Literal, Optional, Type, TypeVar, Union
 
 import httpx
@@ -296,6 +297,9 @@ def create_ena_api_request(result_type, query, limit, fields, result_format="jso
     )
 
 
+class ENAAvailabilityException(Exception): ...
+
+
 @task(
     retries=2,
     cache_key_fn=context_agnostic_task_input_hash,
@@ -307,6 +311,28 @@ async def get_study_from_ena(accession: str, limit: int = 10) -> ena.models.Stud
 
     logger.info(f"Will fetch from ENA Portal API Study {accession}")
 
+    is_public = is_ena_study_public(accession)
+    is_private = not is_public and is_ena_study_available_privately(accession)
+
+    if not (is_private or is_public):
+        raise ENAAvailabilityException(
+            f"Study {accession} is not available publicly or privately on ENA"
+        )
+
+    # TODO: verify webin ownership
+
+    ena_auth = (
+        BasicAuth(
+            username=EMG_CONFIG.webin.emg_webin_account,
+            password=EMG_CONFIG.webin.emg_webin_password,
+        )
+        if is_private
+        else None
+    )
+
+    if ena_auth:
+        logger.info("Fetching study with authentication.")
+
     portal = ENAAPIRequest(
         result=ENAPortalResultType.STUDY,
         fields=[
@@ -315,55 +341,58 @@ async def get_study_from_ena(accession: str, limit: int = 10) -> ena.models.Stud
         limit=limit,
         query=ENAStudyQuery(study_accession=accession)
         | ENAStudyQuery(secondary_study_accession=accession),
-    ).get()
+    ).get(auth=ena_auth)
 
-    if portal.status_code == httpx.codes.OK:
-        response_json = portal.json()
-        # Check if the response is empty
-        if not response_json:
-            raise Exception(f"No study found for accession {accession}")
-        s = response_json[0]
-
-        # Check secondary accession
-        secondary_accession: str = s["secondary_study_accession"]
-        additional_accessions: list = []
-        if not secondary_accession:
-            logger.warning(f"Study {accession} secondary_accession is not available")
-        else:
-            if len(secondary_accession.split(";")) > 1:
-                logger.warning(
-                    f"Study {accession} has more than one secondary_accession"
-                )
-                additional_accessions = secondary_accession.split(";")
-            else:
-                additional_accessions = [secondary_accession]
-
-        # Check primary accession
-        if not s["study_accession"]:
-            logger.warning(
-                f"Study {accession} primary_accession is not available. "
-                f"Use first secondary accession as primary_accession"
-            )
-            if additional_accessions:
-                primary_accession = additional_accessions[0]
-            else:
-                raise Exception(
-                    f"Neither primary nor secondary accessions found for study {accession}"
-                )
-        else:
-            primary_accession: str = s["study_accession"]
-
-        study, created = await ena.models.Study.objects.aget_or_create(
-            accession=primary_accession,
-            defaults={
-                "title": portal.json()[0]["study_title"],
-                "additional_accessions": additional_accessions,
-                # TODO: more metadata
-            },
+    if httpx.codes.is_error(portal.status_code):
+        raise ENAAvailabilityException(
+            f"Bas status from ENA Portal: {portal.status_code} {portal}"
         )
-        return study
+
+    try:
+        response_json = portal.json()
+        assert response_json is not None
+    except (JSONDecodeError, AssertionError) as e:
+        logger.warning(e)
+        raise ENAAvailabilityException(f"No study found for accession {accession}")
+
+    s = response_json[0]
+
+    # Check secondary accession
+    secondary_accession: str = s["secondary_study_accession"]
+    additional_accessions: list = []
+    if not secondary_accession:
+        logger.warning(f"Study {accession} secondary_accession is not available")
     else:
-        raise Exception(f"Bad status! {portal.status_code} {portal}")
+        if len(secondary_accession.split(";")) > 1:
+            logger.warning(f"Study {accession} has more than one secondary_accession")
+            additional_accessions = secondary_accession.split(";")
+        else:
+            additional_accessions = [secondary_accession]
+
+    # Check primary accession
+    if not s["study_accession"]:
+        logger.warning(
+            f"Study {accession} primary_accession is not available. "
+            f"Use first secondary accession as primary_accession"
+        )
+        if additional_accessions:
+            primary_accession = additional_accessions[0]
+        else:
+            raise Exception(
+                f"Neither primary nor secondary accessions found for study {accession}"
+            )
+    else:
+        primary_accession: str = s["study_accession"]
+
+    study, created = await ena.models.Study.objects.aget_or_create(
+        accession=primary_accession,
+        defaults={
+            "title": portal.json()[0]["study_title"],
+            "additional_accessions": additional_accessions,
+            # TODO: more metadata
+        },
+    )
+    return study
 
 
 def check_reads_fastq(fastq: list, run_accession: str, library_layout: str):
