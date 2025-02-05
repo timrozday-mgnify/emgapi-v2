@@ -19,6 +19,10 @@ fileignoreconfig:
   allowed_patterns: [key]
 - filename: analyses/tests/test_models.py
   allowed_patterns: [key]
+- filename: workflows/flows/assemble_study_tasks/make_samplesheets.py
+  allowed_patterns: [key]
+- filename: workflows/flows/assemble_study_tasks/assemble_samplesheets.py
+  allowed_patterns: [key]
 - filename: workflows/ena_utils/ena_api_requests.py
   allowed_patterns: [password=EMG_CONFIG.webin.emg_webin_password]
 allowed_patterns:
