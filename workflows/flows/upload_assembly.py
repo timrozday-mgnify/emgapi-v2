@@ -343,7 +343,7 @@ async def submit_assembly_slurm(
 ):
     logger = get_run_logger()
     command = (
-        f"java -Xms2G -jar {EMG_CONFIG.webin.webin_cli_executor} "
+        f"java -Xms4G -jar {EMG_CONFIG.webin.webin_cli_executor} "
         f"-context=genome "
         f"-manifest={manifest} "
         f"-userName='{EMG_CONFIG.webin.emg_webin_account}' "
