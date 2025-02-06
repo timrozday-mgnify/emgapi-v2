@@ -16,7 +16,7 @@ def get_or_create_assemblies_for_runs(
     assembly_ids = []
     for read_run in read_runs:
         run = analyses.models.Run.objects.get(ena_accessions__icontains=read_run)
-        if run.experiment_type not in [run.ExperimentTypes.METAGENOMIC]:
+        if run.experiment_type not in [run.ExperimentTypes.METAGENOMIC, run.ExperimentTypes.METATRANSCRIPTOMIC]:
             print(
                 f"Not creating assembly for run {run.first_accession} because it is a {run.experiment_type}"
             )
