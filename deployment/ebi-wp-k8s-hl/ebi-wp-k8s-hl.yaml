@@ -209,7 +209,7 @@ items:
                     name: proxy-config
               env:
                 - name: PREFECT_UI_URL
-                  value: http://prefect-dev.mgnify.org/api
+                  value: http://prefect-dev.mgnify.org
                 - name: PREFECT_API_URL
                   value: http://prefect-dev.mgnify.org/api
                 - name: PREFECT_UI_API_URL
