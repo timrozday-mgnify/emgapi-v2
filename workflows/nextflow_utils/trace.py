@@ -1,8 +1,7 @@
+import pathlib
 import shlex
 from pathlib import Path
 from typing import Optional
-
-import pathlib
 
 import pandas as pd
 
