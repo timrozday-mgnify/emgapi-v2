@@ -19,6 +19,7 @@ async def get_logs_for_flow_run(flow_run_id: UUID4) -> str:
 class LoggedFlowRunResult:
     logs: str
     result: Any
+    flow_id: int
 
 
 def run_flow_and_capture_logs(flow: Callable, *args, **kwargs):
@@ -40,7 +41,9 @@ def run_flow_and_capture_logs(flow: Callable, *args, **kwargs):
     """
     state: State = flow(*args, return_state=True, **kwargs)
     logs = async_to_sync(get_logs_for_flow_run)(state.state_details.flow_run_id)
-    return LoggedFlowRunResult(logs=logs, result=state.result())
+    return LoggedFlowRunResult(
+        logs=logs, result=state.result(), flow_run_id=state.state_details.flow_run_id
+    )
 
 
 async def run_async_flow_and_capture_logs(flow: Callable, *args, **kwargs):
@@ -63,4 +66,6 @@ async def run_async_flow_and_capture_logs(flow: Callable, *args, **kwargs):
     """
     state: State = await flow(*args, return_state=True, **kwargs)
     logs = await get_logs_for_flow_run(state.state_details.flow_run_id)
-    return LoggedFlowRunResult(logs=logs, result=state.result())
+    return LoggedFlowRunResult(
+        logs=logs, result=state.result(), flow_run_id=state.state_details.flow_run_id
+    )

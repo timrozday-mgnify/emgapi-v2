@@ -6,11 +6,14 @@ import pytest
 
 import analyses.models
 import ena.models
+from workflows.flows.hello_nextflow import hello_nextflow
+from workflows.models import OrchestratedClusterJob
 from workflows.nextflow_utils.samplesheets import (
     SamplesheetColumnSource,
     queryset_hash,
     queryset_to_samplesheet,
 )
+from workflows.prefect_utils.testing_utils import run_flow_and_capture_logs
 
 
 @pytest.mark.django_db(transaction=True, reset_sequences=True)
@@ -168,3 +171,28 @@ def test_queryset_hash(raw_reads_mgnify_study):
     studies = analyses.models.Study.objects.all()
     hash = queryset_hash(studies, "ena_study__title")
     assert hash == "3b387536d51e5c045256364275533aa4"  # md5 of "Project 1"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_nextflow_trace_from_flag(prefect_harness):
+    # It should capture the logs either from the trace specified path
+    hello_nextfow_flow_with_flag = run_flow_and_capture_logs(
+        hello_nextflow, with_trace_flag=True
+    )
+    assert "Trace file -" in hello_nextfow_flow_with_flag.logs
+
+    job1: OrchestratedClusterJob = OrchestratedClusterJob.objects.get(
+        flow_run_id=hello_nextfow_flow_with_flag.flow_run_id
+    )
+    assert job1.nextflow_trace is not None
+
+    # of from the specified path in the config file
+    hello_nextfow_flow_with_config = run_flow_and_capture_logs(
+        hello_nextflow, with_trace_flag=False
+    )
+    assert "Trace file -" in hello_nextfow_flow_with_config.logs
+
+    job2: OrchestratedClusterJob = OrchestratedClusterJob.objects.get(
+        flow_run_id=hello_nextfow_flow_with_config.flow_run_id
+    )
+    assert job2.nextflow_trace is not None
