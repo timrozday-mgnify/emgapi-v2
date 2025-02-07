@@ -11,7 +11,6 @@ from prefect.input import RunInput
 from prefect.task_runners import SequentialTaskRunner
 
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
-from workflows.prefect_utils.slack_notification import notify_via_slack
 from workflows.prefect_utils.slurm_policies import (
     ResubmitWithCleanedNextflowIfFailedPolicy,
 )
@@ -155,6 +154,5 @@ Please pick how many samples (the max limit) to download for the study {study.ac
     for sample, job_result in zip(sample_accessions, slurm_job_results):
         if job_result:
             print(f"Successfully ran nextflow pipeline for {sample}")
-            notify_via_slack(f"✅ Downloaded read runs for {sample}")
         else:
             print(f"Something went wrong running nextflow pipeline for {sample}")

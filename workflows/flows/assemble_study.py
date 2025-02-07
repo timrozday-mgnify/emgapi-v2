@@ -28,7 +28,6 @@ from workflows.flows.assemble_study_tasks.make_samplesheets import (
     make_samplesheets_for_runs_to_assemble,
 )
 from workflows.flows.assemble_study_tasks.upload_assemblies import upload_assemblies
-from workflows.prefect_utils.slack_notification import notify_via_slack
 
 EMG_CONFIG = settings.EMG_CONFIG
 
@@ -147,7 +146,6 @@ which you can edit in the [admin panel]({EMG_CONFIG.service_urls.app_root}/{reve
             samplesheet,
             assembler,
         )
-    await notify_via_slack(f"Assembly of {mgnify_study} / {accession} is finished")
 
     if upload:
         await upload_assemblies(mgnify_study, dry_run=use_ena_dropbox_dev)
