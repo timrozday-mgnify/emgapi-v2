@@ -2,10 +2,12 @@ import shlex
 from pathlib import Path
 from typing import Optional
 
+import pathlib
+
 import pandas as pd
 
 
-def get_mtime(file_):
+def get_mtime(file_: pathlib.Path):
     return file_.stat().st_mtime
 
 
