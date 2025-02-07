@@ -345,12 +345,13 @@ async def get_study_from_ena(accession: str, limit: int = 10) -> ena.models.Stud
 
     if httpx.codes.is_error(portal.status_code):
         raise ENAAvailabilityException(
-            f"Bas status from ENA Portal: {portal.status_code} {portal}"
+            f"Bad status from ENA Portal: {portal.status_code} {portal}"
         )
 
     try:
         response_json = portal.json()
         assert response_json is not None
+        assert response_json is not []
     except (JSONDecodeError, AssertionError) as e:
         logger.warning(e)
         raise ENAAvailabilityException(f"No study found for accession {accession}")
@@ -389,6 +390,7 @@ async def get_study_from_ena(accession: str, limit: int = 10) -> ena.models.Stud
         defaults={
             "title": portal.json()[0]["study_title"],
             "additional_accessions": additional_accessions,
+            "is_private": is_private,
             # TODO: more metadata
         },
     )

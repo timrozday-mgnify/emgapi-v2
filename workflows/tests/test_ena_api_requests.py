@@ -129,6 +129,58 @@ async def test_get_study_from_ena_no_secondary_accession(httpx_mock):
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.asyncio
+async def test_get_study_from_ena_private(httpx_mock, prefect_harness):
+    """
+    Study is only available privately
+    """
+    study_accession = "PRJ1"
+
+    httpx_mock.add_response(  # when the API is called with dcc auth to check if the study is available privately
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3D{study_accession}+OR+secondary_study_accession%3D{study_accession}%29%22&limit=&format=json&fields=study_accession",
+        json=[
+            {
+                "study_accession": "PRJ1",
+            },
+        ],
+        match_headers={
+            "Authorization": "Basic d2ViaW4tZmFrZTpub3QtYS1wdw=="
+        },  # webin-fake:not-a-pw
+        is_reusable=True,
+    )
+
+    httpx_mock.add_response(  # when the API is called with dcc auth to fetch the title and accessions
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3D{study_accession}+OR+secondary_study_accession%3D{study_accession}%29%22&limit=10&format=json&fields={'%2C'.join(EMG_CONFIG.ena.study_metadata_fields)}",
+        json=[
+            {
+                "study_title": "A private study",
+                "study_accession": "PRJ1",
+                "secondary_study_accession": "SRP1",
+            },
+        ],
+        match_headers={
+            "Authorization": "Basic d2ViaW4tZmFrZTpub3QtYS1wdw=="
+        },  # webin-fake:not-a-pw
+        is_reusable=True,
+    )
+
+    httpx_mock.add_response(  # when the API is initially called without auth to check if the study is available publicly
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3D{study_accession}+OR+secondary_study_accession%3D{study_accession}%29%22&limit=&format=json&fields=study_accession",
+        json=[],
+        match_headers={},
+        is_reusable=True,
+    )
+
+    await get_study_from_ena(study_accession, limit=10)
+
+    created_study: ena.models.Study = await ena.models.Study.objects.get_ena_study(
+        study_accession
+    )
+    assert created_study.accession == study_accession
+    assert created_study.is_private
+
+
+@pytest.mark.django_db(transaction=True)
 def test_get_study_readruns_from_ena(
     httpx_mock, raw_read_ena_study, raw_reads_mgnify_study
 ):
