@@ -300,7 +300,6 @@ def create_ena_api_request(result_type, query, limit, fields, result_format="jso
     retries=2,
     cache_key_fn=context_agnostic_task_input_hash,
     task_run_name="Get study from ENA: {accession}",
-    log_prints=True,
 )
 async def get_study_from_ena(accession: str, limit: int = 10) -> ena.models.Study:
     logger = get_run_logger()
@@ -412,7 +411,6 @@ def check_reads_fastq(fastq: list, run_accession: str, library_layout: str):
     cache_key_fn=context_agnostic_task_input_hash,
     retry_delay_seconds=60,
     task_run_name="Get study readruns from ENA: {accession}",
-    log_prints=True,
 )
 def get_study_readruns_from_ena(
     accession: str,
