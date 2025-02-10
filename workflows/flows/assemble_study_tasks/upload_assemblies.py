@@ -18,7 +18,12 @@ async def upload_assemblies(study: analyses.models.Study, dry_run: bool = False)
     """
     assemblies_to_upload: QuerySet = study.assemblies_reads.filter_by_statuses(
         [analyses.models.Assembly.AssemblyStates.ASSEMBLY_COMPLETED]
-    ).exclude_by_statuses([analyses.models.Assembly.AssemblyStates.ASSEMBLY_UPLOADED])
+    ).exclude_by_statuses(
+        [
+            analyses.models.Assembly.AssemblyStates.ASSEMBLY_UPLOADED,
+            analyses.models.Assembly.AssemblyStates.POST_ASSEMBLY_QC_FAILED,
+        ]
+    )
     print(f"Will upload assemblies: {assemblies_to_upload.acount()}")
     async for assembly in assemblies_to_upload:
         await upload_assembly(assembly.id, dry_run=dry_run)
