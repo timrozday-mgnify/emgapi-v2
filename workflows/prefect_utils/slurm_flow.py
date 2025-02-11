@@ -254,7 +254,7 @@ def start_or_attach_cluster_job(
         logger.info(
             f"Policy {slurm_resubmit_policy.policy_name} requires a pre-resubmit command: {slurm_resubmit_policy.resubmit_needs_preparation_command}."
         )
-        async_to_sync(run_shell_command)(
+        run_shell_command(
             command=slurm_resubmit_policy.resubmit_needs_preparation_command,
             workdir=job_workdir,
         )
