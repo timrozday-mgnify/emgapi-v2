@@ -23,6 +23,9 @@ METAGENOME_SCIENTIFIC_NAME: str = "metagenome"
 
 EMG_CONFIG = settings.EMG_CONFIG
 
+RETRIES = EMG_CONFIG.ena.portal_search_api_max_retries
+RETRY_DELAY = EMG_CONFIG.ena.portal_search_api_retry_delay_seconds
+
 
 class ENAPortalResultType(str, Enum):
     ANALYSIS = "analysis"  # Nucelotide sequence analyses from reads
@@ -318,7 +321,8 @@ class ENAAvailabilityException(Exception): ...
 
 
 @task(
-    retries=2,
+    retries=RETRIES,
+    retry_delay_seconds=RETRY_DELAY,
     cache_key_fn=context_agnostic_task_input_hash,
     task_run_name="Get study from ENA: {accession}",
 )
@@ -435,9 +439,9 @@ def check_reads_fastq(fastq: list, run_accession: str, library_layout: str):
 
 
 @task(
-    retries=10,
+    retries=RETRIES,
+    retry_delay_seconds=RETRY_DELAY,
     cache_key_fn=context_agnostic_task_input_hash,
-    retry_delay_seconds=60,
     task_run_name="Get study readruns from ENA: {accession}",
 )
 def get_study_readruns_from_ena(
@@ -597,8 +601,8 @@ def is_study_available(accession: str, auth: Optional[Type[Auth]] = None) -> boo
 
 @task(
     task_run_name="Determine if {accession} is public in ENA",
-    retries=4,
-    retry_delay_seconds=15,
+    retries=RETRIES,
+    retry_delay_seconds=RETRY_DELAY,
 )
 def is_ena_study_public(accession: str):
     logger = get_run_logger()
@@ -609,8 +613,8 @@ def is_ena_study_public(accession: str):
 
 @task(
     task_run_name="Determine if {accession} is public in ENA",
-    retries=4,
-    retry_delay_seconds=15,
+    retries=RETRIES,
+    retry_delay_seconds=RETRY_DELAY,
 )
 def is_ena_study_available_privately(accession: str):
     logger = get_run_logger()

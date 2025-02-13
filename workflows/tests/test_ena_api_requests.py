@@ -1,5 +1,6 @@
 import pytest
 from django.conf import settings
+from prefect import State
 from prefect.logging import disable_run_logger
 
 import analyses.models
@@ -33,9 +34,17 @@ def test_get_study_from_ena_no_primary_accession(httpx_mock, prefect_harness):
     httpx_mock.add_response(
         url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession={study_accession}%20OR%20secondary_study_accession={study_accession}%29%22&limit=10&format=json&fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}",
         json=[],
+        is_optional=True,
     )
-    with pytest.raises(ENAAvailabilityException):
-        get_study_from_ena.with_options(retries=0)(study_accession, limit=10)
+    httpx_mock.add_response(
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3D{study_accession}+OR+secondary_study_accession%3D{study_accession}%29%22&fields=study_accession&limit=&format=json",
+        json=[],
+        is_reusable=True,
+    )
+    # with pytest.raises(ENAAvailabilityException):
+    state: State = get_study_from_ena(study_accession, limit=10, return_state=True)
+    assert state.is_failed()
+    assert ENAAvailabilityException.__name__ in state.message
 
 
 @pytest.mark.django_db(transaction=True)
@@ -54,7 +63,12 @@ def test_get_study_from_ena_two_secondary_accessions(httpx_mock, prefect_harness
             },
         ],
     )
-    get_study_from_ena.with_options(retries=0)(study_accession, limit=10)
+    httpx_mock.add_response(
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3D{study_accession}+OR+secondary_study_accession%3D{study_accession}%29%22&fields=study_accession&limit=&format=json",
+        json=[{"study_accession": study_accession}],
+        is_reusable=True,
+    )
+    get_study_from_ena(study_accession, limit=10)
     assert ena.models.Study.objects.filter(accession=study_accession).count() == 1
     created_study = ena.models.Study.objects.get_ena_study(study_accession)
     assert created_study.accession == study_accession
@@ -84,8 +98,9 @@ def test_get_study_from_ena_use_secondary_as_primary(httpx_mock, prefect_harness
                 "study_accession": "",
             },
         ],
+        is_reusable=True,
     )
-    get_study_from_ena.with_options(retries=0)(sec_study_accession, limit=10)
+    get_study_from_ena(sec_study_accession, limit=10)
     assert ena.models.Study.objects.filter(accession=sec_study_accession).count() == 1
     created_study = ena.models.Study.objects.get_ena_study(sec_study_accession)
     assert created_study.accession == sec_study_accession
@@ -108,7 +123,12 @@ def test_get_study_from_ena_no_secondary_accession(httpx_mock, prefect_harness):
             },
         ],
     )
-    get_study_from_ena.with_options(retries=0)(study_accession, limit=10)
+    httpx_mock.add_response(
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3D{study_accession}+OR+secondary_study_accession%3D{study_accession}%29%22&fields=study_accession&limit=&format=json",
+        json=[{"study_accession": study_accession}],
+        is_reusable=True,
+    )
+    get_study_from_ena(study_accession, limit=10)
     assert ena.models.Study.objects.filter(accession=study_accession).count() == 1
     created_study = ena.models.Study.objects.get_ena_study(study_accession)
     assert created_study.accession == study_accession
@@ -157,7 +177,7 @@ def test_get_study_from_ena_private(httpx_mock, prefect_harness):
         is_reusable=True,
     )
 
-    get_study_from_ena.with_options(retries=0)(study_accession, limit=10)
+    get_study_from_ena(study_accession, limit=10)
 
     created_study: ena.models.Study = ena.models.Study.objects.get_ena_study(
         study_accession
@@ -256,7 +276,7 @@ def test_get_study_readruns_from_ena(
             },
         ],
     )
-    get_study_readruns_from_ena.with_options(retries=0)(study_accession, limit=10)
+    get_study_readruns_from_ena(study_accession, limit=10)
     # run is not metagenome in scientific_name
     assert (
         analyses.models.Run.objects.filter(ena_accessions__contains="RUN1").count() == 0
@@ -393,21 +413,22 @@ def test_is_study_public(httpx_mock, prefect_harness):
         ],
     )
     with disable_run_logger():
-        assert is_ena_study_public.with_options(retries=0)("ERP1")
+        assert is_ena_study_public("ERP1")
 
     httpx_mock.add_response(
         url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3DERP1+OR+secondary_study_accession%3DERP1%29%22&fields=study_accession&limit=&format=json",
         json=[],
     )
     with disable_run_logger():
-        assert not is_ena_study_public.with_options(retries=0)("ERP1")
+        assert not is_ena_study_public("ERP1")
 
     httpx_mock.add_response(
         url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3DERP1+OR+secondary_study_accession%3DERP1%29%22&fields=study_accession&limit=&format=json",
         json={"message": "bad call"},
     )
-    with pytest.raises(ENAAccessException):
-        is_ena_study_public.with_options(retries=0)("ERP1")
+    state: State = is_ena_study_public("ERP1", return_state=True)
+    assert state.is_failed()
+    assert ENAAccessException.__name__ in state.message
 
 
 def test_is_study_private(httpx_mock, prefect_harness):
@@ -417,7 +438,7 @@ def test_is_study_private(httpx_mock, prefect_harness):
             {"study_accession": "ERP1"},
         ],
     )
-    assert is_ena_study_available_privately.with_options(retries=0)("ERP1")
+    assert is_ena_study_available_privately("ERP1")
 
 
 @pytest.mark.django_db
@@ -438,9 +459,7 @@ def test_sync_privacy_state_of_ena_study_and_derived_objects(
 
     httpx_mock.add_response(json=[])  # not available publicly
 
-    sync_privacy_state_of_ena_study_and_derived_objects.with_options(retries=0)(
-        ena_study
-    )
+    sync_privacy_state_of_ena_study_and_derived_objects(ena_study)
     ena_study.refresh_from_db()
 
     assert ena_study.is_private
