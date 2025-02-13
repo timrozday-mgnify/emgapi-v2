@@ -337,7 +337,8 @@ class Assembly(TimeStampedModel, ENADerivedModel):
         verbose_name_plural = "Assemblies"
         constraints = [
             models.CheckConstraint(
-                check=Q(reads_study__isnull=False) | Q(assembly_study__isnull=False),
+                condition=Q(reads_study__isnull=False)
+                | Q(assembly_study__isnull=False),
                 name="at_least_one_study_present",
             )
         ]

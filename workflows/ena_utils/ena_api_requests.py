@@ -252,6 +252,7 @@ class ENAAPIRequest(BaseModel):
             assert isinstance(self.fields, List)
             assert isinstance(self.fields[0], ENAStudyFields)
             self._assert_query_conditions_are_of_type(self.query, self.result)
+        return self
 
     def _assert_query_conditions_are_of_type(
         self,

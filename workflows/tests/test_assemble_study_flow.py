@@ -330,7 +330,6 @@ def test_prefect_assemble_private_study_flow(
 
 
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.asyncio
 def test_assembly_statuses(prefect_harness, mgnify_assemblies):
     assembly = mgnify_assemblies[0]
     assert not any(assembly.status.values())
@@ -339,7 +338,7 @@ def test_assembly_statuses(prefect_harness, mgnify_assemblies):
     task_mark_assembly_status(
         assembly, assembly.AssemblyStates.ASSEMBLY_FAILED, reason="It broke"
     )
-    assembly.arefresh_from_db()
+    assembly.refresh_from_db()
     assert assembly.status[assembly.AssemblyStates.ASSEMBLY_FAILED]
 
     # making as complete later (perhaps a retry) should work, and can unset failed at same time

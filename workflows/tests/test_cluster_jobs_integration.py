@@ -20,11 +20,11 @@ from workflows.prefect_utils.slurm_policies import (
     ResubmitIfFailedPolicy,
 )
 from workflows.prefect_utils.slurm_status import SlurmStatus
-from workflows.prefect_utils.testing_utils import run_async_flow_and_capture_logs
+from workflows.prefect_utils.testing_utils import run_flow_and_capture_logs
 
 
 @flow(log_prints=True, retries=2)
-async def intermittently_buggy_flow_that_includes_a_cluster_job_subflow(workdir: Path):
+def intermittently_buggy_flow_that_includes_a_cluster_job_subflow(workdir: Path):
     print("starting flow")
     orchestrated_job = run_cluster_job(
         name="test job in buggy flow",
@@ -45,9 +45,8 @@ async def intermittently_buggy_flow_that_includes_a_cluster_job_subflow(workdir:
     return orchestrated_job.cluster_job_id
 
 
-@pytest.mark.asyncio
 @pytest.mark.django_db
-async def test_run_cluster_job_state_persistence(
+def test_run_cluster_job_state_persistence(
     prefect_harness,
     mock_cluster_can_accept_jobs_yes,
     mock_check_cluster_job_all_completed,
@@ -114,7 +113,7 @@ async def test_run_cluster_job_state_persistence(
     )  # different job id
 
     # automatic retries of a buggy flow that fails after a cluster job should not resubmit cluster job
-    logged_buggy_flow = await run_async_flow_and_capture_logs(
+    logged_buggy_flow = run_flow_and_capture_logs(
         intermittently_buggy_flow_that_includes_a_cluster_job_subflow,
         workdir=tmp_path / "work-buggy",
     )

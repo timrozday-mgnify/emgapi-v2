@@ -9,7 +9,6 @@ from workflows.prefect_utils.testing_utils import run_flow_and_capture_logs
 
 
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.asyncio
 def test_prefect_assembly_upload_flow_assembly_metaspades(
     prefect_harness,
     mock_cluster_can_accept_jobs_yes,
@@ -124,7 +123,6 @@ def test_prefect_assembly_upload_flow_assembly_metaspades(
 
 
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.asyncio
 def test_prefect_assembly_upload_flow_post_assembly_sanity_check_not_passed(
     prefect_harness,
     raw_reads_mgnify_study,
