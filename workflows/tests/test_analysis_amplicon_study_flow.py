@@ -326,13 +326,12 @@ MockFileIsNotEmptyRule = FileRule(
 
 
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.asyncio
 @patch("workflows.flows.analysis_amplicon_study.queryset_hash")
 @patch(
     "workflows.data_io_utils.mgnify_v6_utils.amplicon.FileIsNotEmptyRule",
     MockFileIsNotEmptyRule,
 )
-async def test_prefect_analyse_amplicon_flow(
+def test_prefect_analyse_amplicon_flow(
     mock_queryset_hash_for_amplicon,
     prefect_harness,
     httpx_mock,
@@ -478,73 +477,69 @@ async def test_prefect_analyse_amplicon_flow(
     )
 
     # RUN MAIN FLOW
-    await analysis_amplicon_study(study_accession=study_accession)
+    analysis_amplicon_study(study_accession=study_accession)
 
     mock_start_cluster_job.assert_called()
     mock_check_cluster_job_all_completed.assert_called()
 
-    assembly_samplesheet_table = await Artifact.get("amplicon-v6-initial-sample-sheet")
+    assembly_samplesheet_table = Artifact.get("amplicon-v6-initial-sample-sheet")
     assert assembly_samplesheet_table.type == "table"
     table_data = json.loads(assembly_samplesheet_table.data)
     assert len(table_data) == len(runs)
 
     assert (
-        await analyses.models.Analysis.objects.filter(
+        analyses.models.Analysis.objects.filter(
             run__ena_accessions__contains=amplicon_run_all_results
-        ).acount()
+        ).count()
         == 1
     )
 
     # check completed runs (all runs in completed list - might contain sanity check not passed as well)
     assert (
-        await analyses.models.Analysis.objects.filter(
-            status__analysis_completed=True
-        ).acount()
+        analyses.models.Analysis.objects.filter(status__analysis_completed=True).count()
         == 4
     )
     # check failed runs
     assert (
-        await analyses.models.Analysis.objects.filter(
-            status__analysis_qc_failed=True
-        ).acount()
+        analyses.models.Analysis.objects.filter(status__analysis_qc_failed=True).count()
         == 1
     )
     # check sanity check runs
     assert (
-        await analyses.models.Analysis.objects.filter(
+        analyses.models.Analysis.objects.filter(
             status__analysis_post_sanity_check_failed=True
-        ).acount()
+        ).count()
         == 2
     )
     assert (
-        await analyses.models.Analysis.objects.filter(
+        analyses.models.Analysis.objects.filter(
             status__analysis_completed_reason="all_results"
-        ).acount()
+        ).count()
         == 1
     )
     assert (
-        await analyses.models.Analysis.objects.filter(
+        analyses.models.Analysis.objects.filter(
             status__analysis_completed_reason="no_asvs"
-        ).acount()
+        ).count()
         == 3
     )
     assert (
-        await analyses.models.Analysis.objects.filter(
+        analyses.models.Analysis.objects.filter(
             status__analysis_post_sanity_check_failed_reason="No qc folder"
-        ).acount()
+        ).count()
         == 1
     )
     assert (
-        await analyses.models.Analysis.objects.filter(
+        analyses.models.Analysis.objects.filter(
             Q(
                 status__analysis_post_sanity_check_failed_reason__icontains="DADA2-SILVA in taxonomy-summary"
             )
-        ).acount()
+        ).count()
         == 1
     )
 
     analysis_which_should_have_taxonomies_imported: analyses.models.Analysis = (
-        await analyses.models.Analysis.objects_and_annotations.aget(
+        analyses.models.Analysis.objects_and_annotations.get(
             run__ena_accessions__contains=amplicon_run_all_results
         )
     )

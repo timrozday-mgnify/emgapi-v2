@@ -17,14 +17,15 @@ from workflows.ena_utils.ena_api_requests import (
     is_ena_study_available_privately,
     is_ena_study_public,
     sync_privacy_state_of_ena_study_and_derived_objects,
+    ENAAvailabilityException,
+    ENAAccessException,
 )
 
 EMG_CONFIG = settings.EMG_CONFIG
 
 
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.asyncio
-async def test_get_study_from_ena_no_primary_accession(httpx_mock):
+def test_get_study_from_ena_no_primary_accession(httpx_mock, prefect_harness):
     """
     Study doesn't have primary accession and returns empty json
     """
@@ -33,16 +34,12 @@ async def test_get_study_from_ena_no_primary_accession(httpx_mock):
         url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession={study_accession}%20OR%20secondary_study_accession={study_accession}%29%22&limit=10&format=json&fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}",
         json=[],
     )
-    with disable_run_logger():
-        with pytest.raises(
-            Exception, match=f"No study found for accession {study_accession}"
-        ):
-            await get_study_from_ena.fn(study_accession, limit=10)
+    with pytest.raises(ENAAvailabilityException):
+        get_study_from_ena.with_options(retries=0)(study_accession, limit=10)
 
 
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.asyncio
-async def test_get_study_from_ena_two_secondary_accessions(httpx_mock):
+def test_get_study_from_ena_two_secondary_accessions(httpx_mock, prefect_harness):
     """
     Study has two secondary accessions
     """
@@ -57,20 +54,15 @@ async def test_get_study_from_ena_two_secondary_accessions(httpx_mock):
             },
         ],
     )
-    with disable_run_logger():
-        await get_study_from_ena.fn(study_accession, limit=10)
-        assert (
-            await ena.models.Study.objects.filter(accession=study_accession).acount()
-            == 1
-        )
-        created_study = await ena.models.Study.objects.get_ena_study(study_accession)
-        assert created_study.accession == study_accession
-        assert len(created_study.additional_accessions) == 2
+    get_study_from_ena.with_options(retries=0)(study_accession, limit=10)
+    assert ena.models.Study.objects.filter(accession=study_accession).count() == 1
+    created_study = ena.models.Study.objects.get_ena_study(study_accession)
+    assert created_study.accession == study_accession
+    assert len(created_study.additional_accessions) == 2
 
 
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.asyncio
-async def test_get_study_from_ena_use_secondary_as_primary(httpx_mock):
+def test_get_study_from_ena_use_secondary_as_primary(httpx_mock, prefect_harness):
     """
     Study doesn't have primary accession
     """
@@ -85,24 +77,23 @@ async def test_get_study_from_ena_use_secondary_as_primary(httpx_mock):
             },
         ],
     )
-    with disable_run_logger():
-        await get_study_from_ena.fn(sec_study_accession, limit=10)
-        assert (
-            await ena.models.Study.objects.filter(
-                accession=sec_study_accession
-            ).acount()
-            == 1
-        )
-        created_study = await ena.models.Study.objects.get_ena_study(
-            sec_study_accession
-        )
-        assert created_study.accession == sec_study_accession
-        assert len(created_study.additional_accessions) == 1
+    httpx_mock.add_response(
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3D{sec_study_accession}+OR+secondary_study_accession%3D{sec_study_accession}%29%22&fields=study_accession&limit=&format=json",
+        json=[
+            {
+                "study_accession": "",
+            },
+        ],
+    )
+    get_study_from_ena.with_options(retries=0)(sec_study_accession, limit=10)
+    assert ena.models.Study.objects.filter(accession=sec_study_accession).count() == 1
+    created_study = ena.models.Study.objects.get_ena_study(sec_study_accession)
+    assert created_study.accession == sec_study_accession
+    assert len(created_study.additional_accessions) == 1
 
 
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.asyncio
-async def test_get_study_from_ena_no_secondary_accession(httpx_mock):
+def test_get_study_from_ena_no_secondary_accession(httpx_mock, prefect_harness):
     """
     Study has no secondary accessions
     """
@@ -117,20 +108,15 @@ async def test_get_study_from_ena_no_secondary_accession(httpx_mock):
             },
         ],
     )
-    with disable_run_logger():
-        await get_study_from_ena.fn(study_accession, limit=10)
-        assert (
-            await ena.models.Study.objects.filter(accession=study_accession).acount()
-            == 1
-        )
-        created_study = await ena.models.Study.objects.get_ena_study(study_accession)
-        assert created_study.accession == study_accession
-        assert len(created_study.additional_accessions) == 0
+    get_study_from_ena.with_options(retries=0)(study_accession, limit=10)
+    assert ena.models.Study.objects.filter(accession=study_accession).count() == 1
+    created_study = ena.models.Study.objects.get_ena_study(study_accession)
+    assert created_study.accession == study_accession
+    assert len(created_study.additional_accessions) == 0
 
 
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.asyncio
-async def test_get_study_from_ena_private(httpx_mock, prefect_harness):
+def test_get_study_from_ena_private(httpx_mock, prefect_harness):
     """
     Study is only available privately
     """
@@ -144,8 +130,8 @@ async def test_get_study_from_ena_private(httpx_mock, prefect_harness):
             },
         ],
         match_headers={
-            "Authorization": "Basic d2ViaW4tZmFrZTpub3QtYS1wdw=="
-        },  # webin-fake:not-a-pw
+            "Authorization": "Basic ZGNjX2Zha2U6bm90LWEtZGNjLXB3"
+        },  # dcc_fake:not-a-dcc-pw
         is_reusable=True,
     )
 
@@ -159,8 +145,8 @@ async def test_get_study_from_ena_private(httpx_mock, prefect_harness):
             },
         ],
         match_headers={
-            "Authorization": "Basic d2ViaW4tZmFrZTpub3QtYS1wdw=="
-        },  # webin-fake:not-a-pw
+            "Authorization": "Basic ZGNjX2Zha2U6bm90LWEtZGNjLXB3"
+        },  # dcc_fake:not-a-dcc-pw
         is_reusable=True,
     )
 
@@ -171,9 +157,9 @@ async def test_get_study_from_ena_private(httpx_mock, prefect_harness):
         is_reusable=True,
     )
 
-    await get_study_from_ena(study_accession, limit=10)
+    get_study_from_ena.with_options(retries=0)(study_accession, limit=10)
 
-    created_study: ena.models.Study = await ena.models.Study.objects.get_ena_study(
+    created_study: ena.models.Study = ena.models.Study.objects.get_ena_study(
         study_accession
     )
     assert created_study.accession == study_accession
@@ -182,7 +168,7 @@ async def test_get_study_from_ena_private(httpx_mock, prefect_harness):
 
 @pytest.mark.django_db(transaction=True)
 def test_get_study_readruns_from_ena(
-    httpx_mock, raw_read_ena_study, raw_reads_mgnify_study
+    httpx_mock, raw_read_ena_study, raw_reads_mgnify_study, prefect_harness
 ):
     """
     run1 is not metagenomic/metatranscriptomic data
@@ -270,44 +256,37 @@ def test_get_study_readruns_from_ena(
             },
         ],
     )
-    with disable_run_logger():
-        get_study_readruns_from_ena.fn(study_accession, limit=10)
-        # run is not metagenome in scientific_name
-        assert (
-            analyses.models.Run.objects.filter(ena_accessions__contains="RUN1").count()
-            == 0
-        )
-        # correct run
-        assert (
-            analyses.models.Run.objects.filter(ena_accessions__contains="RUN2").count()
-            == 1
-        )
-        # incorrect library_source and scientific name
-        assert (
-            analyses.models.Run.objects.filter(ena_accessions__contains="RUN3").count()
-            == 0
-        )
-        # incorrect library_layout single
-        assert (
-            analyses.models.Run.objects.filter(ena_accessions__contains="RUN4").count()
-            == 0
-        )
-        # incorrect library_layout paired
-        assert (
-            analyses.models.Run.objects.filter(ena_accessions__contains="RUN5").count()
-            == 0
-        )
-        # should return only 2 fq files in correct order
-        assert (
-            analyses.models.Run.objects.filter(ena_accessions__contains="RUN6").count()
-            == 1
-        )
-        run = analyses.models.Run.objects.get(ena_accessions__contains="RUN6")
-        assert (
-            len(run.metadata["fastq_ftps"]) == 2
-            and "_1" in run.metadata["fastq_ftps"][0]
-            and "_2" in run.metadata["fastq_ftps"][1]
-        )
+    get_study_readruns_from_ena.with_options(retries=0)(study_accession, limit=10)
+    # run is not metagenome in scientific_name
+    assert (
+        analyses.models.Run.objects.filter(ena_accessions__contains="RUN1").count() == 0
+    )
+    # correct run
+    assert (
+        analyses.models.Run.objects.filter(ena_accessions__contains="RUN2").count() == 1
+    )
+    # incorrect library_source and scientific name
+    assert (
+        analyses.models.Run.objects.filter(ena_accessions__contains="RUN3").count() == 0
+    )
+    # incorrect library_layout single
+    assert (
+        analyses.models.Run.objects.filter(ena_accessions__contains="RUN4").count() == 0
+    )
+    # incorrect library_layout paired
+    assert (
+        analyses.models.Run.objects.filter(ena_accessions__contains="RUN5").count() == 0
+    )
+    # should return only 2 fq files in correct order
+    assert (
+        analyses.models.Run.objects.filter(ena_accessions__contains="RUN6").count() == 1
+    )
+    run = analyses.models.Run.objects.get(ena_accessions__contains="RUN6")
+    assert (
+        len(run.metadata["fastq_ftps"]) == 2
+        and "_1" in run.metadata["fastq_ftps"][0]
+        and "_2" in run.metadata["fastq_ftps"][1]
+    )
 
 
 def test_ena_api_query_maker(httpx_mock):
@@ -403,8 +382,7 @@ def test_ena_api_query_maker(httpx_mock):
     )
 
     response = request.get()
-    assert response.status_code == 200
-    assert response.json() == [{"study_accession": "ERP1"}]
+    assert response == [{"study_accession": "ERP1"}]
 
 
 def test_is_study_public(httpx_mock, prefect_harness):
@@ -415,21 +393,21 @@ def test_is_study_public(httpx_mock, prefect_harness):
         ],
     )
     with disable_run_logger():
-        assert is_ena_study_public("ERP1") == True
+        assert is_ena_study_public.with_options(retries=0)("ERP1")
 
     httpx_mock.add_response(
         url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3DERP1+OR+secondary_study_accession%3DERP1%29%22&fields=study_accession&limit=&format=json",
         json=[],
     )
     with disable_run_logger():
-        assert is_ena_study_public("ERP1") == False
+        assert not is_ena_study_public.with_options(retries=0)("ERP1")
 
     httpx_mock.add_response(
         url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3DERP1+OR+secondary_study_accession%3DERP1%29%22&fields=study_accession&limit=&format=json",
         json={"message": "bad call"},
     )
-    with disable_run_logger():
-        assert is_ena_study_public("ERP1") == False
+    with pytest.raises(ENAAccessException):
+        is_ena_study_public.with_options(retries=0)("ERP1")
 
 
 def test_is_study_private(httpx_mock, prefect_harness):
@@ -439,8 +417,7 @@ def test_is_study_private(httpx_mock, prefect_harness):
             {"study_accession": "ERP1"},
         ],
     )
-    with disable_run_logger():
-        assert is_ena_study_available_privately("ERP1") == True
+    assert is_ena_study_available_privately.with_options(retries=0)("ERP1")
 
 
 @pytest.mark.django_db
@@ -452,8 +429,8 @@ def test_sync_privacy_state_of_ena_study_and_derived_objects(
 
     httpx_mock.add_response(
         match_headers={
-            "Authorization": "Basic d2ViaW4tZmFrZTpub3QtYS1wdw=="
-        },  # webin-fake:not-a-pw
+            "Authorization": "Basic ZGNjX2Zha2U6bm90LWEtZGNjLXB3"
+        },  # dcc_fake:not-a-dcc-pw
         json=[
             {"study_accession": "ERP1"},
         ],
@@ -461,7 +438,9 @@ def test_sync_privacy_state_of_ena_study_and_derived_objects(
 
     httpx_mock.add_response(json=[])  # not available publicly
 
-    sync_privacy_state_of_ena_study_and_derived_objects(ena_study)
+    sync_privacy_state_of_ena_study_and_derived_objects.with_options(retries=0)(
+        ena_study
+    )
     ena_study.refresh_from_db()
 
     assert ena_study.is_private

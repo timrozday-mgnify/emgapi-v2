@@ -15,15 +15,18 @@ def get_or_create_assemblies_for_runs(
 ) -> List[str]:
     assembly_ids = []
     for read_run in read_runs:
-        run = analyses.models.Run.objects.get(ena_accessions__icontains=read_run)
+        run = analyses.models.Run.all_objects.get(ena_accessions__icontains=read_run)
         if run.experiment_type not in [run.ExperimentTypes.METAGENOMIC]:
             print(
                 f"Not creating assembly for run {run.first_accession} because it is a {run.experiment_type}"
             )
             continue
 
-        assembly, created = analyses.models.Assembly.objects.get_or_create(
-            run=run, ena_study=study.ena_study, reads_study=study
+        assembly, created = analyses.models.Assembly.all_objects.get_or_create(
+            run=run,
+            ena_study=study.ena_study,
+            reads_study=study,
+            defaults={"is_private": run.is_private},
         )
         if created:
             print(f"Created assembly {assembly}")

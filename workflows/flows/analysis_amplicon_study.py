@@ -578,7 +578,7 @@ def set_post_analysis_states(amplicon_current_outdir: Path, amplicon_analyses: L
 
 
 @flow(name="Run analysis pipeline-v6 in parallel", log_prints=True)
-async def perform_amplicons_in_parallel(
+def perform_amplicons_in_parallel(
     mgnify_study: analyses.models.Study,
     amplicon_analysis_ids: List[Union[str, int]],
 ):
@@ -588,7 +588,7 @@ async def perform_amplicons_in_parallel(
     )
     samplesheet, ss_hash = make_samplesheet_amplicon(mgnify_study, amplicon_analyses)
 
-    async for analysis in amplicon_analyses:
+    for analysis in amplicon_analyses:
         mark_analysis_as_started(analysis)
 
     amplicon_current_outdir_parent = Path(
@@ -645,7 +645,7 @@ async def perform_amplicons_in_parallel(
     flow_run_name="Analyse amplicon: {study_accession}",
     task_runner=SequentialTaskRunner,
 )
-async def analysis_amplicon_study(study_accession: str):
+def analysis_amplicon_study(study_accession: str):
     """
     Get a study from ENA, and input it to MGnify.
     Kick off amplicon-v6 pipeline.
@@ -653,17 +653,17 @@ async def analysis_amplicon_study(study_accession: str):
     """
     logger = get_run_logger()
     # Create/get ENA Study object
-    ena_study = await ena.models.Study.objects.get_ena_study(study_accession)
+    ena_study = ena.models.Study.objects.get_ena_study(study_accession)
     if not ena_study:
-        ena_study = await get_study_from_ena(study_accession)
-        await ena_study.arefresh_from_db()
+        ena_study = get_study_from_ena(study_accession)
+        ena_study.refresh_from_db()
     logger.info(f"ENA Study is {ena_study.accession}: {ena_study.title}")
 
     # Get a MGnify Study object for this ENA Study
-    mgnify_study = await analyses.models.Study.objects.get_or_create_for_ena_study(
+    mgnify_study = analyses.models.Study.objects.get_or_create_for_ena_study(
         study_accession
     )
-    await mgnify_study.arefresh_from_db()
+    mgnify_study.refresh_from_db()
     logger.info(f"MGnify study is {mgnify_study.accession}: {mgnify_study.title}")
 
     read_runs = get_study_readruns_from_ena(
@@ -675,7 +675,7 @@ async def analysis_amplicon_study(study_accession: str):
     logger.info(f"Returned {len(read_runs)} run from ENA portal API")
 
     # get or create Analysis for runs
-    mgnify_analyses = create_analyses(
+    create_analyses(
         mgnify_study,
         for_experiment_type=analyses.models.WithExperimentTypeModel.ExperimentTypes.AMPLICON,
         pipeline=analyses.models.Analysis.PipelineVersions.v6,
@@ -695,4 +695,4 @@ async def analysis_amplicon_study(study_accession: str):
         logger.info(
             f"Working on amplicon analyses: {analyses_chunk[0]}-{analyses_chunk[-1]}"
         )
-        await perform_amplicons_in_parallel(mgnify_study, analyses_chunk)
+        perform_amplicons_in_parallel(mgnify_study, analyses_chunk)

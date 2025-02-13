@@ -84,8 +84,12 @@ class AmpliconPipelineConfig(BaseModel):
 class WebinConfig(BaseModel):
     emg_webin_account: str = None
     emg_webin_password: str = None
+    dcc_account: str = "dcc_metagenome"
+    dcc_password: str = None
     submitting_center_name: str = "EMG"
     webin_cli_executor: str = "/usr/bin/webin-cli/webin-cli.jar"
+    broker_prefix: str = "mg-"
+    broker_password: str = None
 
 
 class ENAConfig(BaseModel):

@@ -20,20 +20,20 @@ class ENAModel(models.Model):
 
 
 class StudyManager(models.Manager):
-    async def get_ena_study(self, ena_study_accession):
+    def get_ena_study(self, ena_study_accession):
         logging.info(f"Will get ENA study for {ena_study_accession} from DB")
         ena_study = False
         try:
             ena_study = (
-                await self.get_queryset()
+                self.get_queryset()
                 .filter(
                     models.Q(accession=ena_study_accession)
                     | models.Q(additional_accessions__icontains=ena_study_accession)
                 )
-                .afirst()
+                .first()
             )
             logging.debug(f"Got {ena_study}")
-        except (MultipleObjectsReturned, ObjectDoesNotExist) as e:
+        except (MultipleObjectsReturned, ObjectDoesNotExist):
             logging.warning(
                 f"Problem getting ENA study {ena_study_accession} from ENA models DB"
             )
@@ -70,6 +70,8 @@ def on_ena_study_saved_update_derived_suppression_and_privacy_states(
     Likewise, data can be private if an entire ENA study is private.
     After embargo date expires, the study and all associated data become public.
     """
+    # TODO: suppression can also take place at non-study level...
+
     for field in instance._meta.get_fields():
         if field.is_relation and field.auto_created and not field.concrete:
             related_model: Model = field.related_model
@@ -77,7 +79,11 @@ def on_ena_study_saved_update_derived_suppression_and_privacy_states(
                 field.name for field in related_model._meta.get_fields()
             ]
             if "ena_study" in fields_of_related:
-                for field_to_propagate in ["is_suppressed", "is_private"]:
+                for field_to_propagate in [
+                    "is_suppressed",
+                    "is_private",
+                    "webin_submitter",
+                ]:
                     if field_to_propagate not in fields_of_related:
                         logging.warning(
                             f"Model {related_model._meta.model_name} looks like it is derived from ENA Study, but doesn't have an {field_to_propagate} field to update."

@@ -1,13 +1,12 @@
 from typing import List, TypeVar
 
-from asgiref.sync import sync_to_async
 from prefect import task
 
 from analyses.models import Analysis, Assembly
 
 
 @task(log_prints=True)
-async def task_mark_assembly_status(
+def task_mark_assembly_status(
     assembly: Assembly,
     status: Assembly.AssemblyStates,
     reason: str = None,
@@ -33,10 +32,10 @@ async def task_mark_assembly_status(
         )
 
     print(f"Assembly {assembly} status is {status} now.")
-    await sync_to_async(assembly.mark_status)(status, reason=reason)
+    assembly.mark_status(status, reason=reason)
     for unset_status in unset_statuses or []:
         if assembly.status[unset_status]:
-            await sync_to_async(assembly.mark_status)(
+            assembly.mark_status(
                 unset_status,
                 set_status_as=False,
                 reason=f"Explicitly unset when setting {status}",
@@ -80,7 +79,7 @@ def task_mark_analysis_status(
             )
 
 
-I = TypeVar("I")
+I = TypeVar("I")  # noqa: E741
 
 
 @task
