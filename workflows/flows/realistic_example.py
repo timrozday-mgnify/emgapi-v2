@@ -131,7 +131,7 @@ Please pick how many samples (the max limit) to download for the study {study.ac
                     f"-with-trace trace-{sample_accession}.txt"
                 ),
                 expected_time=timedelta(hours=1),
-                memory=f"500M",
+                memory="500M",
                 resubmit_policy=ResubmitWithCleanedNextflowIfFailedPolicy,
                 # These policies control what happens when identical jobs are submitted in future,
                 #   including when a flow crashes and is restarted.

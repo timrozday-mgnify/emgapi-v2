@@ -241,10 +241,7 @@ def test_slurm_resubmit_policies():
 
     assert fully_matching_job == job1
 
-    assert (
-        fully_matching_job.should_resubmit_according_to_policy(ResubmitAlwaysPolicy)
-        == True
-    )
+    assert fully_matching_job.should_resubmit_according_to_policy(ResubmitAlwaysPolicy)
 
     # should not match if we only want to match previously failed jobs
     matching_jobs = OrchestratedClusterJob.objects.filter_similar_to_by_policy(
@@ -259,9 +256,8 @@ def test_slurm_resubmit_policies():
         )
     )
 
-    assert (
-        fully_matching_job.should_resubmit_according_to_policy(ResubmitIfFailedPolicy)
-        == False
+    assert not fully_matching_job.should_resubmit_according_to_policy(
+        ResubmitIfFailedPolicy
     )
 
     # but if previous job failed, we would expect an instruction to resubmit it
@@ -269,7 +265,7 @@ def test_slurm_resubmit_policies():
     job1.save()
     job1.refresh_from_db()
 
-    assert job1.should_resubmit_according_to_policy(ResubmitIfFailedPolicy) == True
+    assert job1.should_resubmit_according_to_policy(ResubmitIfFailedPolicy)
 
     # a novel job should match no previous
     jsd3 = OrchestratedClusterJob.SlurmJobSubmitDescription(

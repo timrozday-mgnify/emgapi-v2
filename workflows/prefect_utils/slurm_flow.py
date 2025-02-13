@@ -7,7 +7,6 @@ from pathlib import Path
 from textwrap import dedent as _
 from typing import List, Optional, Union
 
-from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.urls import reverse
 from django.utils.timezone import now
@@ -35,7 +34,7 @@ if "PYTEST_CURRENT_TEST" in os.environ:
 else:
     try:
         import pyslurm
-    except:
+    except:  # noqa: E722
         logging.warning("No PySlurm available. Patching.")
         import workflows.prefect_utils.pyslurm_patch as pyslurm
 

@@ -14,6 +14,7 @@ from sqlalchemy.orm import (
 )
 
 from analyses.base_models.with_downloads_models import DownloadFileType, DownloadType
+import analyses.models
 
 
 class LegacyEMGBase(DeclarativeBase):
