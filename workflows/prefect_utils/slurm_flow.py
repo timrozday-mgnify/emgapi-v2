@@ -690,10 +690,9 @@ async def move_data(source: str, target: str, move_command: str = "cp", **kwargs
 
     if not "environment" in kwargs:
         kwargs["environment"] = {}
-
     return await run_cluster_job(
         name=f"Move {file_path_shortener(source)} to {file_path_shortener(target)}",
-        command=f"{move_command} {source} {target}",
+        command=move_command,
         expected_time=expected_time,
         memory=memory,
         resubmit_even_if_identical=True,
