@@ -8,7 +8,6 @@ from django.conf import settings
 from django.urls import reverse_lazy
 from prefect import flow, get_run_logger, suspend_flow_run
 from prefect.input import RunInput
-from prefect.task_runners import SequentialTaskRunner
 
 from emgapiv2.enum_utils import FutureStrEnum
 
@@ -55,7 +54,6 @@ def get_biomes_as_choices():
 @flow(
     name="Assemble a study",
     flow_run_name="Assemble: {accession}",
-    task_runner=SequentialTaskRunner,
 )
 def assemble_study(
     accession: str, upload: bool = True, use_ena_dropbox_dev: bool = False

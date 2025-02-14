@@ -17,7 +17,6 @@ django.setup()
 
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from prefect import flow, get_run_logger, task
-from prefect.task_runners import SequentialTaskRunner
 
 import analyses.models
 import ena.models
@@ -427,7 +426,6 @@ def submit_assembly_slurm(
 @flow(
     name="Sanity check and upload an assembly",
     flow_run_name="Sanity check and upload",
-    task_runner=SequentialTaskRunner,
 )
 def upload_assembly(
     assembly_id: int, dry_run: bool = True, custom_upload_folder: Optional[Path] = None

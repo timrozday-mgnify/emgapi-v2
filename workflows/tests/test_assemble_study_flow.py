@@ -9,7 +9,6 @@ import pandas as pd
 import pytest
 from django.conf import settings
 from prefect.artifacts import Artifact
-from prefect.logging import disable_run_logger
 from pydantic import BaseModel
 
 import analyses.models
@@ -22,10 +21,14 @@ from workflows.flows.assemble_study_tasks.make_samplesheets import (
     make_samplesheets_for_runs_to_assemble,
 )
 from workflows.prefect_utils.analyses_models_helpers import task_mark_assembly_status
+from workflows.prefect_utils.testing_utils import (
+    should_not_mock_httpx_requests_to_prefect_server,
+)
 
 EMG_CONFIG = settings.EMG_CONFIG
 
 
+@pytest.mark.httpx_mock(should_mock=should_not_mock_httpx_requests_to_prefect_server)
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize(
     "mock_suspend_flow_run", ["workflows.flows.assemble_study"], indirect=True
@@ -191,6 +194,7 @@ def test_prefect_assemble_study_flow(
     shutil.rmtree(assembly_folder, ignore_errors=True)
 
 
+@pytest.mark.httpx_mock(should_mock=should_not_mock_httpx_requests_to_prefect_server)
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize(
     "mock_suspend_flow_run", ["workflows.flows.assemble_study"], indirect=True
@@ -409,8 +413,7 @@ def test_assembler_changed_in_samplesheet(
     # run assembly on samplesheet
     # note that assembler arg will be metaspades
     ss_df = pd.read_csv(samplesheet)
-    with disable_run_logger():
-        update_assemblies_assemblers_from_samplesheet(ss_df)
+    update_assemblies_assemblers_from_samplesheet(ss_df)
 
     # flow should have updated assemblies to have megahit assembler, as per edited samplesheet
     assert (

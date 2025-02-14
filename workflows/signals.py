@@ -45,5 +45,5 @@ def get_handlers(signal):
 def ready():
     pre_save_hooks = get_handlers(pre_save)
     post_save_hooks = get_handlers(post_save)
-    logging.info(f"Hooks are: {pre_save_hooks + post_save_hooks}")
+    logging.debug(f"Hooks are: {pre_save_hooks + post_save_hooks}")
     return pre_save_hooks + post_save_hooks

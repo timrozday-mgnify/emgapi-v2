@@ -16,7 +16,6 @@ from django.conf import settings
 from django.utils.text import slugify
 from prefect import flow, get_run_logger, task
 from prefect.artifacts import create_table_artifact
-from prefect.task_runners import SequentialTaskRunner
 
 import analyses.models
 import ena.models
@@ -643,7 +642,6 @@ def perform_amplicons_in_parallel(
     name="Run analysis pipeline-v6 on amplicon study",
     log_prints=True,
     flow_run_name="Analyse amplicon: {study_accession}",
-    task_runner=SequentialTaskRunner,
 )
 def analysis_amplicon_study(study_accession: str):
     """

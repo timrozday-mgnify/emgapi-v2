@@ -12,6 +12,9 @@ from prefect.artifacts import Artifact
 import analyses.models
 from workflows.data_io_utils.file_rules.base_rules import FileRule
 from workflows.flows.analysis_amplicon_study import analysis_amplicon_study
+from workflows.prefect_utils.testing_utils import (
+    should_not_mock_httpx_requests_to_prefect_server,
+)
 
 EMG_CONFIG = settings.EMG_CONFIG
 
@@ -325,6 +328,7 @@ MockFileIsNotEmptyRule = FileRule(
 )
 
 
+@pytest.mark.httpx_mock(should_mock=should_not_mock_httpx_requests_to_prefect_server)
 @pytest.mark.django_db(transaction=True)
 @patch("workflows.flows.analysis_amplicon_study.queryset_hash")
 @patch(

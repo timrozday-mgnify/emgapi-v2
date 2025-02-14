@@ -41,6 +41,9 @@ class SlurmConfig(BaseModel):
     samplesheet_editing_path_from_shared_filesystem: str = "temporary_samplesheet_edits"
     # allow django-admin access to edit csv/tsv files inside this dir
 
+    preparation_command_job_memory_gb: int = 2
+    # memory for jobs like `nextflow clean ...` or `rm -r ./work` that are run before bigger jobs
+
 
 class AssemblerConfig(BaseModel):
     assembly_pipeline_repo: str = "ebi-metagenomics/miassembler"

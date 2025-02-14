@@ -1,7 +1,6 @@
 import pytest
 from django.conf import settings
 from prefect import State
-from prefect.logging import disable_run_logger
 
 import analyses.models
 import ena.models
@@ -21,10 +20,14 @@ from workflows.ena_utils.ena_api_requests import (
     ENAAvailabilityException,
     ENAAccessException,
 )
+from workflows.prefect_utils.testing_utils import (
+    should_not_mock_httpx_requests_to_prefect_server,
+)
 
 EMG_CONFIG = settings.EMG_CONFIG
 
 
+@pytest.mark.httpx_mock(should_mock=should_not_mock_httpx_requests_to_prefect_server)
 @pytest.mark.django_db(transaction=True)
 def test_get_study_from_ena_no_primary_accession(httpx_mock, prefect_harness):
     """
@@ -47,6 +50,7 @@ def test_get_study_from_ena_no_primary_accession(httpx_mock, prefect_harness):
     assert ENAAvailabilityException.__name__ in state.message
 
 
+@pytest.mark.httpx_mock(should_mock=should_not_mock_httpx_requests_to_prefect_server)
 @pytest.mark.django_db(transaction=True)
 def test_get_study_from_ena_two_secondary_accessions(httpx_mock, prefect_harness):
     """
@@ -75,6 +79,7 @@ def test_get_study_from_ena_two_secondary_accessions(httpx_mock, prefect_harness
     assert len(created_study.additional_accessions) == 2
 
 
+@pytest.mark.httpx_mock(should_mock=should_not_mock_httpx_requests_to_prefect_server)
 @pytest.mark.django_db(transaction=True)
 def test_get_study_from_ena_use_secondary_as_primary(httpx_mock, prefect_harness):
     """
@@ -107,6 +112,7 @@ def test_get_study_from_ena_use_secondary_as_primary(httpx_mock, prefect_harness
     assert len(created_study.additional_accessions) == 1
 
 
+@pytest.mark.httpx_mock(should_mock=should_not_mock_httpx_requests_to_prefect_server)
 @pytest.mark.django_db(transaction=True)
 def test_get_study_from_ena_no_secondary_accession(httpx_mock, prefect_harness):
     """
@@ -135,6 +141,7 @@ def test_get_study_from_ena_no_secondary_accession(httpx_mock, prefect_harness):
     assert len(created_study.additional_accessions) == 0
 
 
+@pytest.mark.httpx_mock(should_mock=should_not_mock_httpx_requests_to_prefect_server)
 @pytest.mark.django_db(transaction=True)
 def test_get_study_from_ena_private(httpx_mock, prefect_harness):
     """
@@ -186,6 +193,7 @@ def test_get_study_from_ena_private(httpx_mock, prefect_harness):
     assert created_study.is_private
 
 
+@pytest.mark.httpx_mock(should_mock=should_not_mock_httpx_requests_to_prefect_server)
 @pytest.mark.django_db(transaction=True)
 def test_get_study_readruns_from_ena(
     httpx_mock, raw_read_ena_study, raw_reads_mgnify_study, prefect_harness
@@ -405,6 +413,7 @@ def test_ena_api_query_maker(httpx_mock):
     assert response == [{"study_accession": "ERP1"}]
 
 
+@pytest.mark.httpx_mock(should_mock=should_not_mock_httpx_requests_to_prefect_server)
 def test_is_study_public(httpx_mock, prefect_harness):
     httpx_mock.add_response(
         url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3DERP1+OR+secondary_study_accession%3DERP1%29%22&fields=study_accession&limit=&format=json",
@@ -412,15 +421,13 @@ def test_is_study_public(httpx_mock, prefect_harness):
             {"study_accession": "ERP1"},
         ],
     )
-    with disable_run_logger():
-        assert is_ena_study_public("ERP1")
+    assert is_ena_study_public("ERP1")
 
     httpx_mock.add_response(
         url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3DERP1+OR+secondary_study_accession%3DERP1%29%22&fields=study_accession&limit=&format=json",
         json=[],
     )
-    with disable_run_logger():
-        assert not is_ena_study_public("ERP1")
+    assert not is_ena_study_public("ERP1")
 
     httpx_mock.add_response(
         url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3DERP1+OR+secondary_study_accession%3DERP1%29%22&fields=study_accession&limit=&format=json",
@@ -431,6 +438,7 @@ def test_is_study_public(httpx_mock, prefect_harness):
     assert ENAAccessException.__name__ in state.message
 
 
+@pytest.mark.httpx_mock(should_mock=should_not_mock_httpx_requests_to_prefect_server)
 def test_is_study_private(httpx_mock, prefect_harness):
     httpx_mock.add_response(
         url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28study_accession%3DERP1+OR+secondary_study_accession%3DERP1%29%22&fields=study_accession&limit=&format=json",
@@ -441,6 +449,7 @@ def test_is_study_private(httpx_mock, prefect_harness):
     assert is_ena_study_available_privately("ERP1")
 
 
+@pytest.mark.httpx_mock(should_mock=should_not_mock_httpx_requests_to_prefect_server)
 @pytest.mark.django_db
 def test_sync_privacy_state_of_ena_study_and_derived_objects(
     httpx_mock, prefect_harness, raw_read_run
