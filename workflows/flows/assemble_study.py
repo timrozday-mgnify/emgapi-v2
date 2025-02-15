@@ -3,7 +3,6 @@ from textwrap import dedent as _
 from typing import Optional
 
 import django
-from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.urls import reverse_lazy
 from prefect import flow, get_run_logger, suspend_flow_run
@@ -100,7 +99,7 @@ def assemble_study(
         assembler: AssemblerChoices
         webin_owner: Optional[str]
 
-    assemble_study_input: AssembleStudyInput = async_to_sync(suspend_flow_run)(
+    assemble_study_input: AssembleStudyInput = suspend_flow_run(
         wait_for_input=AssembleStudyInput.with_initial_data(
             assembler=AssemblerChoices.pipeline_default,
             description=_(
@@ -120,7 +119,7 @@ def assemble_study(
                 which you can edit in the [admin panel]({EMG_CONFIG.service_urls.app_root}/{reverse_lazy("admin:index")}).
 
                 **Webin owner**
-                If the study is private, the webin account owner is needed so that assemblies can be brokered into
+                If the study is private, the webin account owner is needed so that assemblies can be brokered into \
                 the reads study they own.
                 """
             ),
