@@ -114,6 +114,16 @@ def make_samplesheets_for_runs_to_assemble(
     assembler: analyses.models.Assembler,
     chunk_size: int = 10,
 ) -> [Path]:
+
+    if mgnify_study.assemblies_reads.exclude(
+        is_private=mgnify_study.is_private
+    ).exists():
+        # This shouldn't happen, but in case it does - we should raise an error now instead of passing
+        # impossible mixed publicity parameters to mi-assembler.
+        raise ValueError(
+            f"Study {mgnify_study} has assemblies whose privacy state does not match study."
+        )
+
     assemblies_to_attempt = get_assemblies_to_attempt(mgnify_study)
     chunked_assemblies = chunk_list(assemblies_to_attempt, chunk_size)
 

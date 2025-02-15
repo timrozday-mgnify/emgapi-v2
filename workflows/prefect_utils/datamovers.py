@@ -33,7 +33,7 @@ def move_data(source: str, target: str, move_command: str = "cp", **kwargs):
     expected_time = kwargs.pop("expected_time", timedelta(hours=2))
     memory = kwargs.pop("memory", "1G")
 
-    if not "environment" in kwargs:
+    if "environment" not in kwargs:
         kwargs["environment"] = {}
 
     return run_cluster_job(

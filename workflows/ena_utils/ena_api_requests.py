@@ -1,17 +1,19 @@
-import logging
 from datetime import date
 from enum import Enum
-from typing import List, Literal, Optional, Type, TypeVar, Union
+from json import JSONDecodeError
+from typing import List, Literal, Optional, Type, TypeVar, Union, Dict, Any
 
 import httpx
 from django.conf import settings
-from httpx import Auth, BasicAuth, Response
+from httpx import Auth
 from prefect import flow, get_run_logger, task
 from pydantic import BaseModel, Field, computed_field, field_serializer, model_validator
 from typing_extensions import Self
 
 import analyses.models
 import ena.models
+from emgapiv2.enum_utils import FutureStrEnum
+from workflows.ena_utils.ena_auth import dcc_auth
 from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 
 ALLOWED_LIBRARY_SOURCE: list = ["METAGENOMIC", "METATRANSCRIPTOMIC"]
@@ -20,6 +22,9 @@ PAIRED_END_LIBRARY_LAYOUT: str = "PAIRED"
 METAGENOME_SCIENTIFIC_NAME: str = "metagenome"
 
 EMG_CONFIG = settings.EMG_CONFIG
+
+RETRIES = EMG_CONFIG.ena.portal_search_api_max_retries
+RETRY_DELAY = EMG_CONFIG.ena.portal_search_api_retry_delay_seconds
 
 
 class ENAPortalResultType(str, Enum):
@@ -197,7 +202,7 @@ class ENAStudyQuery(_ENAQueryConditions):
     tax_id: Optional[str] = Field(None, description="NCBI taxonomic classification")
 
 
-class ENAStudyFields(str, Enum):
+class ENAStudyFields(FutureStrEnum):
     # from https://www.ebi.ac.uk/ena/portal/api/returnFields?dataPortal=metagenome&result=study 2025-01-23
     BREED = "breed"  # breed
     BROKER_NAME = "broker_name"  # broker name
@@ -247,13 +252,14 @@ class ENAAPIRequest(BaseModel):
             assert isinstance(self.fields, List)
             assert isinstance(self.fields[0], ENAStudyFields)
             self._assert_query_conditions_are_of_type(self.query, self.result)
+        return self
 
     def _assert_query_conditions_are_of_type(
         self,
         query_part: Union[ENAQuerySetType, ENAQueryClause, ENAQueryPair],
         result_type: ENAPortalResultType,
     ):
-        if type(query_part) == ENAQuerySetType:
+        if type(query_part) is ENAQuerySetType:
             if result_type == ENAPortalResultType.STUDY:
                 assert isinstance(query_part, ENAStudyQuery)
             elif isinstance(query_part, ENAQueryPair):
@@ -263,7 +269,6 @@ class ENAAPIRequest(BaseModel):
     @field_serializer("query")
     def serialize_query(self, query: Type[_ENAQueryConditions], _info):
         return f'"{query}"'
-        # return "%22" + str(query).replace(" ", "%20") + "%22"  # e.g. '"key1=val1 AND key2=val2"', encoded
 
     @field_serializer("fields")
     def serialize_fields(self, fields: Union[List[ENAStudyFields]], _info):
@@ -273,7 +278,20 @@ class ENAAPIRequest(BaseModel):
     def serialize_result_type(self, result: ENAPortalResultType):
         return result.value
 
-    def get(self, auth: Type[Auth] = None) -> Response:
+    def _parse_response(self, response: httpx.Response):
+        if self.format == "json":
+            try:
+                j = response.json()
+            except JSONDecodeError:
+                raise ENAAccessException("Bad JSON response.")
+            if isinstance(j, dict) and "message" in j:
+                raise ENAAccessException(f"Error response: {j['message']}")
+            elif isinstance(j, list) and len(j) == 0:
+                raise ENAAvailabilityException("Empty response.")
+            return j
+        return response.text  # TODO: tsv
+
+    def get(self, auth: Type[Auth] = None) -> Union[List[Dict[str, Any]], str]:
         url = EMG_CONFIG.ena.portal_search_api
         params = self.model_dump()
         r = httpx.get(
@@ -281,8 +299,9 @@ class ENAAPIRequest(BaseModel):
             params=params,
             auth=auth,
         )
-        logging.warning(r.request)
-        return r
+        if httpx.codes.is_error(r.status_code):
+            raise ENAAccessException(r.text)
+        return self._parse_response(r)
 
 
 def create_ena_api_request(result_type, query, limit, fields, result_format="json"):
@@ -296,16 +315,37 @@ def create_ena_api_request(result_type, query, limit, fields, result_format="jso
     )
 
 
+class ENAAccessException(Exception): ...
+
+
+class ENAAvailabilityException(Exception): ...
+
+
 @task(
-    retries=2,
+    retries=RETRIES,
+    retry_delay_seconds=RETRY_DELAY,
     cache_key_fn=context_agnostic_task_input_hash,
     task_run_name="Get study from ENA: {accession}",
-    log_prints=True,
 )
-async def get_study_from_ena(accession: str, limit: int = 10) -> ena.models.Study:
+def get_study_from_ena(accession: str, limit: int = 10) -> ena.models.Study:
     logger = get_run_logger()
 
     logger.info(f"Will fetch from ENA Portal API Study {accession}")
+
+    is_public = is_ena_study_public(accession)
+    is_private = not is_public and is_ena_study_available_privately(accession)
+
+    if not (is_private or is_public):
+        raise ENAAvailabilityException(
+            f"Study {accession} is not available publicly or privately on ENA"
+        )
+
+    # TODO: verify webin ownership
+
+    ena_auth = dcc_auth if is_private else None
+
+    if ena_auth:
+        logger.info("Fetching study with authentication.")
 
     portal = ENAAPIRequest(
         result=ENAPortalResultType.STUDY,
@@ -315,55 +355,47 @@ async def get_study_from_ena(accession: str, limit: int = 10) -> ena.models.Stud
         limit=limit,
         query=ENAStudyQuery(study_accession=accession)
         | ENAStudyQuery(secondary_study_accession=accession),
-    ).get()
+    ).get(auth=ena_auth)
 
-    if portal.status_code == httpx.codes.OK:
-        response_json = portal.json()
-        # Check if the response is empty
-        if not response_json:
-            raise Exception(f"No study found for accession {accession}")
-        s = response_json[0]
+    s = portal[0]
 
-        # Check secondary accession
-        secondary_accession: str = s["secondary_study_accession"]
-        additional_accessions: list = []
-        if not secondary_accession:
-            logger.warning(f"Study {accession} secondary_accession is not available")
-        else:
-            if len(secondary_accession.split(";")) > 1:
-                logger.warning(
-                    f"Study {accession} has more than one secondary_accession"
-                )
-                additional_accessions = secondary_accession.split(";")
-            else:
-                additional_accessions = [secondary_accession]
-
-        # Check primary accession
-        if not s["study_accession"]:
-            logger.warning(
-                f"Study {accession} primary_accession is not available. "
-                f"Use first secondary accession as primary_accession"
-            )
-            if additional_accessions:
-                primary_accession = additional_accessions[0]
-            else:
-                raise Exception(
-                    f"Neither primary nor secondary accessions found for study {accession}"
-                )
-        else:
-            primary_accession: str = s["study_accession"]
-
-        study, created = await ena.models.Study.objects.aget_or_create(
-            accession=primary_accession,
-            defaults={
-                "title": portal.json()[0]["study_title"],
-                "additional_accessions": additional_accessions,
-                # TODO: more metadata
-            },
-        )
-        return study
+    # Check secondary accession
+    secondary_accession: str = s["secondary_study_accession"]
+    additional_accessions: list = []
+    if not secondary_accession:
+        logger.warning(f"Study {accession} secondary_accession is not available")
     else:
-        raise Exception(f"Bad status! {portal.status_code} {portal}")
+        if len(secondary_accession.split(";")) > 1:
+            logger.warning(f"Study {accession} has more than one secondary_accession")
+            additional_accessions = secondary_accession.split(";")
+        else:
+            additional_accessions = [secondary_accession]
+
+    # Check primary accession
+    if not s[ENAStudyFields.STUDY_ACCESSION]:
+        logger.warning(
+            f"Study {accession} primary_accession is not available. "
+            f"Use first secondary accession as primary_accession"
+        )
+        if additional_accessions:
+            primary_accession = additional_accessions[0]
+        else:
+            raise Exception(
+                f"Neither primary nor secondary accessions found for study {accession}"
+            )
+    else:
+        primary_accession: str = s[ENAStudyFields.STUDY_ACCESSION]
+
+    study, created = ena.models.Study.objects.get_or_create(
+        accession=primary_accession,
+        defaults={
+            "title": s[ENAStudyFields.STUDY_TITLE],
+            "additional_accessions": additional_accessions,
+            "is_private": is_private,
+            # TODO: more metadata
+        },
+    )
+    return study
 
 
 def check_reads_fastq(fastq: list, run_accession: str, library_layout: str):
@@ -408,11 +440,10 @@ def check_reads_fastq(fastq: list, run_accession: str, library_layout: str):
 
 
 @task(
-    retries=10,
+    retries=RETRIES,
+    retry_delay_seconds=RETRY_DELAY,
     cache_key_fn=context_agnostic_task_input_hash,
-    retry_delay_seconds=60,
     task_run_name="Get study readruns from ENA: {accession}",
-    log_prints=True,
 )
 def get_study_readruns_from_ena(
     accession: str,
@@ -430,6 +461,8 @@ def get_study_readruns_from_ena(
     :param extra_cache_hash: A string/hash that, when changed, will cause the cache to invalidate and so the task will run again.
     :return: A list of run accessions that have been fetched and matched the specified library strategy. Study may also contain other non-matching runs.
     """
+    # TODO: rewrite using ena-api-handler once available
+
     logger = get_run_logger()
     if extra_cache_hash:
         logger.info(f"Cache has additional hash of {extra_cache_hash}")
@@ -445,13 +478,20 @@ def get_study_readruns_from_ena(
 
     logger.info(f"Will fetch study {accession} read-runs from ENA portal API")
 
-    mgys_study = analyses.models.Study.objects.get(ena_study__accession=accession)
+    mgys_study = analyses.models.Study.all_objects.get(ena_study__accession=accession)
+
+    if mgys_study.is_private:
+        auth = dcc_auth
+        logger.info("Using dcc authentication as study is private")
+    else:
+        auth = None
 
     portal = httpx.get(
         create_ena_api_request(
             result_type=result_type, query=query, limit=limit, fields=fields
         )
-        + "&dataPortal=metagenome"
+        + "&dataPortal=metagenome",
+        auth=auth,
     )
     if not portal.status_code == httpx.codes.OK:
         raise Exception(f"Bad status! {portal.status_code} {portal}")
@@ -492,7 +532,7 @@ def get_study_readruns_from_ena(
             },
         )
 
-        mgnify_sample, _ = analyses.models.Sample.objects.update_or_create(
+        mgnify_sample, _ = analyses.models.Sample.all_objects.update_or_create(
             ena_sample=ena_sample,
             defaults={
                 "ena_accessions": [
@@ -500,10 +540,11 @@ def get_study_readruns_from_ena(
                     read_run["secondary_sample_accession"],
                 ],
                 "ena_study": mgys_study.ena_study,
+                "is_private": mgys_study.is_private,
             },
         )
 
-        run, _ = analyses.models.Run.objects.update_or_create(
+        run, _ = analyses.models.Run.all_objects.update_or_create(
             ena_accessions=[read_run["run_accession"]],
             study=mgys_study,
             ena_study=mgys_study.ena_study,
@@ -523,7 +564,14 @@ def get_study_readruns_from_ena(
                         analyses.models.Run.CommonMetadataKeys.SCIENTIFIC_NAME
                     ],
                     analyses.models.Run.CommonMetadataKeys.FASTQ_FTPS: fastq_ftp_reads,
-                }
+                    analyses.models.Run.CommonMetadataKeys.HOST_TAX_ID: read_run[
+                        analyses.models.Run.CommonMetadataKeys.HOST_TAX_ID
+                    ],
+                    analyses.models.Run.CommonMetadataKeys.HOST_SCIENTIFIC_NAME: read_run[
+                        analyses.models.Run.CommonMetadataKeys.HOST_SCIENTIFIC_NAME
+                    ],
+                },
+                "is_private": mgys_study.is_private,
             },
         )
         run.set_experiment_type_by_ena_library_strategy(
@@ -538,38 +586,30 @@ def is_study_available(accession: str, auth: Optional[Type[Auth]] = None) -> boo
     logger = get_run_logger()
     logger.info(f"Checking ENA Portal for {accession}")
     if auth is None:
-        logger.info(f"Checking publicly, without auth")
+        logger.info("Checking publicly, without auth")
     else:
-        logger.info(f"Checking privately, with auth")
+        logger.info("Checking privately, with auth")
 
-    portal = ENAAPIRequest(
-        result=ENAPortalResultType.STUDY,
-        query=(
-            ENAStudyQuery(study_accession=accession)
-            | ENAStudyQuery(secondary_study_accession=accession)
-        ),
-        format="json",
-        fields=[ENAStudyFields.STUDY_ACCESSION],
-    ).get(auth=auth)
-    logger.info(f"Got {portal.status_code} response from ENA")
-    logger.info(portal.text)
-
-    if portal.status_code == httpx.codes.OK:
-        response_json = portal.json()
-        if "message" in response_json:
-            # that is an error response then
-            return False
-        return not not response_json
-    else:
-        raise Exception(
-            f"Bad status talking to portal API: {portal.status_code} {portal}"
-        )
+    try:
+        portal = ENAAPIRequest(
+            result=ENAPortalResultType.STUDY,
+            query=(
+                ENAStudyQuery(study_accession=accession)
+                | ENAStudyQuery(secondary_study_accession=accession)
+            ),
+            format="json",
+            fields=[ENAStudyFields.STUDY_ACCESSION],
+        ).get(auth=auth)
+    except ENAAvailabilityException as e:
+        logger.info(f"Looks like an error-free empty response from ENA: {e}")
+        return False
+    return len(portal) > 0
 
 
 @task(
     task_run_name="Determine if {accession} is public in ENA",
-    retries=4,
-    retry_delay_seconds=15,
+    retries=RETRIES,
+    retry_delay_seconds=RETRY_DELAY,
 )
 def is_ena_study_public(accession: str):
     logger = get_run_logger()
@@ -580,18 +620,14 @@ def is_ena_study_public(accession: str):
 
 @task(
     task_run_name="Determine if {accession} is public in ENA",
-    retries=4,
-    retry_delay_seconds=15,
+    retries=RETRIES,
+    retry_delay_seconds=RETRY_DELAY,
 )
 def is_ena_study_available_privately(accession: str):
     logger = get_run_logger()
-    auth = BasicAuth(
-        username=EMG_CONFIG.webin.emg_webin_account,
-        password=EMG_CONFIG.webin.emg_webin_password,
-    )
-    is_available_privately = is_study_available(accession=accession, auth=auth)
+    is_available_privately = is_study_available(accession=accession, auth=dcc_auth)
     logger.info(
-        f"Is {accession} available privately to {EMG_CONFIG.webin.emg_webin_account}? {is_available_privately}"
+        f"Is {accession} available privately to {EMG_CONFIG.webin.dcc_account}? {is_available_privately}"
     )
     return is_available_privately
 
