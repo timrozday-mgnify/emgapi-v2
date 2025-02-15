@@ -7,4 +7,5 @@ from analyses.models import Sample
 
 @admin.register(Sample)
 class SampleAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin):
-    pass
+    def get_queryset(self, request):
+        return self.model.all_objects.get_queryset()

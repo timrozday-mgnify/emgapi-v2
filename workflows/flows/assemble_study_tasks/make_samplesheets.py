@@ -37,7 +37,7 @@ def make_samplesheet(
     assembly_ids: List[Union[str, int]],
     assembler: analyses.models.Assembler,
 ) -> Path:
-    assemblies = analyses.models.Assembly.objects.select_related("run").filter(
+    assemblies = analyses.models.Assembly.all_objects.select_related("run").filter(
         id__in=assembly_ids
     )
 

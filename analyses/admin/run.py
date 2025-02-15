@@ -12,6 +12,9 @@ from analyses.models import Run
 
 @admin.register(Run)
 class RunAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin):
+    def get_queryset(self, request):
+        return self.model.all_objects.get_queryset()
+
     class StudyFilterForRun(StudyFilter):
         study_accession_search_fields = [
             "ena_study__accession",
