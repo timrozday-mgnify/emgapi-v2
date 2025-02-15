@@ -2,11 +2,12 @@ import csv
 import json
 from datetime import timedelta
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Optional
 
 import django
 import pandas as pd
 from django.conf import settings
+from django.db.models import Q
 from prefect import flow, get_run_logger, task
 
 from workflows.prefect_utils.build_cli_command import cli_command
@@ -28,6 +29,72 @@ from workflows.prefect_utils.slurm_policies import (
 )
 
 EMG_CONFIG = settings.EMG_CONFIG
+
+
+HOST_TAXON_TO_REFERENCE_GENOME = {
+    "9031": "chicken.fna",  # Gallus gallus
+    "8030": "salmon.fna",  # Salmo salar
+    "8049": "cod.fna",  #  Gadus morhua
+    "9823": "pig.fna",  # Sus scrofa
+    "9913": "cow.fna",  # Bos taurus
+    "10090": "mouse.fna",  # Mus musculus
+    "7460": "honeybee.fna",  # Apis mellifera
+    "10116": "rat.fna",  # Rattus norvegicus
+    "8022": "rainbow_trout.fna",  # Oncorhynchus mykiss
+    "9940": "sheep.fna",  # Ovis aries
+    "3847": "soybean.fna",  # Glycine max
+    "7955": "zebrafish.fna",  #  Danio rerio
+    "Gallus gallus": "chicken.fna",
+    "Salmo salar": "salmon.fna",
+    "Gadus morhua": "cod.fna",
+    "Sus scrofa": "pig.fna",
+    "Bos taurus": "cow.fna",
+    "Mus musculus": "mouse.fna",
+    "Apis mellifera": "honeybee.fna",
+    "Rattus norvegicus": "rat.fna",
+    "Oncorhynchus mykiss": "rainbow_trout.fna",
+    "Ovis aries": "sheep.fna",
+    "Glycine max": "soybean.fna",
+    "Danio rerio": "zebrafish.fna",
+}
+
+
+@task
+def get_reference_genome(
+    reads_study: analyses.models.Study,
+) -> Optional[str]:
+    logger = get_run_logger()
+    first_run_with_host_taxon = reads_study.runs.filter(
+        Q(
+            **{
+                f"metadata__{analyses.models.Run.CommonMetadataKeys.HOST_TAX_ID}__isnull": False
+            }
+        )
+        | Q(
+            **{
+                f"metadata__{analyses.models.Run.CommonMetadataKeys.HOST_SCIENTIFIC_NAME}__isnull": False
+            }
+        )
+    ).first()
+    if not first_run_with_host_taxon:
+        logger.warning(f"Found no run in {reads_study} with host taxon info")
+        return None
+    logger.info(
+        f"Using run {first_run_with_host_taxon} for determining host reference genome"
+    )
+
+    reference_genome = None
+    host_taxon = first_run_with_host_taxon.metadata.get(
+        analyses.models.Run.CommonMetadataKeys.HOST_TAX_ID
+    ) or first_run_with_host_taxon.metadata.get(
+        analyses.models.Run.CommonMetadataKeys.HOST_SCIENTIFIC_NAME
+    )
+    if host_taxon:
+        logger.info(f"Host taxon is {host_taxon}")
+        reference_genome = HOST_TAXON_TO_REFERENCE_GENOME.get(str(host_taxon), None)
+        logger.info(f"Reference genome will be: {reference_genome}")
+
+    return reference_genome
 
 
 @task
@@ -133,6 +200,7 @@ def run_assembler_for_samplesheet(
     )
 
     update_assemblies_assemblers_from_samplesheet(samplesheet_df)
+    host_reference = get_reference_genome(mgnify_study)
 
     for assembly in assemblies:
         # Mark assembly as started
@@ -153,13 +221,15 @@ def run_assembler_for_samplesheet(
         [
             f"nextflow run {EMG_CONFIG.assembler.assembly_pipeline_repo}",
             f"-r {EMG_CONFIG.assembler.miassemebler_git_revision}",
-            f"-latest "  # Pull changes from GitHub
+            f"-latest"  # Pull changes from GitHub
             f"-profile {EMG_CONFIG.assembler.miassembler_nf_profile}",
-            f"-resume" f"--samplesheet {samplesheet_csv}",
+            "-resume",
+            f"--samplesheet {samplesheet_csv}",
             mgnify_study.is_private and "--private_study",
-            f"--outdir {miassembler_outdir} ",
+            f"--outdir {miassembler_outdir}",
             settings.EMG_CONFIG.slurm.use_nextflow_tower and "-with-tower",
-            f"-name miassembler-samplesheet-{file_path_shortener(samplesheet_csv, 1, 15, True)} ",
+            host_reference and f"--reference_genome {host_reference}",
+            f"-name miassembler-samplesheet-{file_path_shortener(samplesheet_csv, 1, 15, True)}",
         ]
     )
 

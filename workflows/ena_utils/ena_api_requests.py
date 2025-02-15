@@ -564,6 +564,12 @@ def get_study_readruns_from_ena(
                         analyses.models.Run.CommonMetadataKeys.SCIENTIFIC_NAME
                     ],
                     analyses.models.Run.CommonMetadataKeys.FASTQ_FTPS: fastq_ftp_reads,
+                    analyses.models.Run.CommonMetadataKeys.HOST_TAX_ID: read_run[
+                        analyses.models.Run.CommonMetadataKeys.HOST_TAX_ID
+                    ],
+                    analyses.models.Run.CommonMetadataKeys.HOST_SCIENTIFIC_NAME: read_run[
+                        analyses.models.Run.CommonMetadataKeys.HOST_SCIENTIFIC_NAME
+                    ],
                 },
                 "is_private": mgys_study.is_private,
             },

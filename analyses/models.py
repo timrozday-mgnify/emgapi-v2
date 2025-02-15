@@ -160,6 +160,7 @@ class Run(
     TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel, WithExperimentTypeModel
 ):
     class CommonMetadataKeys:
+        # TODO replace this with ENA result type pydantic model once available
         INSTRUMENT_PLATFORM = "instrument_platform"
         INSTRUMENT_MODEL = "instrument_model"
         FASTQ_FTPS = "fastq_ftps"
@@ -167,6 +168,8 @@ class Run(
         LIBRARY_LAYOUT = "library_layout"
         LIBRARY_SOURCE = "library_source"
         SCIENTIFIC_NAME = "scientific_name"
+        HOST_TAX_ID = "host_tax_id"
+        HOST_SCIENTIFIC_NAME = "host_scientific_name"
 
     objects = PublicRunManager()
     all_objects = models.Manager()
