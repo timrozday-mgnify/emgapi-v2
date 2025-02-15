@@ -444,7 +444,7 @@ def upload_assembly(
 
     try:
         mgnify_assembly: analyses.models.Assembly = (
-            analyses.models.Assembly.all_objects.get(
+            analyses.models.Assembly.objects.get(
                 id=assembly_id,
             )
         )

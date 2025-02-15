@@ -113,9 +113,6 @@ class StudyReadsInline(TabularInlinePaginatedWithTabSupport):
 
 @admin.register(Study)
 class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin):
-    def get_queryset(self, request):
-        return self.model.all_objects.get_queryset()
-
     inlines = [StudyRunsInline, StudyAssembliesInline, StudyReadsInline]
     list_display = ["accession", "updated_at", "title", "display_accessions"]
     list_filter = ["updated_at", "created_at", "is_private"]
@@ -159,7 +156,7 @@ class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin)
         url_path="study-assembly-status-summary",
     )
     def show_assembly_status_summary(self, request, object_id):
-        study = get_object_or_404(Study.all_objects, pk=object_id)
+        study = get_object_or_404(Study.objects, pk=object_id)
         assemblies_per_state = {
             state: study.assemblies_reads.filter(
                 **{f"status__{state.value}": True}
@@ -214,7 +211,7 @@ class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin)
         url_path="study-run-type-summary",
     )
     def show_run_type_summary(self, request, object_id):
-        study = get_object_or_404(Study.all_objects, pk=object_id)
+        study = get_object_or_404(Study.objects, pk=object_id)
 
         runs_per_experiment_type = study.runs.values("experiment_type").annotate(
             count=Count("experiment_type")
@@ -262,7 +259,7 @@ class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin)
         url_path="study-analysis-status-summary",
     )
     def show_analysis_status_summary(self, request, object_id):
-        study = get_object_or_404(Study.all_objects, pk=object_id)
+        study = get_object_or_404(Study.objects, pk=object_id)
         analyses_per_state = {
             state: study.analyses.filter(**{f"status__{state.value}": True}).count()
             for state in Analysis.AnalysisStates
@@ -313,7 +310,7 @@ class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin)
 
 @staff_member_required
 def jump_to_latest_study_admin(request):
-    latest_study = Study.all_objects.order_by("-updated_at").first()
+    latest_study = Study.objects.order_by("-updated_at").first()
     return redirect(
         reverse_lazy(
             "admin:analyses_study_change", kwargs={"object_id": latest_study.pk}

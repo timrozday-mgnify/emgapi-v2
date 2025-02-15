@@ -478,7 +478,7 @@ def get_study_readruns_from_ena(
 
     logger.info(f"Will fetch study {accession} read-runs from ENA portal API")
 
-    mgys_study = analyses.models.Study.all_objects.get(ena_study__accession=accession)
+    mgys_study = analyses.models.Study.objects.get(ena_study__accession=accession)
 
     if mgys_study.is_private:
         auth = dcc_auth
@@ -532,7 +532,7 @@ def get_study_readruns_from_ena(
             },
         )
 
-        mgnify_sample, _ = analyses.models.Sample.all_objects.update_or_create(
+        mgnify_sample, _ = analyses.models.Sample.objects.update_or_create(
             ena_sample=ena_sample,
             defaults={
                 "ena_accessions": [
@@ -544,7 +544,7 @@ def get_study_readruns_from_ena(
             },
         )
 
-        run, _ = analyses.models.Run.all_objects.update_or_create(
+        run, _ = analyses.models.Run.objects.update_or_create(
             ena_accessions=[read_run["run_accession"]],
             study=mgys_study,
             ena_study=mgys_study.ena_study,

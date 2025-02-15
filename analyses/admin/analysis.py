@@ -21,9 +21,6 @@ class AnalysisStatusListFilter(StatusListFilter):
 
 @admin.register(Analysis)
 class AnalysisAdmin(JSONFieldWidgetOverridesMixin, ModelAdmin):
-    def get_queryset(self, request):
-        return self.model.all_objects.get_queryset()
-
     list_display = [
         "__str__",
         "assembly_or_run",

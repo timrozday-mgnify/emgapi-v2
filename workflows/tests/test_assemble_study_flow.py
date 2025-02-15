@@ -324,14 +324,30 @@ def test_prefect_assemble_private_study_flow(
     assembly_folder = f"{EMG_CONFIG.slurm.default_workdir}/PRJNA1_miassembler"
     os.mkdir(assembly_folder)
 
+    with open(f"{assembly_folder}/assembled_runs.csv", "w") as file:
+        file.write("SRR1,metaspades,3.15.5")
+
+    with open(f"{assembly_folder}/qc_failed_runs.csv", "w") as file:
+        file.write("SRR2,filter_ratio_threshold_exceeded")
+
+    os.makedirs(
+        f"{assembly_folder}/PRJNA1/PRJNA1/SRR1/SRR1/assembly/metaspades/3.15.5/coverage/",
+        exist_ok=True,
+    )
+    with open(
+        f"{assembly_folder}/PRJNA1/PRJNA1/SRR1/SRR1/assembly/metaspades/3.15.5/coverage/SRR1_coverage.json",
+        "w",
+    ) as file:
+        json.dump({"coverage": 0.04760503915318373, "coverage_depth": 273.694}, file)
+
     ### RUN WORKFLOW ###
     assemble_study(accession, upload=False)
 
     ### DB OBJECTS WERE CREATED AS EXPECTED ###
     assert ena.models.Study.objects.count() == 1
-    assert analyses.models.Study.objects.count() == 0  # no public study created
-    assert analyses.models.Study.all_objects.count() == 1  # a private study created
-    mgys: analyses.models.Study = analyses.models.Study.all_objects.select_related(
+    assert analyses.models.Study.public_objects.count() == 0  # no public study created
+    assert analyses.models.Study.objects.count() == 1  # a private study created
+    mgys: analyses.models.Study = analyses.models.Study.objects.select_related(
         "ena_study"
     ).first()
     assert mgys.is_private

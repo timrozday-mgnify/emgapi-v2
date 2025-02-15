@@ -96,8 +96,6 @@ def on_ena_study_saved_update_derived_suppression_and_privacy_states(
                         #  but is caught by this.
 
                         related_qs: QuerySet = related_model.objects
-                        if hasattr(related_model, "all_objects"):
-                            related_qs = related_model.all_objects
 
                         related_objects_to_update_status_of = related_qs.filter(
                             ena_study=instance

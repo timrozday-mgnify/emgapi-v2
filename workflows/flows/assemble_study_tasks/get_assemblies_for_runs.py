@@ -15,7 +15,7 @@ def get_or_create_assemblies_for_runs(
 ) -> List[str]:
     assembly_ids = []
     for read_run in read_runs:
-        run = analyses.models.Run.all_objects.get(ena_accessions__icontains=read_run)
+        run = analyses.models.Run.objects.get(ena_accessions__icontains=read_run)
         if run.experiment_type not in [
             run.ExperimentTypes.METAGENOMIC,
             run.ExperimentTypes.METATRANSCRIPTOMIC,
@@ -25,7 +25,7 @@ def get_or_create_assemblies_for_runs(
             )
             continue
 
-        assembly, created = analyses.models.Assembly.all_objects.get_or_create(
+        assembly, created = analyses.models.Assembly.objects.get_or_create(
             run=run,
             ena_study=study.ena_study,
             reads_study=study,

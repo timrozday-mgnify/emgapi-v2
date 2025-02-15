@@ -23,7 +23,7 @@ class MGnifyAutomatedModel(models.Model):
 
 class SelectRelatedEnaStudyManagerMixin:
     def get_queryset(self):
-        return super().get_queryset().select_related("ena_study")
+        return self().get_queryset().select_related("ena_study")
 
 
 class VisibilityControlledManager(SelectRelatedEnaStudyManagerMixin, models.Manager):

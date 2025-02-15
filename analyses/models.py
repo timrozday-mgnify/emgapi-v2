@@ -78,7 +78,7 @@ class StudyManager(models.Manager):
             logging.warning(
                 f"Problem getting ENA study {ena_study_accession} from ENA models DB"
             )
-        study, _ = Study.all_objects.get_or_create(
+        study, _ = Study.objects.get_or_create(
             ena_study=ena_study,
             title=ena_study.title,
             defaults={"is_private": ena_study.is_private},
@@ -96,8 +96,8 @@ class PublicStudyManager(PrivacyFilterManagerMixin, StudyManager):
 
 
 class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
-    objects = PublicStudyManager()
-    all_objects = models.Manager()
+    objects = StudyManager()
+    public_objects = PublicStudyManager()
 
     accession = MGnifyAccessionField(
         accession_prefix="MGYS", accession_length=8, db_index=True
@@ -123,8 +123,8 @@ class PublicSampleManager(PrivacyFilterManagerMixin, models.Manager): ...
 
 
 class Sample(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
-    objects = PublicSampleManager()
-    all_objects = models.Manager()
+    objects = models.Manager()
+    public_objects = PublicSampleManager()
 
     ena_sample = models.ForeignKey(ena.models.Sample, on_delete=models.CASCADE)
 
@@ -171,8 +171,8 @@ class Run(
         HOST_TAX_ID = "host_tax_id"
         HOST_SCIENTIFIC_NAME = "host_scientific_name"
 
-    objects = PublicRunManager()
-    all_objects = models.Manager()
+    objects = models.Manager()
+    public_objects = PublicRunManager()
 
     instrument_platform = models.CharField(
         db_column="instrument_platform", max_length=100, blank=True, null=True
@@ -243,8 +243,8 @@ class PublicAssemblyManager(PrivacyFilterManagerMixin, AssemblyManager): ...
 
 
 class Assembly(TimeStampedModel, ENADerivedModel):
-    objects = PublicAssemblyManager()
-    all_objects = AssemblyManager()
+    objects = AssemblyManager()
+    public_objects = PublicAssemblyManager()
 
     dir = models.CharField(max_length=200, null=True, blank=True)
     run = models.ForeignKey(
@@ -474,11 +474,11 @@ class Analysis(
     WithDownloadsModel,
     WithExperimentTypeModel,
 ):
-    objects = PublicAnalysisManager()
-    objects_and_annotations = PublicAnalysisManagerIncludingAnnotations()
+    objects = AnalysisManagerDeferringAnnotations()
+    objects_and_annotations = AnalysisManagerIncludingAnnotations()
 
-    all_objects = AnalysisManagerDeferringAnnotations()
-    all_objects_and_annotations = AnalysisManagerIncludingAnnotations()
+    public_objects = PublicAnalysisManager()
+    public_objects_and_annotations = PublicAnalysisManagerIncludingAnnotations()
 
     DOWNLOAD_PARENT_IDENTIFIER_ATTR = "accession"
 
@@ -640,9 +640,7 @@ def on_study_saved_update_analyses_suppression_states(
             f"Setting is_suppressed to {instance.is_suppressed} on {analysis.accession} via {instance.accession}"
         )
         analysis.is_suppressed = instance.is_suppressed
-    Analysis.all_objects.bulk_update(
-        analyses_to_update_suppression_of, ["is_suppressed"]
-    )
+    Analysis.objects.bulk_update(analyses_to_update_suppression_of, ["is_suppressed"])
 
 
 class AnalysedContig(TimeStampedModel):
