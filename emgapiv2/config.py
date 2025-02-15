@@ -106,6 +106,8 @@ class ENAConfig(BaseModel):
         "library_strategy",
         "library_source",
         "scientific_name",
+        "host_tax_id",
+        "host_scientific_name",
     ]
 
     ftp_prefix: str = "ftp.sra.ebi.ac.uk/vol1/"
