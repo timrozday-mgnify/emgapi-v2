@@ -1,5 +1,3 @@
-from enum import Enum
-
 from emgapiv2.enum_utils import FutureStrEnum
 
 
