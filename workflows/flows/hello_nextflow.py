@@ -5,7 +5,6 @@ from textwrap import dedent as _
 
 import django
 from prefect import flow
-from prefect.task_runners import SequentialTaskRunner
 
 from workflows.prefect_utils.slurm_policies import ResubmitAlwaysPolicy
 
@@ -19,7 +18,6 @@ from workflows.prefect_utils.slurm_flow import run_cluster_job
 @flow(
     name="Nexflow hello-world example",
     log_prints=True,
-    task_runner=SequentialTaskRunner,
 )
 def hello_nextflow(with_trace_flag: True):
     command = "nextflow run hello -ansi-log false"
