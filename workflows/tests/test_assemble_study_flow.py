@@ -283,6 +283,8 @@ def test_prefect_assemble_private_study_flow(
                 "library_strategy": "WGS",
                 "library_source": "METAGENOMIC",
                 "scientific_name": "metagenome",
+                "host_tax_id": "7460",
+                "host_scientific_name": "Apis mellifera",
             },
             {
                 "sample_accession": "SAMN02",
@@ -295,6 +297,8 @@ def test_prefect_assemble_private_study_flow(
                 "library_strategy": "WGS",
                 "library_source": "METAGENOMIC",
                 "scientific_name": "metagenome",
+                "host_tax_id": "7460",
+                "host_scientific_name": "Apis mellifera",
             },
         ],
     )
