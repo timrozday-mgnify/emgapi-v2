@@ -13,7 +13,7 @@ class ENAModel(models.Model):
 
     accession = models.CharField(primary_key=True, max_length=20)
     fetched_at = models.DateTimeField(auto_now=True)
-    additional_accessions = models.JSONField(default=list)
+    additional_accessions = models.JSONField(default=list, blank=True)
 
     class Meta:
         abstract = True
