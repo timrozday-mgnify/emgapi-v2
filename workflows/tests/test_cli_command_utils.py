@@ -8,6 +8,9 @@ def test_cli_command_generator():
     command = cli_command(["echo", "--message=hello world"])
     assert command == "echo '--message=hello world'"
 
+    command = cli_command(["echo", '--message="hello world"'])
+    assert command == "echo '--message=\"hello world\"'"
+
     command = cli_command(["echo", "--message=helloworld"])
     assert command == "echo --message=helloworld"
 
@@ -22,3 +25,6 @@ def test_cli_command_generator():
     some_condition = True
     command = cli_command(["echo", "--greeting=hello", some_condition and "--world"])
     assert command == "echo --greeting=hello --world"
+
+    command = cli_command(["echo", ("--greeting", "hello", "-world")])
+    assert command == "echo --greeting hello -world"

@@ -321,23 +321,23 @@ def test_prefect_assemble_private_study_flow(
 
     mock_suspend_flow_run.side_effect = suspend_side_effect
 
-    assembly_folder = f"{EMG_CONFIG.slurm.default_workdir}/PRJNA1_miassembler"
-    os.mkdir(assembly_folder)
+    assembly_folder = Path(f"{EMG_CONFIG.slurm.default_workdir}/PRJNA1_miassembler")
+    assembly_folder.mkdir(exist_ok=True)
 
-    with open(f"{assembly_folder}/assembled_runs.csv", "w") as file:
+    with (assembly_folder / "assembled_runs.csv").open("w") as file:
         file.write("SRR1,metaspades,3.15.5")
 
-    with open(f"{assembly_folder}/qc_failed_runs.csv", "w") as file:
+    with (assembly_folder / "qc_failed_runs.csv").open("w") as file:
         file.write("SRR2,filter_ratio_threshold_exceeded")
 
-    os.makedirs(
-        f"{assembly_folder}/PRJNA1/PRJNA1/SRR1/SRR1/assembly/metaspades/3.15.5/coverage/",
-        exist_ok=True,
-    )
-    with open(
-        f"{assembly_folder}/PRJNA1/PRJNA1/SRR1/SRR1/assembly/metaspades/3.15.5/coverage/SRR1_coverage.json",
-        "w",
-    ) as file:
+    (
+        assembly_folder / "PRJNA1/PRJNA1/SRR1/SRR1/assembly/metaspades/3.15.5/coverage/"
+    ).mkdir(parents=True, exist_ok=True)
+
+    with (
+        assembly_folder
+        / "PRJNA1/PRJNA1/SRR1/SRR1/assembly/metaspades/3.15.5/coverage/SRR1_coverage.json"
+    ).open("w") as file:
         json.dump({"coverage": 0.04760503915318373, "coverage_depth": 273.694}, file)
 
     ### RUN WORKFLOW ###
