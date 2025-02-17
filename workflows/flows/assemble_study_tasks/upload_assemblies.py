@@ -22,6 +22,6 @@ def upload_assemblies(study: analyses.models.Study, dry_run: bool = False):
             analyses.models.Assembly.AssemblyStates.POST_ASSEMBLY_QC_FAILED,
         ]
     )
-    print(f"Will upload assemblies: {assemblies_to_upload.acount()}")
+    print(f"Will upload assemblies: {assemblies_to_upload.count()}")
     for assembly in assemblies_to_upload:
         upload_assembly(assembly.id, dry_run=dry_run)
