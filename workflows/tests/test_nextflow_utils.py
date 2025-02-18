@@ -1,19 +1,22 @@
 import csv
 import tempfile
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
 
+from django.conf import settings
+
 import analyses.models
 import ena.models
-from workflows.flows.hello_nextflow import hello_nextflow
-from workflows.models import OrchestratedClusterJob
+from workflows.prefect_utils.slurm_flow import run_cluster_job
+from workflows.prefect_utils.slurm_policies import ResubmitAlwaysPolicy
 from workflows.nextflow_utils.samplesheets import (
     SamplesheetColumnSource,
     queryset_hash,
     queryset_to_samplesheet,
 )
-from workflows.prefect_utils.testing_utils import run_flow_and_capture_logs
+from workflows.prefect_utils.slurm_status import SlurmStatus
 
 
 @pytest.mark.django_db(transaction=True, reset_sequences=True)
@@ -174,25 +177,78 @@ def test_queryset_hash(raw_reads_mgnify_study):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_nextflow_trace_from_flag(prefect_harness):
-    # It should capture the logs either from the trace specified path
-    hello_nextfow_flow_with_flag = run_flow_and_capture_logs(
-        hello_nextflow, with_trace_flag=True
+def test_nextflow_trace_from_flag(
+    prefect_harness,
+    nextflow_hello_world_command,
+    write_nextflow_tracefile,
+    mock_start_cluster_job,
+    mock_cluster_can_accept_jobs_yes,
+    mock_check_cluster_job_all_completed,
+):
+    trace_file_location = (
+        Path(settings.EMG_CONFIG.slurm.default_workdir)
+        / "hello-nextflow"
+        / "trace-hello.txt"
     )
-    assert "Trace file -" in hello_nextfow_flow_with_flag.logs
 
-    job1: OrchestratedClusterJob = OrchestratedClusterJob.objects.get(
-        flow_run_id=hello_nextfow_flow_with_flag.flow_run_id
-    )
-    assert job1.nextflow_trace is not None
+    def make_trace_file(*args, **kwargs):
+        write_nextflow_tracefile(trace_file_location)
+        return SlurmStatus.completed.value
 
-    # of from the specified path in the config file
-    hello_nextfow_flow_with_config = run_flow_and_capture_logs(
-        hello_nextflow, with_trace_flag=False
-    )
-    assert "Trace file -" in hello_nextfow_flow_with_config.logs
+    mock_check_cluster_job_all_completed.side_effect = make_trace_file
 
-    job2: OrchestratedClusterJob = OrchestratedClusterJob.objects.get(
-        flow_run_id=hello_nextfow_flow_with_config.flow_run_id
+    hello_nextfow_flow = run_cluster_job(
+        name="Runs the nextflow hello world pipeline",
+        command=nextflow_hello_world_command(with_trace_flag=True),
+        expected_time=timedelta(minutes=10),
+        resubmit_policy=ResubmitAlwaysPolicy,
+        memory="100M",
+        environment="ALL",
+        working_dir=Path(settings.EMG_CONFIG.slurm.default_workdir) / "hello-nextflow",
     )
-    assert job2.nextflow_trace is not None
+
+    assert len(hello_nextfow_flow.nextflow_trace)
+    # Fixture - data
+    assert hello_nextfow_flow.nextflow_trace[0]["hash"] == "c4/1f6cf1"
+
+    trace_file_location.unlink()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_nextflow_trace_from_pipeline_info(
+    prefect_harness,
+    nextflow_hello_world_command,
+    write_nextflow_tracefile,
+    mock_start_cluster_job,
+    mock_cluster_can_accept_jobs_yes,
+    mock_check_cluster_job_all_completed,
+):
+    trace_file_location = (
+        Path(settings.EMG_CONFIG.slurm.default_workdir)
+        / "hello-nextflow"
+        / "pipeline_info/execution_trace_2025-05-01.txt"
+    )
+
+    def make_trace_file(*args, **kwargs):
+        write_nextflow_tracefile(trace_file_location)
+        return SlurmStatus.completed.value
+
+    mock_check_cluster_job_all_completed.side_effect = make_trace_file
+
+    hello_nextfow_flow = run_cluster_job(
+        name="Runs the nextflow hello world pipeline",
+        command=nextflow_hello_world_command(with_trace_flag=False),
+        expected_time=timedelta(minutes=10),
+        resubmit_policy=ResubmitAlwaysPolicy,
+        memory="100M",
+        environment="ALL",
+        working_dir=Path(settings.EMG_CONFIG.slurm.default_workdir) / "hello-nextflow",
+    )
+
+    print(hello_nextfow_flow.nextflow_trace)
+
+    assert len(hello_nextfow_flow.nextflow_trace)
+    # Fixture - data
+    assert hello_nextfow_flow.nextflow_trace[0]["hash"] == "c4/1f6cf1"
+
+    trace_file_location.unlink()

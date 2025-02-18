@@ -65,7 +65,7 @@ def maybe_get_nextflow_trace_file(
                     trace_file_location = trace_file
 
             if trace_file_location:
-                print(f"Trace file - {trace_file_location}")
+                print(f"Trace file should be at {trace_file_location}")
 
     if trace_file_location and check_existence:
         if not trace_file_location.exists():

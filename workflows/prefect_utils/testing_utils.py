@@ -1,7 +1,6 @@
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
-from uuid import UUID
+from typing import Any, Callable
 
 from prefect import State, get_client
 from prefect.client.schemas.filters import LogFilter, LogFilterFlowRunId
@@ -20,10 +19,9 @@ def get_logs_for_flow_run(flow_run_id: UUID4) -> str:
 class LoggedFlowRunResult:
     logs: str
     result: Any
-    flow_run_id: Optional[UUID]
 
 
-def run_flow_and_capture_logs(flow: Callable, *args, **kwargs):
+def run_flow_and_capture_logs(flow: Callable, *args, **kwargs) -> LoggedFlowRunResult:
     """
     Run a prefect flow, and then pull the logs for it from the prefect server API.
     This is a tedious workaround for buggy behaviour in capturing prefect logs with pytest caplog.
@@ -43,9 +41,7 @@ def run_flow_and_capture_logs(flow: Callable, *args, **kwargs):
     state: State = flow(*args, return_state=True, **kwargs)
     time.sleep(1)  # wait for log flushing
     logs = get_logs_for_flow_run(state.state_details.flow_run_id)
-    return LoggedFlowRunResult(
-        logs=logs, result=state.result(), flow_run_id=state.state_details.flow_run_id
-    )
+    return LoggedFlowRunResult(logs=logs, result=state.result())
 
 
 async def run_async_flow_and_capture_logs(flow: Callable, *args, **kwargs):
