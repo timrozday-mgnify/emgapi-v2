@@ -259,7 +259,7 @@ def start_or_attach_cluster_job(
             name=f"Preparation for: {name}",
             command=slurm_resubmit_policy.resubmit_needs_preparation_command,
             expected_time=timedelta(hours=1),
-            memory=EMG_CONFIG.slurm.preparation_command_job_memory_gb,
+            memory=f"{EMG_CONFIG.slurm.preparation_command_job_memory_gb}G",
             working_dir=job_workdir,
             resubmit_policy=ResubmitAlwaysPolicy,
             environment={},

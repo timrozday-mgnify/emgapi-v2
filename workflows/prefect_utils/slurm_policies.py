@@ -83,5 +83,5 @@ ResubmitWithCleanedNextflowIfFailedPolicy = _SlurmResubmitPolicy(
     policy_name="Resubmit if identical job previously failed",
     if_status_matches=slurm_status_is_finished_unsuccessfully,
     then_resubmit=True,
-    resubmit_needs_preparation_command="nextflow clean -f",
+    resubmit_needs_preparation_command="nextflow clean -f || echo",
 )

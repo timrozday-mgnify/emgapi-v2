@@ -13,7 +13,7 @@ class ENAModel(models.Model):
 
     accession = models.CharField(primary_key=True, max_length=20)
     fetched_at = models.DateTimeField(auto_now=True)
-    additional_accessions = models.JSONField(default=list)
+    additional_accessions = models.JSONField(default=list, blank=True)
 
     class Meta:
         abstract = True
@@ -96,8 +96,6 @@ def on_ena_study_saved_update_derived_suppression_and_privacy_states(
                         #  but is caught by this.
 
                         related_qs: QuerySet = related_model.objects
-                        if hasattr(related_model, "all_objects"):
-                            related_qs = related_model.all_objects
 
                         related_objects_to_update_status_of = related_qs.filter(
                             ena_study=instance

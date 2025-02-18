@@ -113,9 +113,6 @@ class StudyReadsInline(TabularInlinePaginatedWithTabSupport):
 
 @admin.register(Study)
 class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin):
-    def get_queryset(self, request):
-        return self.model.all_objects.get_queryset()
-
     inlines = [StudyRunsInline, StudyAssembliesInline, StudyReadsInline]
     list_display = ["accession", "updated_at", "title", "display_accessions"]
     list_filter = ["updated_at", "created_at", "is_private"]
@@ -159,7 +156,7 @@ class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin)
         url_path="study-assembly-status-summary",
     )
     def show_assembly_status_summary(self, request, object_id):
-        study = get_object_or_404(Study, pk=object_id)
+        study = get_object_or_404(Study.objects, pk=object_id)
         assemblies_per_state = {
             state: study.assemblies_reads.filter(
                 **{f"status__{state.value}": True}
@@ -214,7 +211,7 @@ class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin)
         url_path="study-run-type-summary",
     )
     def show_run_type_summary(self, request, object_id):
-        study = get_object_or_404(Study, pk=object_id)
+        study = get_object_or_404(Study.objects, pk=object_id)
 
         runs_per_experiment_type = study.runs.values("experiment_type").annotate(
             count=Count("experiment_type")
@@ -262,7 +259,7 @@ class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin)
         url_path="study-analysis-status-summary",
     )
     def show_analysis_status_summary(self, request, object_id):
-        study = get_object_or_404(Study, pk=object_id)
+        study = get_object_or_404(Study.objects, pk=object_id)
         analyses_per_state = {
             state: study.analyses.filter(**{f"status__{state.value}": True}).count()
             for state in Analysis.AnalysisStates

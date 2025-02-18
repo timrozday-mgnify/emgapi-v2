@@ -219,17 +219,20 @@ def run_assembler_for_samplesheet(
 
     command = cli_command(
         [
-            f"nextflow run {EMG_CONFIG.assembler.assembly_pipeline_repo}",
-            f"-r {EMG_CONFIG.assembler.miassemebler_git_revision}",
-            f"-latest"  # Pull changes from GitHub
-            f"-profile {EMG_CONFIG.assembler.miassembler_nf_profile}",
+            ("nextflow", "run", EMG_CONFIG.assembler.assembly_pipeline_repo),
+            ("-r", EMG_CONFIG.assembler.miassemebler_git_revision),
+            "-latest",  # Pull changes from GitHub
+            ("-profile", EMG_CONFIG.assembler.miassembler_nf_profile),
             "-resume",
-            f"--samplesheet {samplesheet_csv}",
+            ("--samplesheet", samplesheet_csv),
             mgnify_study.is_private and "--private_study",
-            f"--outdir {miassembler_outdir}",
+            ("--outdir", miassembler_outdir),
             settings.EMG_CONFIG.slurm.use_nextflow_tower and "-with-tower",
-            host_reference and f"--reference_genome {host_reference}",
-            f"-name miassembler-samplesheet-{file_path_shortener(samplesheet_csv, 1, 15, True)}",
+            host_reference and ("--reference_genome", host_reference),
+            (
+                "-name",
+                f"miassembler-samplesheet-{file_path_shortener(samplesheet_csv, 1, 15, True)}",
+            ),
         ]
     )
 
