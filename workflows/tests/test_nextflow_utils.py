@@ -245,7 +245,6 @@ def test_nextflow_trace_from_pipeline_info(
         working_dir=Path(settings.EMG_CONFIG.slurm.default_workdir) / "hello-nextflow",
     )
 
-    print(hello_nextfow_flow.nextflow_trace)
 
     assert len(hello_nextfow_flow.nextflow_trace)
     # Fixture - data
