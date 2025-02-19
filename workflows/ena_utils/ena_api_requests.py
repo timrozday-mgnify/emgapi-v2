@@ -634,7 +634,7 @@ def is_ena_study_available_privately(accession: str):
 
 @flow
 def sync_privacy_state_of_ena_study_and_derived_objects(
-    ena_study: Union[ena.models.Study, str]
+    ena_study: Union[ena.models.Study, str],
 ):
     logger = get_run_logger()
 
