@@ -245,7 +245,6 @@ def test_nextflow_trace_from_pipeline_info(
         working_dir=Path(settings.EMG_CONFIG.slurm.default_workdir) / "hello-nextflow",
     )
 
-
     assert len(hello_nextfow_flow.nextflow_trace)
     # Fixture - data
     assert hello_nextfow_flow.nextflow_trace[0]["hash"] == "c4/1f6cf1"
