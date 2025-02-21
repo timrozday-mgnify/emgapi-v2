@@ -195,7 +195,7 @@ class Run(
         latest_analysis: Analysis = self.latest_analysis
         return latest_analysis.status
 
-    def set_experiment_type_by_ena_library_strategy_and_library_source(
+    def set_experiment_type_by_metadata(
         self, ena_library_strategy: str, ena_library_source: str
     ):
         if (

@@ -574,7 +574,7 @@ def get_study_readruns_from_ena(
                 "is_private": mgys_study.is_private,
             },
         )
-        run.set_experiment_type_by_ena_library_strategy_and_library_source(
+        run.set_experiment_type_by_metadata(
             read_run[analyses.models.Run.CommonMetadataKeys.LIBRARY_STRATEGY],
             read_run[analyses.models.Run.CommonMetadataKeys.LIBRARY_SOURCE],
         )
