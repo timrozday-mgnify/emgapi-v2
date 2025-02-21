@@ -574,8 +574,9 @@ def get_study_readruns_from_ena(
                 "is_private": mgys_study.is_private,
             },
         )
-        run.set_experiment_type_by_ena_library_strategy(
-            read_run[analyses.models.Run.CommonMetadataKeys.LIBRARY_STRATEGY]
+        run.set_experiment_type_by_ena_library_strategy_and_library_source(
+            read_run[analyses.models.Run.CommonMetadataKeys.LIBRARY_STRATEGY],
+            read_run[analyses.models.Run.CommonMetadataKeys.LIBRARY_SOURCE],
         )
         run_accessions.append(run.first_accession)
 
