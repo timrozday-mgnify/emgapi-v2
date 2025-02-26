@@ -172,11 +172,11 @@ class Run(
         HOST_SCIENTIFIC_NAME = "host_scientific_name"
 
     class InstrumentPlatformKeys:
-        BGISEQ = "bgiseq"
-        DNBSEQ = "dnbseq"
-        ILLUMINA = "illumina"
-        OXFORD_NANOPORE = "ont"
-        PACBIO_SMRT = "pb"
+        BGISEQ = "BGISEQ"
+        DNBSEQ = "DNBSEQ"
+        ILLUMINA = "ILLUMINA"
+        OXFORD_NANOPORE = "OXFORD_NANOPORE"
+        PACBIO_SMRT = "PACBIO_SMRT"
 
     objects = models.Manager()
     public_objects = PublicRunManager()
