@@ -96,6 +96,8 @@ def test_prefect_assemble_study_flow(
                 "scientific_name": "metagenome",
                 "host_tax_id": "7460",
                 "host_scientific_name": "Apis mellifera",
+                "instrument_platform": "ILLUMINA",
+                "instrument_model": "Illumina MiSeq",
             },
             {
                 "sample_accession": "SAMN02",
@@ -110,6 +112,8 @@ def test_prefect_assemble_study_flow(
                 "scientific_name": "metagenome",
                 "host_tax_id": "7460",
                 "host_scientific_name": "Apis mellifera",
+                "instrument_platform": "ILLUMINA",
+                "instrument_model": "Illumina MiSeq",
             },
             {
                 "sample_accession": "SAMN03",
@@ -124,6 +128,8 @@ def test_prefect_assemble_study_flow(
                 "scientific_name": "metagenome",
                 "host_tax_id": "7460",
                 "host_scientific_name": "Apis mellifera",
+                "instrument_platform": "ILLUMINA",
+                "instrument_model": "Illumina MiSeq",
             },
         ],
     )
@@ -325,6 +331,8 @@ def test_prefect_assemble_private_study_flow(
                 "scientific_name": "metagenome",
                 "host_tax_id": "7460",
                 "host_scientific_name": "Apis mellifera",
+                "instrument_platform": "ILLUMINA",
+                "instrument_model": "Illumina MiSeq",
             },
             {
                 "sample_accession": "SAMN02",
@@ -339,6 +347,8 @@ def test_prefect_assemble_private_study_flow(
                 "scientific_name": "metagenome",
                 "host_tax_id": "7460",
                 "host_scientific_name": "Apis mellifera",
+                "instrument_platform": "ILLUMINA",
+                "instrument_model": "Illumina MiSeq",
             },
         ],
     )

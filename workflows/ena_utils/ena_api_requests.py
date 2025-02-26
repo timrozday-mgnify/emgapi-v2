@@ -570,6 +570,12 @@ def get_study_readruns_from_ena(
                     analyses.models.Run.CommonMetadataKeys.HOST_SCIENTIFIC_NAME: read_run[
                         analyses.models.Run.CommonMetadataKeys.HOST_SCIENTIFIC_NAME
                     ],
+                    analyses.models.Run.CommonMetadataKeys.INSTRUMENT_MODEL: read_run[
+                        analyses.models.Run.CommonMetadataKeys.INSTRUMENT_MODEL
+                    ],
+                    analyses.models.Run.CommonMetadataKeys.INSTRUMENT_PLATFORM: read_run[
+                        analyses.models.Run.CommonMetadataKeys.INSTRUMENT_PLATFORM
+                    ],
                 },
                 "is_private": mgys_study.is_private,
             },

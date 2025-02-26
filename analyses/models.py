@@ -171,6 +171,13 @@ class Run(
         HOST_TAX_ID = "host_tax_id"
         HOST_SCIENTIFIC_NAME = "host_scientific_name"
 
+    class InstrumentPlatformKeys:
+        BGISEQ = "bgiseq"
+        DNBSEQ = "dnbseq"
+        ILLUMINA = "illumina"
+        OXFORD_NANOPORE = "ont"
+        PACBIO_SMRT = "pb"
+
     objects = models.Manager()
     public_objects = PublicRunManager()
 
@@ -214,11 +221,13 @@ class Assembler(TimeStampedModel):
     METASPADES = "metaspades"
     MEGAHIT = "megahit"
     SPADES = "spades"
+    FLYE = "flye"
 
     NAME_CHOICES = [
         (METASPADES, "MetaSPAdes"),
         (MEGAHIT, "MEGAHIT"),
         (SPADES, "SPAdes"),
+        (FLYE, "Flye"),
     ]
 
     assembler_default: ClassVar[str] = METASPADES
