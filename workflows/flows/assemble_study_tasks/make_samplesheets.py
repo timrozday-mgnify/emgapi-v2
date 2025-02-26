@@ -80,7 +80,7 @@ def make_samplesheet(
             ),
             "platform": SamplesheetColumnSource(
                 lookup_string=f"run__metadata__{analyses.models.Run.CommonMetadataKeys.INSTRUMENT_PLATFORM}",
-                renderer=lambda platform: platform.upper(),  # TODO: fix it
+                renderer=lambda platform: str(platform).upper(),  # TODO: fix it
             ),
             "assembler": SamplesheetColumnSource(
                 lookup_string=[
