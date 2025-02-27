@@ -49,7 +49,7 @@ def queryset_to_samplesheet(
         for field in queryset.model._meta.get_fields():
             if not field.is_relation:
                 _column_map[field.name] = SamplesheetColumnSource(
-                    lookup_string=[field.name]
+                    lookup_string=field.name
                 )
 
     logger.info(
