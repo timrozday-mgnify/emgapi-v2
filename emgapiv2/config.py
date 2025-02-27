@@ -117,6 +117,8 @@ class ENAConfig(BaseModel):
         "scientific_name",
         "host_tax_id",
         "host_scientific_name",
+        "instrument_platform",
+        "instrument_model",
     ]
 
     ftp_prefix: str = "ftp.sra.ebi.ac.uk/vol1/"
