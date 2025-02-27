@@ -411,10 +411,9 @@ def check_reads_fastq(fastq: list, run_accession: str, library_layout: str):
                 f"Incorrect library_layout for {run_accession} having one fastq file"
             )
             return False
-        if "_1.f" in sorted_fastq[0] or "_2.f" in sorted_fastq[0]:
-            logger.warning(
-                f"Single fastq file contains _1 or _2 for run {run_accession}"
-            )
+        if "_2.f" in sorted_fastq[0]:
+            # we accept _1 be in SE fastq path
+            logger.warning(f"Single fastq file contains _2 for run {run_accession}")
             return False
         else:
             logger.info(f"One fastq for {run_accession}: {sorted_fastq}")
