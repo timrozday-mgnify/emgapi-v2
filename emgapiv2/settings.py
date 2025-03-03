@@ -264,6 +264,13 @@ UNFOLD = {
                             "api", "dashboard"
                         ),
                     },
+                    {
+                        "title": _("HPC Cluster jobs"),
+                        "icon": "memory",
+                        "link": reverse_lazy(
+                            "admin:workflows_orchestratedclusterjob_changelist"
+                        ),
+                    },
                 ],
             },
             {
@@ -304,11 +311,6 @@ LOGGING = {
     },
     "loggers": {
         "django": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": True,
-        },
-        "prefect": {
             "handlers": ["console"],
             "level": "INFO",
             "propagate": True,

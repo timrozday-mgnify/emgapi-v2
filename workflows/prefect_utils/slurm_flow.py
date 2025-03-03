@@ -2,28 +2,33 @@ import hashlib
 import logging
 import os
 import time
-import uuid
-from collections import Counter
-from datetime import datetime, timedelta
-from enum import Enum
+from datetime import timedelta
 from pathlib import Path
 from textwrap import dedent as _
-from typing import Callable, List, Optional, Union
+from typing import List, Optional, Union
 
 from django.conf import settings
-from django.utils.text import slugify
+from django.urls import reverse
+from django.utils.timezone import now
 from prefect import Flow, State, flow, get_run_logger, task
-from prefect.artifacts import create_markdown_artifact, create_table_artifact
+from prefect.artifacts import create_markdown_artifact
 from prefect.client.schemas import FlowRun
-from prefect.context import TaskRunContext
 from prefect.runtime import flow_run
-from prefect.variables import Variable
-from pydantic import AnyUrl
-from pydantic_core import Url
 
 from emgapiv2.log_utils import mask_sensitive_data as safe
-from workflows.data_io_utils.filenames import file_path_shortener
-from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
+from workflows.models import OrchestratedClusterJob
+from workflows.nextflow_utils.tower import maybe_get_nextflow_tower_browse_url
+from workflows.nextflow_utils.trace import maybe_get_nextflow_trace_df
+from workflows.prefect_utils.slurm_limits import delay_until_cluster_has_space
+from workflows.prefect_utils.slurm_policies import (
+    _SlurmResubmitPolicy,
+    ResubmitAlwaysPolicy,
+)
+from workflows.prefect_utils.slurm_status import (
+    SlurmStatus,
+    slurm_status_is_finished_successfully,
+    slurm_status_is_finished_unsuccessfully,
+)
 
 if "PYTEST_CURRENT_TEST" in os.environ:
     logging.warning("Unit testing, so patching pyslurm.")
@@ -31,7 +36,7 @@ if "PYTEST_CURRENT_TEST" in os.environ:
 else:
     try:
         import pyslurm
-    except:
+    except:  # noqa: E722
         logging.warning("No PySlurm available. Patching.")
         import workflows.prefect_utils.pyslurm_patch as pyslurm
 
@@ -39,57 +44,6 @@ EMG_CONFIG = settings.EMG_CONFIG
 
 CLUSTER_WORKPOOL = "slurm"
 SLURM_JOB_ID = "Slurm Job ID"
-FINAL_SLURM_STATE = "Final Slurm state"
-
-
-class SlurmStatus(str, Enum):
-    """
-    Possible Slurm Job Statuses. Slurm v 23.
-    """
-
-    pending = "PENDING"
-    running = "RUNNING"
-    completing = "COMPLETING"
-    completed = "COMPLETED"
-    failed = "FAILED"
-    terminated = "TERMINATED"
-    suspended = "SUSPENDED"
-    stopped = "STOPPED"
-    timeout = "TIMEOUT"
-    cancelled = "CANCELLED"
-    out_of_memory = "OUT_OF_MEMORY"
-
-    # Custom responses
-    unknown = "UNKNOWN"
-
-
-def slurm_status_is_okay(state: Union[SlurmStatus, str]):
-    return state in [
-        SlurmStatus.pending,
-        SlurmStatus.running,
-        SlurmStatus.unknown,
-        SlurmStatus.completed,
-    ]
-
-
-def slurm_status_is_finished_successfully(state: Union[SlurmStatus, str]):
-    return state in [SlurmStatus.completed]
-
-
-def slurm_status_is_finished_unsuccessfully(state: Union[SlurmStatus, str]):
-    return state in [
-        SlurmStatus.failed,
-        SlurmStatus.stopped,
-        SlurmStatus.timeout,
-        SlurmStatus.suspended,
-        SlurmStatus.terminated,
-        SlurmStatus.cancelled,
-        SlurmStatus.out_of_memory,
-    ]
-
-
-def slurm_status_is_running(state: Union[SlurmStatus, str]):
-    return state in [SlurmStatus.running, SlurmStatus.completing]
 
 
 def slurm_timedelta(delta: timedelta) -> str:
@@ -104,28 +58,34 @@ def slurm_timedelta(delta: timedelta) -> str:
     return f"{days:02}-{hours:02}:{minutes:02}:{seconds:02}"
 
 
-@task(persist_result=True, log_prints=True)
-def after_cluster_jobs():
-    print(
-        "Dummy task to run after cluster jobs, simply to ensure there is a task after pause/resume."
-    )
-
-
 def check_cluster_job(
-    job_id: Union[int, str],
+    orchestrated_cluster_job: OrchestratedClusterJob,
 ) -> str:
     """
     Retrieve the state (e.g. RUNNING) of a cluster job on slurm.
-    :param job_id: Slurm job ID e.g. 10101 or 10101_1
+    Updates the state of any associated OrchestratedClusterJob objects.
+    :param orchestrated_cluster_job: Orchestrated Cluster Job referencing the Slurm job
     :return: state of the job, as one of the string values of SlurmStatus.
     """
     logger = get_run_logger()
+    logger.info(f"Checking job {orchestrated_cluster_job}")
+
+    job_id = orchestrated_cluster_job.cluster_job_id
+
     try:
         job = pyslurm.db.Job(job_id).load(job_id)
     except pyslurm.core.error.RPCError:
         logger.warning(f"Error talking to slurm for job {job_id}")
+        orchestrated_cluster_job.last_known_state = SlurmStatus.unknown.value
+        orchestrated_cluster_job.state_checked_at = now()
+        orchestrated_cluster_job.save()
         return SlurmStatus.unknown.value
+
     logger.info(f"SLURM status of {job_id = } is {job.state}")
+
+    orchestrated_cluster_job.last_known_state = job.state
+    orchestrated_cluster_job.state_checked_at = now()
+
     job_log_path = Path(job.working_directory) / Path(f"slurm-{job_id}.out")
     if job_log_path.exists():
         with open(job_log_path, "r") as job_log:
@@ -141,56 +101,12 @@ def check_cluster_job(
                     """
                 ).replace("<<LOG>>", safe(log))
             )
+
+            orchestrated_cluster_job.cluster_log = log
     else:
         logger.info(f"No Slurm Job Stdout available at {job_log_path}")
-
+    orchestrated_cluster_job.save()
     return job.state
-
-
-def get_cluster_state_counts() -> dict[SlurmStatus, int]:
-    logger = get_run_logger()
-    try:
-        our_jobs = pyslurm.db.JobFilter(users=[EMG_CONFIG.slurm.user])
-        jobs = pyslurm.db.Jobs.load(our_jobs)
-    except pyslurm.core.error.RPCError:
-        logger.warning(f"Error talking to slurm")
-        return {}
-    logger.info(f"SLURM job total count: {len(jobs)}")
-    return Counter([job.state for job in jobs.values()])
-
-
-def cluster_can_accept_jobs() -> int:
-    """
-    Does the cluster have "space" for more pending jobs? And how many?
-    :return: Zero if there is no space. Otherwise, positive int of how many jobs can be taken.
-    """
-    current_job_state_counts = get_cluster_state_counts()
-    job_load = (
-        current_job_state_counts[SlurmStatus.running]
-        + current_job_state_counts[SlurmStatus.pending]
-    )
-    space = EMG_CONFIG.slurm.incomplete_job_limit - job_load
-    return max(space, 0)
-
-
-def maybe_get_nextflow_tower_browse_url(command: str) -> Optional[AnyUrl]:
-    """
-    If the command looks like a nextflow run with tower enabled and an explicitly defined name,
-    return the Nextflow Tower URL for it (to be browsed).
-    :param command: A command-line instruction e.g. nextflow run....
-    :return: A Nextflow Tower / Seqera Platform URL, or None
-    """
-    if "nextflow run" in command and "-tower" in command and "-name" in command:
-        try:
-            wf_name = command.split("-name")[1].strip().split(" ")[0]
-        except KeyError:
-            logging.warning(
-                f"Could not determine nextflow workflow run name from {command}"
-            )
-            return
-        return Url(
-            f"https://cloud.seqera.io/orgs/{EMG_CONFIG.slurm.nextflow_tower_org}/workspaces/{EMG_CONFIG.slurm.nextflow_tower_workspace}/watch?search={wf_name}"
-        )
 
 
 def _ensure_absolute_workdir(workdir):
@@ -202,55 +118,87 @@ def _ensure_absolute_workdir(workdir):
 
 
 @task(
-    task_run_name="Job submission: {name}",
+    task_run_name="Submit job to cluster: {name}",
     log_prints=True,
-    persist_result=True,
-    cache_key_fn=context_agnostic_task_input_hash,
 )
-def start_cluster_job(
+def submit_cluster_job(
+    name: str,
+    job_submit_description: OrchestratedClusterJob.SlurmJobSubmitDescription,
+    **kwargs,
+) -> str:
+    """
+    Launches a job on the HPC cluster.
+    This is not-cached: it will submit a slurm job whenever this task is called.
+
+    :param name: A name, purely to help identifying this task run in prefect.
+    :param job_submit_description:  The job params that will be passed to slurm submission.
+    :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
+    :return: Job ID of the slurm job. Usually an int-as-a-string, but not guaranteed.
+    """
+    print(f"Submitting job {name}")
+    desc = pyslurm.JobSubmitDescription(**job_submit_description.model_dump(), **kwargs)
+    job_id = desc.submit()
+    print(f"Submitted as slurm job {job_id}")
+    return job_id
+
+
+@task(
+    task_run_name="Job submission: {name}",
+)
+def start_or_attach_cluster_job(
     name: str,
     command: str,
     expected_time: timedelta,
     memory: Union[int, str],
-    workdir: Optional[Union[Path, str]] = None,
+    slurm_resubmit_policy: _SlurmResubmitPolicy,
+    workdir: Path,
     make_workdir_first: bool = True,
-    hash: str = "",
+    input_files: Optional[List[Path]] = None,
     **kwargs,
-) -> str:
+) -> OrchestratedClusterJob:
     """
-    Run a command on the HPC Cluster by submitting it as a Slurm job.
+    Run a command on the HPC Cluster via a Slurm job.
+
+    This task MAY launch a new slurm job, otherwise it may return the Job ID of a previously launched job
+    that is considered identical.
+
+    This allows flows to "reattach" to slurm jobs that they previously started,
+    even if the flow has crashed and been restarted.
+    (E.g. if the prefect worker VM is restarted during a long-running nextflow pipeline.)
+
+    It also allows flows to require a slurm job to have run, but to accept that slurm job may have been run by
+    a previous or different flow.
+    (E.g. if a metagenome assembly is needed by two different analysis pipelines.)
+
+    Note that this task does not use Prefect Caching - it uses OrchestratedClusterJob objects in the django DB,
+    along with logic defined by SlurmResubmitPolicies, to decide whether to submit a new job or not.
+
     :param name: Name for the job (both on Slurm and Prefect), e.g. "Run analysis pipeline for x"
     :param command: Shell-level command to run, e.g. "nextflow run my-pipeline.nf --sample x"
     :param expected_time: A timedelta after which the job will be killed if not done.
         This affects Prefect's polling interval too. E.g.  `timedelta(minutes=5)`
     :param memory: Maximum memory the job may use. In MB, or with a prefix. E.g. `100` or `10G`.
+    :param slurm_resubmit_policy: A SlurmResubmitPolicy to determine whether older identical jobs
+        should be used in place of a new one.
     :param workdir: Work dir for the job (pathlib.Path, or str). Otherwise, a default will be used based on the name.
     :param make_workdir_first: Make the work dir first, on the SUBMITTER machine.
         Usually this is desirable, except in cases where you're launching a job to a slurm node which has diff fs mounts.
-    :param hash: A string hash, used along with other params to determine if this job is "new" or already been/being run.
-        Basically, this is a cache-buster.
-        Common use case: a hash of some input files referenced by 'command',
-        that might have changed even though the command itself has not.
+    :param input_files: List of input file paths used for this job.
+        The content of these are hashed, as part of the decision about whether a new job should be launched or not.
     :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription
-    :return: Job ID of the slurm job.
+    :return: OrchestratedClusterJob submitted or attached.
     """
     logger = get_run_logger()
     logger.debug(f"Hash is {hash}")
 
+    ### Prepare working directory for job
     job_workdir = workdir
-
-    if not job_workdir:
-        # Make a unique workdir in the default location
-        unique_job_folder = slugify(
-            f"{name}-{datetime.now().isoformat()}-{str(uuid.uuid4()).split('-')[-1]}"
-        ).upper()
-        job_workdir = Path(EMG_CONFIG.slurm.default_workdir) / Path(unique_job_folder)
-
-    # If workdir was given as relative, make it absolute using default workdir as basepath
-    job_workdir = _ensure_absolute_workdir(job_workdir)
+    _ensure_absolute_workdir(job_workdir)
     if make_workdir_first and not job_workdir.exists():
-        os.mkdir(job_workdir)
+        job_workdir.mkdir(parents=True)
+    logger.info(f"Will use {job_workdir=}")
 
+    ### Prepare job submission description
     script = _(
         f"""\
         #!/bin/bash
@@ -259,7 +207,7 @@ def start_cluster_job(
         """
     )
     logger.info(f"Will run the script ```{safe(script)}```")
-    desc = pyslurm.JobSubmitDescription(
+    job_submit_description = OrchestratedClusterJob.SlurmJobSubmitDescription(
         name=name,
         time_limit=slurm_timedelta(expected_time),
         memory_per_node=memory,
@@ -267,17 +215,78 @@ def start_cluster_job(
         working_directory=str(job_workdir),
         **kwargs,
     )
-    job_id = desc.submit()
-    logger.info(f"Submitted as slurm job {job_id}")
+
+    # check if a job already exists for this
+    input_files = [
+        OrchestratedClusterJob.JobInputFile(
+            path=input_file,
+            hash=compute_hash_of_input_file([input_file]),
+        )
+        for input_file in input_files or []
+    ]
+    logger.info(f"Have hashed {len(input_files)} input files")
+
+    last_submitted_similar_job: Optional[OrchestratedClusterJob] = (
+        OrchestratedClusterJob.objects.get_previous_job(
+            job=job_submit_description,
+            policy=slurm_resubmit_policy,
+            input_file_hashes=input_files,
+        )
+    )
+
+    if last_submitted_similar_job:
+        logger.info(f"A similar job exists in history: {last_submitted_similar_job}")
+        if last_submitted_similar_job.should_resubmit_according_to_policy(
+            slurm_resubmit_policy
+        ):
+            logger.info(
+                f"Policy {slurm_resubmit_policy.policy_name} states we should resubmit the job."
+            )
+        else:
+            logger.info(
+                f"Policy {slurm_resubmit_policy.policy_name} states we should not resubmit the job. Using {last_submitted_similar_job}."
+            )
+            return last_submitted_similar_job
+
+    if (
+        last_submitted_similar_job
+        and slurm_resubmit_policy.resubmit_needs_preparation_command
+    ):
+        logger.info(
+            f"Policy {slurm_resubmit_policy.policy_name} requires a pre-resubmit command: {slurm_resubmit_policy.resubmit_needs_preparation_command}."
+        )
+        run_cluster_job(
+            name=f"Preparation for: {name}",
+            command=slurm_resubmit_policy.resubmit_needs_preparation_command,
+            expected_time=timedelta(hours=1),
+            memory=f"{EMG_CONFIG.slurm.preparation_command_job_memory_gb}G",
+            working_dir=job_workdir,
+            resubmit_policy=ResubmitAlwaysPolicy,
+            environment={},
+        )
+
+    # need to submit new job
+    job_id = submit_cluster_job(
+        name=job_submit_description.name,
+        job_submit_description=job_submit_description,
+    )
 
     nf_link = maybe_get_nextflow_tower_browse_url(command)
     nf_link_markdown = f"[Watch Nextflow Workflow]({nf_link})" if nf_link else ""
+
+    ocj = OrchestratedClusterJob.objects.create(
+        cluster_job_id=job_id,
+        flow_run_id=flow_run.id,
+        job_submit_description=job_submit_description,
+        input_files_hashes=input_files,
+    )
 
     create_markdown_artifact(
         key="slurm-job-submission",
         markdown=_(
             f"""\
             # Slurm job {job_id}
+            [Orchestrated Cluster Job {ocj.id}]({EMG_CONFIG.service_urls.app_root}/{reverse("admin:workflows_orchestratedclusterjob_change", kwargs={"object_id": ocj.id})})
             Submitted a script to Slurm cluster:
             ~~~
             <<SCRIPT>>
@@ -289,7 +298,7 @@ def start_cluster_job(
         ).replace("<<SCRIPT>>", safe(script)),
     )
 
-    return job_id
+    return ocj
 
 
 def cancel_cluster_job(name: str):
@@ -302,7 +311,9 @@ def cancel_cluster_job(name: str):
         db_filter=pyslurm.db.JobFilter(names=[name], users=[EMG_CONFIG.slurm.user])
     )
     jobs_to_cancel = [
-        job.job_id for job in jobs.values() if job.state == SlurmStatus.running
+        job.job_id
+        for job in jobs.values()
+        if job.state in [SlurmStatus.running.value, SlurmStatus.pending.value]
     ]
 
     if len(jobs_to_cancel) == 1:
@@ -336,37 +347,6 @@ class ClusterJobFailedException(Exception):
         return msg
 
 
-class ClusterPendingJobsLimitReachedException(Exception): ...
-
-
-def _cluster_delay_key(context: TaskRunContext, parameters: dict) -> str:
-    """
-    Creates a cache key that prevents the cluster delay task from running again for the same flow.
-    I.e., will not be impactful on a re-run of the parent flow.
-    """
-    return f"cluster-delay-marker-{context.task_run.flow_run_id}"
-
-
-@task(
-    retries=EMG_CONFIG.slurm.default_submission_attempts_limit,
-    retry_delay_seconds=EMG_CONFIG.slurm.default_seconds_between_submission_attempts,
-    cache_key_fn=_cluster_delay_key,
-)
-def _delay_until_cluster_has_space() -> int:
-    """
-    Run once (by caching the result of this task) at the start of a cluster job,
-    to potentially wait until the slurm cluster queue is sufficiently small for us to submit
-    a new job.
-    TODO: add "pressure" based on creation time of this flow, to enable prioritisation
-    TODO:   or use concurrency limit on this
-    :param delay_key: a string key to prevent another delay occurring once one already has.
-    :return: Free space (as number of jobs) below our limit. Will fail if above limit.
-    """
-    if not (space_on_cluster := cluster_can_accept_jobs()):
-        raise ClusterPendingJobsLimitReachedException
-    return space_on_cluster
-
-
 def cancel_cluster_jobs_if_flow_cancelled(
     the_flow: Flow, the_flow_run: FlowRun, state: State
 ):
@@ -386,7 +366,7 @@ def cancel_cluster_jobs_if_flow_cancelled(
 
 @task
 def compute_hash_of_input_file(
-    input_files_to_hash: Optional[List[Union[Path, str]]] = None
+    input_files_to_hash: Optional[List[Union[Path, str]]] = None,
 ) -> str:
     logger = get_run_logger()
     input_files_hash = hashlib.new("blake2b")
@@ -403,22 +383,35 @@ def compute_hash_of_input_file(
     return input_files_hash.hexdigest()
 
 
+@task(log_prints=True)
+def store_nextflow_trace(orchestrated_cluster_job: OrchestratedClusterJob):
+    job_description: OrchestratedClusterJob.SlurmJobSubmitDescription = (
+        orchestrated_cluster_job.job_submit_description
+    )
+    maybe_trace = maybe_get_nextflow_trace_df(
+        workdir=Path(job_description.working_directory), command=job_description.script
+    )
+    if maybe_trace is not None:
+        orchestrated_cluster_job.nextflow_trace = maybe_trace.to_dict(orient="index")
+        orchestrated_cluster_job.save()
+
+
 @flow(
     flow_run_name="Cluster job: {name}",
     persist_result=True,
-    retries=10,
     on_cancellation=[cancel_cluster_jobs_if_flow_cancelled],
 )
-async def run_cluster_job(
+def run_cluster_job(
     name: str,
     command: str,
     expected_time: timedelta,
     memory: Union[int, str],
     environment: Union[dict, str],
-    resubmit_even_if_identical: bool = False,
+    working_dir: Optional[Path] = None,
+    resubmit_policy: Optional[_SlurmResubmitPolicy] = None,
     input_files_to_hash: Optional[List[Union[Path, str]]] = None,
     **kwargs,
-) -> str:
+) -> OrchestratedClusterJob:
     """
     Run and wait for a job on the HPC cluster.
 
@@ -428,8 +421,9 @@ async def run_cluster_job(
     :param memory: Max memory the job may use. In MB, or with a suffix. E.g. `100` or `10G`.
     :param environment: Dictionary of environment variables to pass to job, or string in format of sbatch --export
         (see https://slurm.schedmd.com/sbatch.html). E.g. `TOWER_ACCESSION_TOKEN`
-    :param resubmit_even_if_identical: Boolean which if True, will force a new cluster job to be created even if
-        an identical one was already run and still exists in the cache.
+    :param working_dir: Path to a work dir for the job. If relative, it is relative to `default_workdir` in config.
+    :param resubmit_policy: A SlurmResubmitPolicy to determine whether older identical jobs
+        should be used in place of a new one.
     :param input_files_to_hash: Optional list of filepaths,
         whose contents will be hashed to determine if this job is identical to another.
         Note that the hash is done on the node where this flow runs, not the node where the job (may) run.
@@ -440,53 +434,23 @@ async def run_cluster_job(
     logger = get_run_logger()
 
     # Potentially wait some time if our cluster queue is very full
-    space_on_cluster = _delay_until_cluster_has_space()
+    delay_until_cluster_has_space()
 
-    # Submit the job to cluster.
-    # This is a cached result, so if this flow is retried, a new job will *not* be submitted.
-    # Rather, the original job_id will be returned.
-
-    input_files_hash = compute_hash_of_input_file(input_files_to_hash)
-
-    cluster_job_start_args = {
-        "name": name,
-        "command": command,
-        "expected_time": expected_time,
-        "memory": memory,
-        "environment": environment,
-        "hash": input_files_hash,
+    # Submit or attach to a job on the cluster.
+    # Depending on the job history and Resubmit Policy, this job may be a new one, an already running one,
+    # or a previously completed one.
+    orchestrated_cluster_job = start_or_attach_cluster_job(
+        name=name,
+        command=command,
+        expected_time=expected_time,
+        memory=memory,
+        input_files=input_files_to_hash,
+        slurm_resubmit_policy=resubmit_policy,
+        workdir=working_dir or Path(settings.EMG_CONFIG.slurm.default_workdir),
+        make_workdir_first=True,
+        environment=environment,
         **kwargs,
-    }
-
-    if resubmit_even_if_identical:
-        logger.warning(f"Ignoring any potentially cached previous runs of this job")
-        job_id = start_cluster_job.with_options(refresh_cache=True)(
-            **cluster_job_start_args, wait_for=space_on_cluster
-        )
-    else:
-        job_id = start_cluster_job(
-            **cluster_job_start_args,
-            wait_for=space_on_cluster,
-        )
-    logger.info(f"{job_id=}")
-
-    restart_instruction: Variable = await Variable.get(f"restart_{job_id}")
-    logger.info(
-        f"Checked restart variable at restart_{job_id}: found {restart_instruction}"
     )
-    if restart_instruction and str(restart_instruction.value).lower() == "true":
-        # A user has explicitly marked this slurm job for restarting, so refresh the cache (resubmit it)
-        logger.warning(
-            f"Resubmitting slurm job `{name}`, because jobid {job_id} was marked for restart."
-        )
-        resubmit_job_id = start_cluster_job.with_options(refresh_cache=True)(
-            **cluster_job_start_args, wait_for=space_on_cluster
-        )
-        logger.info(f"Resubmitted slurm job id {job_id} as {resubmit_job_id}")
-        await Variable.set(
-            f"restart_{job_id}", f"Resubmitted as {resubmit_job_id}", overwrite=True
-        )
-        job_id = resubmit_job_id
 
     # Wait for job completion
     # Resumability: if this flow was re-run / restarted for some reason, or the exact same cluster job was sent later,
@@ -494,13 +458,15 @@ async def run_cluster_job(
     #  check will just tell us the job finished immediately / it'll wait for the EXISTING job to finish.
     is_job_in_terminal_state = False
     while not is_job_in_terminal_state:
-        job_state = check_cluster_job(job_id)
+        job_state = check_cluster_job(orchestrated_cluster_job)
         if slurm_status_is_finished_successfully(job_state):
-            logger.info(f"Job {job_id} finished successfully.")
+            logger.info(f"Job {orchestrated_cluster_job} finished successfully.")
+            store_nextflow_trace(orchestrated_cluster_job)
             is_job_in_terminal_state = True
 
         if slurm_status_is_finished_unsuccessfully(job_state):
             error_details = None
+            job_id = orchestrated_cluster_job.cluster_job_id
             try:
                 job = pyslurm.db.Job(job_id).load(job_id)
                 job_log_path = Path(job.working_directory) / Path(f"slurm-{job_id}.out")
@@ -514,188 +480,9 @@ async def run_cluster_job(
 
         else:
             logger.debug(
-                f"Job {job_id} is still running. "
+                f"Job {orchestrated_cluster_job} is still running. "
                 f"Sleeping for {EMG_CONFIG.slurm.default_seconds_between_submission_attempts} seconds."
             )
             time.sleep(EMG_CONFIG.slurm.default_seconds_between_job_checks)
 
-    return job_id
-
-
-def _default_dirname(name, command):
-    return slugify(name).upper()
-
-
-@flow(
-    flow_run_name="Cluster jobs",
-    persist_result=True,
-    retries=10,
-    on_cancellation=[cancel_cluster_jobs_if_flow_cancelled],
-)
-async def run_cluster_jobs(
-    names: List[str],
-    commands: List[str],
-    expected_time: timedelta,
-    memory: Union[int, str],
-    environment: Union[dict, str],
-    workdirs: Union[List[str], Callable[[str, str], str]] = _default_dirname,
-    raise_on_job_failure: bool = True,
-    **kwargs,
-) -> list[dict[str, str]]:
-    """
-    Run and wait for a set of jobs on the HPC cluster.
-    :param names: Names for each job, e.g. ["job 1", "job 2"...]
-    :param commands: Shell-level command to run for each job, e.g. ["touch 1.txt", "touch 2.txt", ...]
-    :param expected_time: A timedelta after which the jobs will be killed if unfinished.
-    :param memory: Max memory the jobs may use. In MB, or with a suffix. E.g. `100` or `10G`.
-    :param environment: Dictionary of environment variables to pass to job, or string in format of sbatch --export
-        (see https://slurm.schedmd.com/sbatch.html). E.g. `TOWER_ACCESSION_TOKEN`
-    :param workdirs: Unique work directory for each job. Can either be a list like ["job-1", "job-2", ...],
-        or a function that turn each *name* and *command* pair into a key, e.g. lambda nm, cmd: nm" (which is the default).
-    :param raise_on_job_failure: Whether to fail this flow if ANY slurm job fails.
-    :param kwargs: Extra arguments to be passed to PySlurm's JobSubmitDescription.
-    :return: List of jobs (same order as jobs_args), with a dict of final info. Included "Final Slurm state" key.
-    """
-    logger = get_run_logger()
-
-    assert len(names) == len(commands)
-
-    # Potentially wait some time if our cluster queue is very full
-    space_on_cluster = _delay_until_cluster_has_space()
-    # TODO: probably should wait for additional space for multi jobs...
-
-    # Submit the jobs to cluster.
-    # These are persisted result, so if this flow is retried, new jobs will *not* be submitted.
-    # Rather, the original job_ids will be returned.
-    _workdirs = (
-        workdirs
-        if type(workdirs) is list
-        else [workdirs(n, c) for n, c in zip(names, commands)]
-    )
-    job_ids = [
-        start_cluster_job(
-            name=name,
-            command=command,
-            expected_time=expected_time,
-            memory=memory,
-            workdir=workdir,
-            environment=environment,
-            wait_for=space_on_cluster,
-            **kwargs,
-        )
-        for name, command, workdir in zip(names, commands, _workdirs)
-    ]
-
-    logger.info(f"{len(job_ids)} jobs submitted to cluster")
-
-    await create_table_artifact(
-        key="slurm-group-of-jobs-submission",
-        table=[
-            {
-                "Name": name,
-                "Command": command,
-                "Slurm Job ID": job_id,
-                "Working directory": workdir,
-                "Observe URL": str(maybe_get_nextflow_tower_browse_url(command)),
-            }
-            for name, command, job_id, workdir in zip(
-                names, commands, job_ids, _workdirs
-            )
-        ],
-        description="Jobs submitted to Slurm",
-    )
-
-    jobs_are_terminal = {job_id: False for job_id in job_ids}
-
-    # Wait for all jobs to complete.
-    # If we are here in a retry or even a later duplicate run (trying to run IDENTICAL jobs),
-    #  we will have been given back cached job_ids above.
-    #  Therefore, these status check loops will return the state of PREVIOUSLY launched jobs.
-    #  This is usually desirable for resumability / efficiency.
-    while not all(jobs_are_terminal.values()):
-        job_states = {job_id: check_cluster_job(job_id) for job_id in job_ids}
-
-        for job_id, job_state in job_states.items():
-            # job is newly finished
-            if (
-                slurm_status_is_finished_successfully(job_state)
-                and not jobs_are_terminal[job_id]
-            ):
-                logger.info(f"Job {job_id} finished successfully.")
-                jobs_are_terminal[job_id] = True
-
-            elif (
-                slurm_status_is_finished_unsuccessfully(job_state)
-                and not jobs_are_terminal[job_id]
-            ):
-                logger.info(f"Job {job_id} finished unsuccessfully.")
-                jobs_are_terminal[job_id] = True
-                if raise_on_job_failure:
-                    raise ClusterJobFailedException()
-                else:
-                    logger.warning(
-                        f"Job {job_id} finished unsuccessfully, but this is being allowed."
-                    )
-
-            else:
-                logger.debug(f"Job {job_id} is still running.")
-
-        if not all(jobs_are_terminal.values()):
-            logger.debug(
-                f"Some jobs are still running. "
-                f"Sleeping for {EMG_CONFIG.slurm.default_seconds_between_job_checks} seconds."
-            )
-            time.sleep(EMG_CONFIG.slurm.default_seconds_between_job_checks)
-
-    results_table = [
-        {
-            "Name": name,
-            "Command": command,
-            SLURM_JOB_ID: job_id,
-            FINAL_SLURM_STATE: check_cluster_job(job_id),
-        }
-        for name, command, job_id in zip(names, commands, job_ids)
-    ]
-
-    await create_table_artifact(
-        key="slurm-group-of-jobs-results",
-        table=results_table,
-        description="Jobs results from Slurm",
-    )
-
-    return results_table
-
-
-def move_data_flow_name() -> str:
-    source = flow_run.parameters["source"]
-    target = flow_run.parameters["target"]
-    return f"Move data: {file_path_shortener(source, 1, 10)} > {file_path_shortener(target, 1, 10)}"
-
-
-@flow(flow_run_name=move_data_flow_name)
-async def move_data(source: str, target: str, move_command: str = "cp", **kwargs):
-    """
-    Move files on the cluster filesystem.
-    This uses a slurm job running on the datamover partition.
-
-    :param source: fully qualified path of the source location (file or folder)
-    :param target: fully qualified path of the target location (file or folder)
-    :param move_command: tool command for the move. Default is `cp`, but could be `mv` or `rsync` etc.
-    :param kwargs: Other keywords to pass to run_cluster_job
-        (e.g. expected_time, memory, or other slurm job-description parameters)
-    :return: Job ID of the datamover job.
-    """
-    expected_time = kwargs.pop("expected_time", timedelta(hours=2))
-    memory = kwargs.pop("memory", "1G")
-
-    if not "environment" in kwargs:
-        kwargs["environment"] = {}
-    return await run_cluster_job(
-        name=f"Move {file_path_shortener(source)} to {file_path_shortener(target)}",
-        command=move_command,
-        expected_time=expected_time,
-        memory=memory,
-        resubmit_even_if_identical=True,
-        partitions=[EMG_CONFIG.slurm.datamover_paritition],
-        **kwargs,
-    )
+    return orchestrated_cluster_job

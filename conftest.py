@@ -1,5 +1,5 @@
 import os
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch, Mock
 
 import django
 import pytest
@@ -23,10 +23,11 @@ pytest_plugins = [
     "analyses.fixtures.study.conftest",
     "workflows.fixtures.legacy_emg_dbs.conftest",
     "workflows.fixtures.slurm.conftest",
+    "workflows.nextflow_utils.fixtures.conftest",
 ]
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def prefect_harness():
     with prefect_test_harness():
         yield
@@ -35,7 +36,7 @@ def prefect_harness():
 @pytest.fixture
 def mock_suspend_flow_run(request):
     namespace = request.param
-    with patch(f"{namespace}.suspend_flow_run", new_callable=AsyncMock) as mock_suspend:
+    with patch(f"{namespace}.suspend_flow_run", new_callable=Mock) as mock_suspend:
         yield mock_suspend
 
 

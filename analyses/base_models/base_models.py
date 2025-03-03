@@ -23,7 +23,7 @@ class MGnifyAutomatedModel(models.Model):
 
 class SelectRelatedEnaStudyManagerMixin:
     def get_queryset(self):
-        return super().get_queryset().select_related("ena_study")
+        return self().get_queryset().select_related("ena_study")
 
 
 class VisibilityControlledManager(SelectRelatedEnaStudyManagerMixin, models.Manager):
@@ -48,7 +48,7 @@ class VisibilityControlledModel(models.Model):
 
 
 class GetByENAAccessionManagerMixin:
-    async def get_by_accession(self, ena_accession):
+    def get_by_accession(self, ena_accession):
         qs = self.get_queryset().filter(ena_accessions__contains=ena_accession)
         if qs.count() > 1:
             raise self.MultipleObjectsReturned()
@@ -121,7 +121,13 @@ class TimeStampedModel(models.Model):
         abstract = True
 
 
-class PrivacyFilterManagerMixin:
+class SuppressionFilterManagerMixin:
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return qs.filter(is_suppressed=False)
+
+
+class PrivacyFilterManagerMixin(SuppressionFilterManagerMixin):
     """
     Base mixin providing common privacy filtering methods for studies
     """

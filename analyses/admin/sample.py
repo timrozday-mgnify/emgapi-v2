@@ -6,5 +6,4 @@ from analyses.models import Sample
 
 
 @admin.register(Sample)
-class SampleAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin):
-    pass
+class SampleAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin): ...
