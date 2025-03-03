@@ -6,7 +6,7 @@ include:
 
 services:
   prefect-database:
-    image: postgres:17
+    image: postgres:16
     restart: always
     container_name: prefect-database
     environment:
