@@ -93,7 +93,7 @@ api = NinjaAPI(
     operation_id="get_mgnify_study",
 )
 def get_mgnify_study(request, accession: str):
-    study = get_object_or_404(analyses.models.Study, accession=accession)
+    study = get_object_or_404(analyses.models.Study.public_objects, accession=accession)
     return study
 
 
@@ -106,7 +106,7 @@ def get_mgnify_study(request, accession: str):
     operation_id="list_mgnify_studies",
 )
 def list_mgnify_studies(request):
-    qs = analyses.models.Study.objects.all()
+    qs = analyses.models.Study.public_objects.all()
     return qs
 
 
@@ -135,7 +135,8 @@ def list_mgnify_studies(request):
 )
 def get_mgnify_analysis(request, accession: str):
     analysis = get_object_or_404(
-        analyses.models.Analysis.objects.select_related("run"), accession=accession
+        analyses.models.Analysis.public_objects.select_related("run"),
+        accession=accession,
     )
 
     run_accession = analysis.run.first_accession if analysis.run else None
@@ -173,7 +174,7 @@ def get_mgnify_analysis(request, accession: str):
 )
 def get_mgnify_analysis_with_annotations(request, accession: str):
     analysis = get_object_or_404(
-        analyses.models.Analysis.objects_and_annotations, accession=accession
+        analyses.models.Analysis.public_objects_and_annotations, accession=accession
     )
     run_accession = analysis.run.first_accession if analysis.run else None
     study_accession = analysis.study.accession if analysis.study else None
@@ -212,7 +213,7 @@ def get_mgnify_analysis_with_annotations_of_type(
 ):
     try:
         annotations = (
-            analyses.models.Analysis.objects.filter(accession=accession)
+            analyses.models.Analysis.public_objects.filter(accession=accession)
             .values_list(f"annotations__{annotation_type.value}", flat=True)
             .first()
         )
@@ -234,7 +235,7 @@ def get_mgnify_analysis_with_annotations_of_type(
     operation_id="list_mgnify_analyses",
 )
 def list_mgnify_analyses(request):
-    qs = analyses.models.Analysis.objects.all()
+    qs = analyses.models.Analysis.public_objects.all()
     return qs
 
 
@@ -254,7 +255,7 @@ def list_mgnify_analyses(request):
     auth=django_auth_superuser,
 )
 def list_private_mgnify_analyses():
-    qs = analyses.models.Analysis.objects.private_only()
+    qs = analyses.models.Analysis.public_objects()
     return qs
 
 
@@ -267,7 +268,7 @@ def list_private_mgnify_analyses():
     auth=django_auth_superuser,
 )
 def list_private_mgnify_studies():
-    qs = analyses.models.Study.objects.private_only()
+    qs = analyses.models.Study.objects()
     return qs
 
 

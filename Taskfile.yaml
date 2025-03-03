@@ -61,6 +61,12 @@ tasks:
       - docker exec -it slurm_node bash
     interactive: true
 
+  agent:
+    desc: "Connect to the prefect agent to run commands there."
+    cmds:
+      - docker exec -it prefect-agent bash
+    interactive: true
+
   test:
     desc: "Run pytest tests. E.g. `task test` or `task test -- -k study`"
     cmds:

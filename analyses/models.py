@@ -3,11 +3,9 @@ from __future__ import annotations
 import logging
 import os
 import re
-from enum import Enum
 from pathlib import Path
 from typing import ClassVar, Union
 
-from asgiref.sync import sync_to_async
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import models
 from django.db.models import JSONField, Q
@@ -28,6 +26,7 @@ from analyses.base_models.mgnify_accessioned_models import MGnifyAccessionField
 from analyses.base_models.with_downloads_models import WithDownloadsModel
 from analyses.base_models.with_status_models import SelectByStatusManagerMixin
 from emgapiv2.async_utils import anysync_property
+from emgapiv2.enum_utils import FutureStrEnum
 
 # Some models associated with MGnify Analyses (MGYS, MGYA etc).
 
@@ -67,24 +66,24 @@ class Biome(TreeModel):
 
 
 class StudyManager(models.Manager):
-    async def get_or_create_for_ena_study(self, ena_study_accession):
+    def get_or_create_for_ena_study(self, ena_study_accession):
         logging.info(f"Will get/create MGnify study for {ena_study_accession}")
         try:
-            ena_study = await ena.models.Study.objects.filter(
+            ena_study = ena.models.Study.objects.filter(
                 Q(accession=ena_study_accession)
                 | Q(additional_accessions__icontains=ena_study_accession)
-            ).afirst()
+            ).first()
             logging.debug(f"Got {ena_study}")
-        except (MultipleObjectsReturned, ObjectDoesNotExist) as e:
+        except (MultipleObjectsReturned, ObjectDoesNotExist):
             logging.warning(
                 f"Problem getting ENA study {ena_study_accession} from ENA models DB"
             )
-        study, _ = await Study.objects.aget_or_create(
-            ena_study=ena_study, title=ena_study.title
+        study, _ = Study.objects.get_or_create(
+            ena_study=ena_study,
+            title=ena_study.title,
+            defaults={"is_private": ena_study.is_private},
         )
-        await sync_to_async(study.inherit_accessions_from_related_ena_object)(
-            "ena_study"
-        )
+        study.inherit_accessions_from_related_ena_object("ena_study")
         return study
 
 
@@ -97,8 +96,8 @@ class PublicStudyManager(PrivacyFilterManagerMixin, StudyManager):
 
 
 class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
-    objects = PublicStudyManager()
-    all_objects = models.Manager()
+    objects = StudyManager()
+    public_objects = PublicStudyManager()
 
     accession = MGnifyAccessionField(
         accession_prefix="MGYS", accession_length=8, db_index=True
@@ -107,7 +106,11 @@ class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
         ena.models.Study, on_delete=models.CASCADE, null=True, blank=True
     )
     biome = models.ForeignKey(Biome, on_delete=models.CASCADE, null=True, blank=True)
-    title = models.CharField(max_length=255)
+    has_legacy_data = models.BooleanField(
+        default=False, help_text="If the study has legacy data (pre V6)"
+    )
+
+    title = models.CharField(max_length=4000)  # same max as ENA DB
 
     def __str__(self):
         return self.accession
@@ -116,7 +119,13 @@ class Study(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
         verbose_name_plural = "studies"
 
 
+class PublicSampleManager(PrivacyFilterManagerMixin, models.Manager): ...
+
+
 class Sample(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
+    objects = models.Manager()
+    public_objects = PublicSampleManager()
+
     ena_sample = models.ForeignKey(ena.models.Sample, on_delete=models.CASCADE)
 
     def __str__(self):
@@ -144,10 +153,14 @@ class WithExperimentTypeModel(models.Model):
         abstract = True
 
 
+class PublicRunManager(PrivacyFilterManagerMixin, models.Manager): ...
+
+
 class Run(
     TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel, WithExperimentTypeModel
 ):
     class CommonMetadataKeys:
+        # TODO replace this with ENA result type pydantic model once available
         INSTRUMENT_PLATFORM = "instrument_platform"
         INSTRUMENT_MODEL = "instrument_model"
         FASTQ_FTPS = "fastq_ftps"
@@ -155,6 +168,19 @@ class Run(
         LIBRARY_LAYOUT = "library_layout"
         LIBRARY_SOURCE = "library_source"
         SCIENTIFIC_NAME = "scientific_name"
+        HOST_TAX_ID = "host_tax_id"
+        HOST_SCIENTIFIC_NAME = "host_scientific_name"
+
+    class InstrumentPlatformKeys:
+        BGISEQ = "BGISEQ"
+        DNBSEQ = "DNBSEQ"
+        ILLUMINA = "ILLUMINA"
+        OXFORD_NANOPORE = "OXFORD_NANOPORE"
+        PACBIO_SMRT = "PACBIO_SMRT"
+        ION_TORRENT = "ION_TORRENT"
+
+    objects = models.Manager()
+    public_objects = PublicRunManager()
 
     instrument_platform = models.CharField(
         db_column="instrument_platform", max_length=100, blank=True, null=True
@@ -177,12 +203,28 @@ class Run(
         latest_analysis: Analysis = self.latest_analysis
         return latest_analysis.status
 
-    def set_experiment_type_by_ena_library_strategy(self, ena_library_strategy: str):
-        if ena_library_strategy.lower() == "rna-seq":
+    def set_experiment_type_by_metadata(
+        self, ena_library_strategy: str, ena_library_source: str
+    ):
+        if (
+            ena_library_strategy.lower() == "rna-seq"
+            and ena_library_source.lower() == "metagenomic"
+        ):
             self.experiment_type = Run.ExperimentTypes.METATRANSCRIPTOMIC
-        elif ena_library_strategy.lower() == "wgs":
+        elif (
+            ena_library_strategy.lower() == "wgs"
+            and ena_library_source.lower() == "metatranscriptomic"
+        ):
+            self.experiment_type = Run.ExperimentTypes.METATRANSCRIPTOMIC
+        elif (
+            ena_library_strategy.lower() == "wgs"
+            and ena_library_source.lower() == "metagenomic"
+        ):
             self.experiment_type = Run.ExperimentTypes.METAGENOMIC
-        elif ena_library_strategy.lower() == "amplicon":
+        elif (
+            ena_library_strategy.lower() == "amplicon"
+            and ena_library_source.lower() == "metagenomic"
+        ):
             self.experiment_type = Run.ExperimentTypes.AMPLICON
         else:
             self.experiment_type = Run.ExperimentTypes.UNKNOWN
@@ -196,11 +238,13 @@ class Assembler(TimeStampedModel):
     METASPADES = "metaspades"
     MEGAHIT = "megahit"
     SPADES = "spades"
+    FLYE = "flye"
 
     NAME_CHOICES = [
         (METASPADES, "MetaSPAdes"),
         (MEGAHIT, "MEGAHIT"),
         (SPADES, "SPAdes"),
+        (FLYE, "Flye"),
     ]
 
     assembler_default: ClassVar[str] = METASPADES
@@ -221,8 +265,12 @@ class AssemblyManager(SelectByStatusManagerMixin, ENADerivedManager):
         return super().get_queryset().select_related("run")
 
 
+class PublicAssemblyManager(PrivacyFilterManagerMixin, AssemblyManager): ...
+
+
 class Assembly(TimeStampedModel, ENADerivedModel):
     objects = AssemblyManager()
+    public_objects = PublicAssemblyManager()
 
     dir = models.CharField(max_length=200, null=True, blank=True)
     run = models.ForeignKey(
@@ -259,7 +307,7 @@ class Assembly(TimeStampedModel, ENADerivedModel):
 
     metadata = JSONField(default=dict, db_index=True, blank=True)
 
-    class AssemblyStates(str, Enum):
+    class AssemblyStates(FutureStrEnum):
         ENA_METADATA_SANITY_CHECK_FAILED = "ena_metadata_sanity_check_failed"
         ENA_DATA_QC_CHECK_FAILED = "ena_data_qc_check_failed"
         ASSEMBLY_STARTED = "assembly_started"
@@ -318,7 +366,8 @@ class Assembly(TimeStampedModel, ENADerivedModel):
         verbose_name_plural = "Assemblies"
         constraints = [
             models.CheckConstraint(
-                check=Q(reads_study__isnull=False) | Q(assembly_study__isnull=False),
+                condition=Q(reads_study__isnull=False)
+                | Q(assembly_study__isnull=False),
                 name="at_least_one_study_present",
             )
         ]
@@ -451,11 +500,11 @@ class Analysis(
     WithDownloadsModel,
     WithExperimentTypeModel,
 ):
-    objects = PublicAnalysisManager()
-    objects_and_annotations = PublicAnalysisManagerIncludingAnnotations()
+    objects = AnalysisManagerDeferringAnnotations()
+    objects_and_annotations = AnalysisManagerIncludingAnnotations()
 
-    all_objects = AnalysisManagerDeferringAnnotations()
-    all_objects_and_annotations = AnalysisManagerIncludingAnnotations()
+    public_objects = PublicAnalysisManager()
+    public_objects_and_annotations = PublicAnalysisManagerIncludingAnnotations()
 
     DOWNLOAD_PARENT_IDENTIFIER_ATTR = "accession"
 
@@ -479,6 +528,7 @@ class Analysis(
         blank=True,
         related_name="analyses",
     )
+    is_suppressed = models.BooleanField(default=False)
 
     GENOME_PROPERTIES = "genome_properties"
     GO_TERMS = "go_terms"
@@ -491,7 +541,7 @@ class Analysis(
 
     TAXONOMIES = "taxonomies"
 
-    class TaxonomySources(Enum):
+    class TaxonomySources(FutureStrEnum):
         SSU: str = "ssu"
         LSU: str = "lsu"
         ITS_ONE_DB: str = "its_one_db"
@@ -533,7 +583,7 @@ class Analysis(
         choices=PipelineVersions, max_length=5, default=PipelineVersions.v6
     )
 
-    class AnalysisStates(str, Enum):
+    class AnalysisStates(FutureStrEnum):
         ANALYSIS_STARTED = "analysis_started"
         ANALYSIS_COMPLETED = "analysis_completed"
         ANALYSIS_BLOCKED = "analysis_blocked"
@@ -590,8 +640,33 @@ class Analysis(
 
 @receiver(post_save, sender=Analysis)
 def on_analysis_saved(sender, instance: Analysis, created, **kwargs):
+    """
+    Whenever an Analysis is saved, determine its experiment type based on the runs/assemblies it is associated with.
+    """
     if instance.experiment_type in [None, "", instance.ExperimentTypes.UNKNOWN]:
         instance.inherit_experiment_type()
+
+
+@receiver(post_save, sender=Study)
+def on_study_saved_update_analyses_suppression_states(
+    sender, instance: Study, created, **kwargs
+):
+    """
+    (Un)suppress the analyses associated with a Study whenever the Study is updated.
+    All other models are directly related to ENA objects, so their suppression is handled directly.
+    Analyses are different (no ENA accession/equivalent object) hence they follow this study-down propagation.
+    This means there is no current way to suppress one analysis of a study, only entire studies.
+    This is how ENA's documentation suggests suppression should work.
+    """
+    analyses_to_update_suppression_of = instance.analyses.exclude(
+        is_suppressed=instance.is_suppressed
+    )
+    for analysis in analyses_to_update_suppression_of:
+        logging.info(
+            f"Setting is_suppressed to {instance.is_suppressed} on {analysis.accession} via {instance.accession}"
+        )
+        analysis.is_suppressed = instance.is_suppressed
+    Analysis.objects.bulk_update(analyses_to_update_suppression_of, ["is_suppressed"])
 
 
 class AnalysedContig(TimeStampedModel):

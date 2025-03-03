@@ -1,34 +1,35 @@
 import logging
 
-from asgiref.sync import async_to_sync
+# from asgiref.sync import async_to_sync
 from django.db.models.signals import post_save, pre_save
-from django.dispatch import receiver
-from prefect.deployments import run_deployment
 
-import analyses.models
+# from django.dispatch import receiver
+# from prefect.deployments import run_deployment
+
+# import analyses.models
 
 # Define signals (AKA hooks, AKA triggers) here, where they are needed to trigger Prefect work based on
 # Django model changes.
 # For example, if a flow should being running when a model instance is created.
 
 
-@receiver(post_save, sender=analyses.models.AssemblyAnalysisRequest)
-def on_assembly_analysis_saved(
-    sender, instance: analyses.models.AssemblyAnalysisRequest, created, **kwargs
-):
-    if not created:
-        return
-    flowrun = async_to_sync(run_deployment)(
-        "Assemble and analyse a study/assembly_analysis_request_deployment",
-        timeout=0,
-        parameters={
-            "accession": instance.requested_study,
-            "request_id": instance.id,
-        },
-        idempotency_key=f"assembly_analysis_request_deployment__request_id_{instance.id}",
-    )
-    instance.request_metadata[instance.RequestMetadata.FLOW_RUN_ID] = str(flowrun.id)
-    instance.save()
+# @receiver(post_save, sender=analyses.models.AssemblyAnalysisRequest)
+# def on_assembly_analysis_saved(
+#     sender, instance: analyses.models.AssemblyAnalysisRequest, created, **kwargs
+# ):
+#     if not created:
+#         return
+#     flowrun = async_to_sync(run_deployment)(
+#         "Assemble and analyse a study/assembly_analysis_request_deployment",
+#         timeout=0,
+#         parameters={
+#             "accession": instance.requested_study,
+#             "request_id": instance.id,
+#         },
+#         idempotency_key=f"assembly_analysis_request_deployment__request_id_{instance.id}",
+#     )
+#     instance.request_metadata[instance.RequestMetadata.FLOW_RUN_ID] = str(flowrun.id)
+#     instance.save()
 
 
 # Add hooks above.
@@ -44,5 +45,5 @@ def get_handlers(signal):
 def ready():
     pre_save_hooks = get_handlers(pre_save)
     post_save_hooks = get_handlers(post_save)
-    logging.info(f"Hooks are: {pre_save_hooks + post_save_hooks}")
+    logging.debug(f"Hooks are: {pre_save_hooks + post_save_hooks}")
     return pre_save_hooks + post_save_hooks
