@@ -83,6 +83,7 @@ def make_samplesheet(
                 renderer=lambda platform: {
                     analyses.models.Run.InstrumentPlatformKeys.PACBIO_SMRT: "pb",
                     analyses.models.Run.InstrumentPlatformKeys.OXFORD_NANOPORE: "ont",
+                    analyses.models.Run.InstrumentPlatformKeys.ION_TORRENT: "iontorrent",
                 }.get(platform, str(platform).lower()),
             ),
             "assembler": SamplesheetColumnSource(
@@ -90,6 +91,10 @@ def make_samplesheet(
                     f"run__metadata__{analyses.models.Run.CommonMetadataKeys.LIBRARY_LAYOUT}",
                     f"run__metadata__{analyses.models.Run.CommonMetadataKeys.INSTRUMENT_PLATFORM}",
                 ],
+                # PACBIO_SMRT and OXFORD_NANOPORE - flye
+                # SE platform ION_TORRENT         - spades
+                # other SE                        - megahit
+                # all the rest (mostly illumina)  - metaspades
                 renderer=lambda layout, platform: (
                     analyses.models.Assembler.FLYE
                     if platform
@@ -98,9 +103,15 @@ def make_samplesheet(
                         analyses.models.Run.InstrumentPlatformKeys.OXFORD_NANOPORE,
                     }
                     else (
-                        analyses.models.Assembler.MEGAHIT
+                        analyses.models.Assembler.SPADES
                         if layout == SINGLE_END_LIBRARY_LAYOUT
-                        else assembler.name.lower()
+                        and platform
+                        == analyses.models.Run.InstrumentPlatformKeys.ION_TORRENT
+                        else (
+                            analyses.models.Assembler.MEGAHIT
+                            if layout == SINGLE_END_LIBRARY_LAYOUT
+                            else assembler.name.lower()
+                        )
                     )
                 ),
             ),

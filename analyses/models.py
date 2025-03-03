@@ -177,6 +177,7 @@ class Run(
         ILLUMINA = "ILLUMINA"
         OXFORD_NANOPORE = "OXFORD_NANOPORE"
         PACBIO_SMRT = "PACBIO_SMRT"
+        ION_TORRENT = "ION_TORRENT"
 
     objects = models.Manager()
     public_objects = PublicRunManager()
