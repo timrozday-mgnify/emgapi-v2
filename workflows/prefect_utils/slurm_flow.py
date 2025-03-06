@@ -44,6 +44,7 @@ EMG_CONFIG = settings.EMG_CONFIG
 
 CLUSTER_WORKPOOL = "slurm"
 SLURM_JOB_ID = "Slurm Job ID"
+SLURM_UNSAFE_CHARS = ["|", "\n"]
 
 
 def slurm_timedelta(delta: timedelta) -> str:
@@ -433,6 +434,10 @@ def run_cluster_job(
     """
     logger = get_run_logger()
 
+    _name = name
+    for unsafe in SLURM_UNSAFE_CHARS:
+        _name = _name.replace(unsafe, "-")
+
     # Potentially wait some time if our cluster queue is very full
     delay_until_cluster_has_space()
 
@@ -440,7 +445,7 @@ def run_cluster_job(
     # Depending on the job history and Resubmit Policy, this job may be a new one, an already running one,
     # or a previously completed one.
     orchestrated_cluster_job = start_or_attach_cluster_job(
-        name=name,
+        name=_name,
         command=command,
         expected_time=expected_time,
         memory=memory,
