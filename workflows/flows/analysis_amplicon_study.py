@@ -1,3 +1,7 @@
+from prefect import flow, get_run_logger
+
+from activate_django_first import EMG_CONFIG
+
 from workflows.flows.analyse_study_tasks.create_analyses import create_analyses
 from workflows.flows.analyse_study_tasks.get_analyses_to_attempt import (
     get_analyses_to_attempt,
@@ -5,10 +9,6 @@ from workflows.flows.analyse_study_tasks.get_analyses_to_attempt import (
 from workflows.flows.analyse_study_tasks.run_amplicon_pipeline_in_chunks import (
     run_amplicon_pipeline_in_chunks,
 )
-
-from prefect import flow, get_run_logger
-
-from activate_django_first import EMG_CONFIG
 
 import analyses.models
 import ena.models
