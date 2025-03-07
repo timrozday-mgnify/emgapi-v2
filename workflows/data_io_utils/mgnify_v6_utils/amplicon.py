@@ -214,7 +214,7 @@ def import_taxonomy(
                 DownloadFile(
                     path=Path(krona).relative_to(analysis.results_dir),
                     file_type=DownloadFileType.HTML,
-                    alias=Path(krona).name,
+                    alias=f"{Path(krona).stem}_{schema.taxonomy_summary_folder_name}{Path(krona).suffix}",
                     download_type=DownloadType.TAXONOMIC_ANALYSIS,
                     download_group=f"{_TAXONOMY}.{schema.reference_type}.{schema.taxonomy_summary_folder_name}",
                     parent_identifier=analysis.accession,
