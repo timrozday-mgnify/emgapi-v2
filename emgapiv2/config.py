@@ -29,6 +29,9 @@ class SlurmConfig(BaseModel):
     job_log_tail_lines: int = 10
     # how many lines of slurm log to send to prefect each time we check it
 
+    job_log_failure_tail_lines: int = 100
+    # how many lines of final slurm log to send to prefect if a job fails
+
     use_nextflow_tower: bool = False
     nextflow_tower_org: str = "EMBL-EBI"
     nextflow_tower_workspace: str = "ebi-spws-dev-microbiome-info"

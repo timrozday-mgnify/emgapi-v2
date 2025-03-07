@@ -476,8 +476,11 @@ def run_cluster_job(
                 job = pyslurm.db.Job(job_id).load(job_id)
                 job_log_path = Path(job.working_directory) / Path(f"slurm-{job_id}.out")
                 if job_log_path.exists():
-                    with open(job_log_path, "r") as f:
-                        error_details = f.read()
+                    with open(job_log_path, "r") as job_log:
+                        full_log = job_log.readlines()
+                        error_details = "\n".join(
+                            full_log[-EMG_CONFIG.slurm.job_log_failure_tail_lines :]
+                        )
             except Exception as e:
                 logger.warning(f"Failed to get job error details: {e}")
 
