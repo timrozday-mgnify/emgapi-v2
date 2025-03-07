@@ -159,7 +159,7 @@ def import_taxonomy(
         tax_dir.files.append(tax_table)
 
     if schema.expect_krona:
-        krona_files = tax_dir.path.glob(f"{analysis.run.first_accession}*.html")
+        krona_files = list(tax_dir.path.glob(f"{analysis.run.first_accession}*.html"))
         for krona_file in krona_files:
             krona = File(
                 path=Path(krona_file),
