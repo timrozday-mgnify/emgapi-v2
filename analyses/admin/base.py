@@ -6,7 +6,7 @@ from django.db.models import JSONField, Q
 from django.forms import Field
 from django.http import HttpRequest
 from django.shortcuts import redirect
-from django_admin_inline_paginator.admin import InlinePaginated
+from django_admin_inline_paginator_plus.admin import InlinePaginated
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.contrib.filters.admin import TextFilter
 from unfold.decorators import action

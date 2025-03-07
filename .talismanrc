@@ -23,6 +23,9 @@ fileignoreconfig:
 - filename: emgapiv2/test_utils.py
   checksum: ab3eefe0d1b722d23b8dd55ba55a364e5f6593403f0d96898d0745c900f7926f
 
+- filename: emgapiv2/widgets.py
+  allowed_patterns: [key]
+
 - filename: slurm-dev-environment/fs/nfs/public/tests/amplicon_v6_output/SRR1111111/taxonomy-summary/DADA2-SILVA/SRR1111111_16S-V3-V4.html
   checksum: cbba3d78df18143c2d69885815740506ea76787d481f94748c79627737222ce4
 

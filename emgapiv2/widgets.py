@@ -15,6 +15,7 @@ class StatusPathwayWidget(Widget):
             value = {}
         else:
             value = json.loads(value)
+        value = value or {}
 
         css = """
         <style>
@@ -75,25 +76,30 @@ class StatusPathwayWidget(Widget):
             }
         </style>
         """
-        script = f"""
+        script = """
         <script>
-            document.addEventListener('DOMContentLoaded', function() {{
-                document.querySelectorAll('#{name}-pathway .path-item').forEach(function(element) {{
-                    element.addEventListener('click', function() {{
-                        let circle = element.querySelector('.circle');
-                        let isGreen = element.classList.contains('green');
-                        element.classList.toggle('green', !isGreen);
-                        element.classList.toggle('red', isGreen);
+            function clickHandler(event) {
+                const element = event.currentTarget;
+                let circle = element.querySelector('.circle');
+                let isGreen = element.classList.contains('green');
+                element.classList.toggle('green', !isGreen);
+                element.classList.toggle('red', isGreen);
 
-                        let hiddenInput = document.getElementById('{name}-hidden');
-                        console.log(hiddenInput);
-                        let data = JSON.parse(hiddenInput.value);
-                        let key = element.getAttribute('data-key');
-                        data[key] = !isGreen;
-                        hiddenInput.value = JSON.stringify(data);
-                    }});
-                }});
-            }});
+                const name = element.dataset.name;
+                let hiddenInput = document.getElementById(`${name}-hidden`);
+                let data = JSON.parse(hiddenInput.value);
+                let key = element.dataset.key;
+                data[key] = !isGreen;
+                hiddenInput.value = JSON.stringify(data);
+            };
+            function attachStatusHandlers() {
+                document.querySelectorAll('.path-item').forEach(function(element) {
+                    element.removeEventListener('click', clickHandler);
+                    element.addEventListener('click', clickHandler);
+                });
+            }
+            document.addEventListener('DOMContentLoaded', attachStatusHandlers);
+            document.addEventListener('htmx:afterSettle', attachStatusHandlers);  // after pagination change
         </script>
         """
         html = f'<div class="vertical-pathway" data-name="{name}" id="{name}-pathway">'
@@ -101,7 +107,7 @@ class StatusPathwayWidget(Widget):
             val = value.get(step, None)
             status_class = "green" if val else "red"
             html += f"""
-                <div class="path-item {status_class}" data-key="{step}">
+                <div class="path-item {status_class}" data-key="{step}" data-name="{name}">
                     <div class="circle"></div>
                     <span class="json-key">{step}</span>
                     <div class="line"></div>

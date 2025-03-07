@@ -371,6 +371,7 @@ class Assembly(TimeStampedModel, ENADerivedModel):
                 name="at_least_one_study_present",
             )
         ]
+        ordering = ["id"]
 
     def __str__(self):
         return f"Assembly {self.id} | {self.first_accession or 'unaccessioned'} (Run {self.run.first_accession})"

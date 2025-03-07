@@ -71,7 +71,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django_ltree",  ## for hierarchical models like Biome
     "debug_toolbar",
-    "django_admin_inline_paginator",
+    "django_admin_inline_paginator_plus",
     "django_json_widget",
     "corsheaders",
     "ena",
