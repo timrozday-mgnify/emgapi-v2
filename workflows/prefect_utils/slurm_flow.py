@@ -308,6 +308,8 @@ def cancel_cluster_job(name: str):
     :param name: The job name as submitted.
     :return:
     """
+    logger = get_run_logger()
+    logger.info(f"Cancelling job {name}")
     jobs = pyslurm.db.Jobs.load(
         db_filter=pyslurm.db.JobFilter(names=[name], users=[EMG_CONFIG.slurm.user])
     )
@@ -325,7 +327,7 @@ def cancel_cluster_job(name: str):
                 "Cannot cancel job array jobs - job id must be integer like"
             )
 
-        print(f"Found one running job to cancel: {job_id}")
+        logger.info(f"Found one running job to cancel: {job_id}")
         pyslurm.Job(job_id).load(job_id).cancel()
 
     else:
@@ -351,6 +353,7 @@ class ClusterJobFailedException(Exception):
 def cancel_cluster_jobs_if_flow_cancelled(
     the_flow: Flow, the_flow_run: FlowRun, state: State
 ):
+    logger = get_run_logger()
     if "name" in the_flow_run.parameters:
         job_names = [the_flow_run.parameters.get("name")]
     elif "names" in the_flow_run.parameters:
@@ -360,7 +363,7 @@ def cancel_cluster_jobs_if_flow_cancelled(
             f"Flow run {the_flow_run.id} had no params called 'name' or 'names' so don't know what jobs to cancel"
         )
 
-    print(f"Will try to cancel jobs matching the job names {job_names}")
+    logger.warning(f"Will try to cancel jobs matching the job names {job_names}")
     for job_name in job_names:
         cancel_cluster_job(job_name)
 
@@ -401,6 +404,7 @@ def store_nextflow_trace(orchestrated_cluster_job: OrchestratedClusterJob):
     flow_run_name="Cluster job: {name}",
     persist_result=True,
     on_cancellation=[cancel_cluster_jobs_if_flow_cancelled],
+    timeout_seconds=EMG_CONFIG.slurm.cluster_job_flow_timeout_seconds,
 )
 def run_cluster_job(
     name: str,

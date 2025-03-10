@@ -1,4 +1,5 @@
 import re
+from datetime import timedelta
 from typing import List, Pattern
 
 from pydantic import AnyHttpUrl, BaseModel, Field
@@ -24,7 +25,9 @@ class SlurmConfig(BaseModel):
     # if the cluster is "full", we wait this long before checking again for space,
     #   and only attempt submission a limited number of times before giving up.
 
-    wait_seconds_between_slurm_flow_resumptions: int = 2
+    cluster_job_flow_timeout_seconds: int = timedelta(days=14).total_seconds()
+    # if a cluster job flow is still running after this long, it is timed out to clear
+    #   up cases where the prefect worker has been ended whilst the slurm job ran.
 
     job_log_tail_lines: int = 10
     # how many lines of slurm log to send to prefect each time we check it
