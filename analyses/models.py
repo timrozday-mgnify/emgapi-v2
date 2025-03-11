@@ -206,9 +206,9 @@ class Run(
     def set_experiment_type_by_metadata(
         self, ena_library_strategy: str, ena_library_source: str
     ):
-        if (
-            ena_library_strategy.lower() == "rna-seq"
-            and ena_library_source.lower() == "metagenomic"
+        if ena_library_strategy.lower() == "rna-seq" and (
+            ena_library_source.lower() == "metagenomic"
+            or ena_library_source.lower() == "metatranscriptomic"
         ):
             self.experiment_type = Run.ExperimentTypes.METATRANSCRIPTOMIC
         elif (
