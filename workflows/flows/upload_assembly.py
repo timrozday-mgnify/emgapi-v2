@@ -450,7 +450,7 @@ def upload_assembly(
         raise e
 
     assembly_path = Path(mgnify_assembly.dir_with_miassembler_suffix) / Path(
-        f"{mgnify_assembly.run.first_accession}.contigs.fa.gz"
+        f"{mgnify_assembly.run.first_accession}_cleaned.contigs.fa.gz"
     )
 
     upload_folder = custom_upload_folder or assembly_path.parent / Path("upload")
