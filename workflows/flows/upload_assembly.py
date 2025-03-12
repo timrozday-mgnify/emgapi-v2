@@ -7,6 +7,7 @@ from typing import Optional
 
 from assembly_uploader import assembly_manifest, study_xmls, submit_study
 from Bio import SeqIO
+from prefect.tasks import task_input_hash
 
 from activate_django_first import EMG_CONFIG
 
@@ -19,7 +20,6 @@ from prefect import flow, get_run_logger, task
 import analyses.models
 import ena.models
 from workflows.prefect_utils.analyses_models_helpers import task_mark_assembly_status
-from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 from workflows.prefect_utils.slurm_flow import (
     ClusterJobFailedException,
     run_cluster_job,
@@ -153,7 +153,7 @@ def submit_study_xml(
 
 @task(
     retries=2,
-    cache_key_fn=context_agnostic_task_input_hash,
+    cache_key_fn=task_input_hash,
     task_run_name="Check study registration, create study XML and submit to ENA",
 )
 def handle_tpa_study(
@@ -333,7 +333,7 @@ def add_erz_accession(assembly: analyses.models.Assembly, erz_accession):
 
 @task(
     retries=2,
-    cache_key_fn=context_agnostic_task_input_hash,
+    cache_key_fn=task_input_hash,
     task_run_name="Run Webin-cli to upload {mgnify_assembly}",
 )
 def submit_assembly_slurm(

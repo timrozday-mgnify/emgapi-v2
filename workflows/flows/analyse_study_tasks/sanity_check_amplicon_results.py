@@ -2,17 +2,17 @@ import re
 from pathlib import Path
 
 from prefect import task, get_run_logger
+from prefect.tasks import task_input_hash
 
 from activate_django_first import EMG_CONFIG
 
 import analyses.models
 from workflows.flows.analyse_study_tasks.analysis_states import AnalysisStates
 from workflows.prefect_utils.analyses_models_helpers import task_mark_analysis_status
-from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 
 
 @task(
-    cache_key_fn=context_agnostic_task_input_hash,
+    cache_key_fn=task_input_hash,
 )
 def sanity_check_amplicon_results(
     amplicon_current_outdir: Path, analysis: analyses.models.Analysis

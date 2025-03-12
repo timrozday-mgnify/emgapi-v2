@@ -7,6 +7,7 @@ import httpx
 from django.conf import settings
 from httpx import Auth
 from prefect import flow, get_run_logger, task
+from prefect.tasks import task_input_hash
 from pydantic import BaseModel, Field, computed_field, field_serializer, model_validator
 from typing_extensions import Self
 
@@ -14,7 +15,6 @@ import analyses.models
 import ena.models
 from emgapiv2.enum_utils import FutureStrEnum
 from workflows.ena_utils.ena_auth import dcc_auth
-from workflows.prefect_utils.cache_control import context_agnostic_task_input_hash
 
 ALLOWED_LIBRARY_SOURCE: list = ["METAGENOMIC", "METATRANSCRIPTOMIC"]
 SINGLE_END_LIBRARY_LAYOUT: str = "SINGLE"
@@ -324,7 +324,7 @@ class ENAAvailabilityException(Exception): ...
 @task(
     retries=RETRIES,
     retry_delay_seconds=RETRY_DELAY,
-    cache_key_fn=context_agnostic_task_input_hash,
+    cache_key_fn=task_input_hash,
     task_run_name="Get study from ENA: {accession}",
 )
 def get_study_from_ena(accession: str, limit: int = 10) -> ena.models.Study:
@@ -441,7 +441,7 @@ def check_reads_fastq(fastq: list, run_accession: str, library_layout: str):
 @task(
     retries=RETRIES,
     retry_delay_seconds=RETRY_DELAY,
-    cache_key_fn=context_agnostic_task_input_hash,
+    cache_key_fn=task_input_hash,
     task_run_name="Get study readruns from ENA: {accession}",
 )
 def get_study_readruns_from_ena(
