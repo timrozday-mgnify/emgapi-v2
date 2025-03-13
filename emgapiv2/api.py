@@ -18,7 +18,8 @@ from analyses.schemas import (
     MGnifyAssemblyAnalysisRequest,
     MGnifyAssemblyAnalysisRequestCreate,
     MGnifyFunctionalAnalysisAnnotationType,
-    MGnifyStudy, EMG_CONFIG,
+    MGnifyStudy,
+    EMG_CONFIG,
 )
 from emgapiv2.schema_utils import (
     ApiSections,
@@ -160,7 +161,9 @@ def get_mgnify_analysis(request, accession: str):
         "raw_run": raw_run,
         "pipeline_version": analysis.pipeline_version,
         "quality_control": analysis.quality_control,
-        "results_dir": urljoin(EMG_CONFIG.service_urls.transfer_services_url_root, analysis.results_dir),
+        "results_dir": urljoin(
+            EMG_CONFIG.service_urls.transfer_services_url_root, analysis.results_dir
+        ),
         "metadata": analysis.metadata,
     }
 

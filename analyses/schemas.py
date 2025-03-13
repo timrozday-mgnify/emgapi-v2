@@ -115,13 +115,13 @@ class MGnifyAnalysisDetail(MGnifyAnalysis):
     results_dir: Optional[str] = Field(
         None,
         description="Directory path where analysis results are stored",
-        examples=["/data/analyses/MYGA000001/results"]
+        examples=["/data/analyses/MYGA000001/results"],
     )
 
     metadata: Optional[Dict[str, Any]] = Field(
         None,
         description="Additional metadata associated with the analysis",
-        examples=[{"marker_gene_summary": {"ssu": {"total_read_count": 11}}}]
+        examples=[{"marker_gene_summary": {"ssu": {"total_read_count": 11}}}],
     )
 
     class Meta:
