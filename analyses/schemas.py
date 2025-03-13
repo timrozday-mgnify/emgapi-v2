@@ -115,7 +115,7 @@ class MGnifyAnalysisDetail(MGnifyAnalysis):
     results_dir: Optional[str] = Field(
         None,
         description="Directory path where analysis results are stored",
-        examples=["/data/analyses/MYGA000001/results"],
+        examples=["http://example.org/data/analyses/MGYA00000001/results"],
     )
 
     metadata: Optional[Dict[str, Any]] = Field(
