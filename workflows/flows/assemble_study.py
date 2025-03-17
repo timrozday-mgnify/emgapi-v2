@@ -2,7 +2,6 @@ from enum import Enum
 from textwrap import dedent as _
 from typing import Optional, List
 
-from django.contrib.auth.models import User
 from django.urls import reverse_lazy
 from prefect import flow, get_run_logger, suspend_flow_run
 from prefect.events import emit_event
@@ -13,6 +12,8 @@ from pydantic import Field
 from emgapiv2.enum_utils import FutureStrEnum
 
 from activate_django_first import EMG_CONFIG
+
+from django.contrib.auth.models import User
 import analyses.models
 import ena.models
 from workflows.ena_utils.ena_api_requests import (
