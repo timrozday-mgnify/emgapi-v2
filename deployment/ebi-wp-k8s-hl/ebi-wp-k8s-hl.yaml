@@ -141,6 +141,8 @@ items:
                   name: emgapi-results-storage
           imagePullSecrets:
             - name: quay-pull-secret
+          nodeSelector:
+            mgnify.org/ebi-db-pgsql-hlvm-090-open: "true"
   - apiVersion: v1
     kind: Service
     metadata:
@@ -233,7 +235,8 @@ items:
                   value: "false"
               ports:
                 - containerPort: 4200
-
+          nodeSelector:
+            mgnify.org/ebi-db-pgsql-hlvm-090-open: "true"
   - apiVersion: v1
     kind: Service
     metadata:
