@@ -40,6 +40,7 @@ RUN pip install https://github.com/PySlurm/pyslurm/archive/refs/tags/v21.8.1.tar
 ENV TZ="Etc/UTC"
 
 COPY . .
+RUN pip install -r requirements-dev.txt
 RUN pip install -r requirements-tools.txt
 
 ENTRYPOINT ["/usr/local/bin/submitter-entrypoint.sh", "python3", "manage.py"]

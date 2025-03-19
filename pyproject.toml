@@ -23,6 +23,15 @@ exclude = ["emgapiv2/settings_test.py"]
 [tool.setuptools]
 python_requires = ">=3.10"
 
+[tool.prefect]
+logging.level = "DEBUG"
+# debug_mode = true
+# allow for 1 hour of prefect-server downtime
+client.max_retries = 60 # 1 hour elapsed from first to last try, since delay increases by 2*try-count seconds.
+client.retry_extra_codes = [404]  # for times when some traffic management between worker and prefect server breaks
+api.request_timeout = 120 # 2 mins
+server.api.keepalive_timeout = 60 # seconds
+
 #TODO, when ruff supports custom section-ordering
 #[tool.ruff.isort]
 #section-order = ["future", "standard-library", "third-party", "activate_django_first", "first-party", "local-folder"]
