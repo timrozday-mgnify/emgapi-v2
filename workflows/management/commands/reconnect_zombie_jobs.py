@@ -94,7 +94,7 @@ class Command(BaseCommand):
                     state_message="Crashed by reconnect_zombie_job, as parent of a zombie flow",
                 )
 
-            head_flow_run = parent_flow_runs[0] if parent_flow_runs else flow_run_post
+            head_flow_run = parent_flow_runs[-1] if parent_flow_runs else flow_run_post
             # the one to restart
             restart_state = State(
                 type=StateType.SCHEDULED,
