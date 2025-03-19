@@ -10,9 +10,8 @@ from typing import List, Optional, Union
 from django.conf import settings
 from django.urls import reverse
 from django.utils.timezone import now
-from prefect import Flow, State, flow, get_run_logger, task
+from prefect import flow, get_run_logger, task
 from prefect.artifacts import create_markdown_artifact
-from prefect.client.schemas import FlowRun
 from prefect.runtime import flow_run
 
 from emgapiv2.log_utils import mask_sensitive_data as safe
@@ -350,24 +349,6 @@ class ClusterJobFailedException(Exception):
         return msg
 
 
-def cancel_cluster_jobs_if_flow_cancelled(
-    the_flow: Flow, the_flow_run: FlowRun, state: State
-):
-    logger = get_run_logger()
-    if "name" in the_flow_run.parameters:
-        job_names = [the_flow_run.parameters.get("name")]
-    elif "names" in the_flow_run.parameters:
-        job_names = [the_flow_run.parameters.get("names")]
-    else:
-        raise UserWarning(
-            f"Flow run {the_flow_run.id} had no params called 'name' or 'names' so don't know what jobs to cancel"
-        )
-
-    logger.warning(f"Will try to cancel jobs matching the job names {job_names}")
-    for job_name in job_names:
-        cancel_cluster_job(job_name)
-
-
 @task
 def compute_hash_of_input_file(
     input_files_to_hash: Optional[List[Union[Path, str]]] = None,
@@ -403,7 +384,6 @@ def store_nextflow_trace(orchestrated_cluster_job: OrchestratedClusterJob):
 @flow(
     flow_run_name="Cluster job: {name}",
     persist_result=True,
-    on_cancellation=[cancel_cluster_jobs_if_flow_cancelled],
     timeout_seconds=EMG_CONFIG.slurm.cluster_job_flow_timeout_seconds,
 )
 def run_cluster_job(
