@@ -8,7 +8,7 @@ class WithWatchersModel(models.Model):
     Intended for handling notifications etc.
     """
 
-    watchers = models.ManyToManyField(User, related_name="studies_watching")
+    watchers = models.ManyToManyField(User, related_name="studies_watching", blank=True)
 
     class Meta:
         abstract = True
