@@ -9,7 +9,6 @@ from typing_extensions import Annotated
 
 import analyses.models
 from analyses.base_models.with_downloads_models import DownloadFile
-from analyses.models import Analysis
 from emgapiv2.enum_utils import FutureStrEnum
 
 EMG_CONFIG = settings.EMG_CONFIG
@@ -45,9 +44,7 @@ class MGnifyStudy(ModelSchema):
 
 
 class MGnifyStudyDetail(MGnifyStudy):
-    downloads: List[MGnifyAnalysisDownloadFile] = Field(
-        ..., alias="downloads_as_objects"
-    )
+    downloads: List[MGnifyStudyDownloadFile] = Field(..., alias="downloads_as_objects")
 
     class Meta:
         model = analyses.models.Study
@@ -72,7 +69,7 @@ class MGnifyAnalysisDownloadFile(Schema, DownloadFile):
 
     @staticmethod
     def resolve_url(obj: MGnifyAnalysisDownloadFile):
-        analysis = Analysis.objects.get(accession=obj.parent_identifier)
+        analysis = analyses.models.Analysis.objects.get(accession=obj.parent_identifier)
         if not analysis:
             logging.warning(
                 f"No parent Analysis object found with identified {obj.parent_identifier}"
@@ -80,6 +77,24 @@ class MGnifyAnalysisDownloadFile(Schema, DownloadFile):
             return None
 
         return f"{EMG_CONFIG.service_urls.transfer_services_url_root.rstrip('/')}/{analysis.results_dir}/{obj.path}"
+
+
+class MGnifyStudyDownloadFile(MGnifyAnalysisDownloadFile):
+    path: Annotated[str, Field(exclude=True)]
+    parent_identifier: Annotated[Union[int, str], Field(exclude=True)]
+
+    url: str = None
+
+    @staticmethod
+    def resolve_url(obj: MGnifyStudyDownloadFile):
+        study = analyses.models.Study.objects.get(accession=obj.parent_identifier)
+        if not study:
+            logging.warning(
+                f"No parent Study object found with identified {obj.parent_identifier}"
+            )
+            return None
+
+        return f"{EMG_CONFIG.service_urls.transfer_services_url_root.rstrip('/')}/{study.results_dir}/{obj.path}"
 
 
 class MGnifyAnalysis(ModelSchema):
