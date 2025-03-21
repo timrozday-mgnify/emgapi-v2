@@ -15,13 +15,13 @@ class TaxonomyTSVRow(BaseModel):
         ..., validation_alias=AliasChoices("SSU", "PR2", "ITSonedb", "UNITE", "LSU")
     )
     taxonomy: str
-    taxid: Optional[int]
+    taxid: Optional[int] = Field(None)
 
     model_config = ConfigDict(extra="allow")  # e.g. for SSU, PR2 etc columns
 
 
 FileConformsToTaxonomyTSVSchemaRule = generate_csv_schema_file_rule(
-    TaxonomyTSVRow, delimiter=CSVDelimiter.TAB
+    TaxonomyTSVRow, delimiter=CSVDelimiter.TAB, none_values=[""]
 )
 
 GlobOfTaxonomyFolderHasHtmlAndMseqRule = GlobRule(
