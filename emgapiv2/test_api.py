@@ -1,7 +1,15 @@
+import json
 from typing import Callable, Optional, TypeVar, Union
 
 import pytest
 from ninja.testing import TestClient
+
+from analyses.base_models.with_downloads_models import (
+    DownloadFile,
+    DownloadFileType,
+    DownloadType,
+    DownloadFileIndexFile,
+)
 
 R = TypeVar("R")
 
@@ -57,3 +65,40 @@ def test_api_analysis_detail(raw_read_analyses, ninja_api_client):
     assert (
         analysis["quality_control_summary"]["before_filtering"]["total_reads"] == 66124
     )
+
+
+@pytest.mark.django_db
+def test_api_analysis_downloads(raw_read_analyses, ninja_api_client):
+    analysis = raw_read_analyses[0]
+    dl = DownloadFile(
+        alias="taxonomies-ssu.tsv.gz",
+        short_description="Test file",
+        file_type=DownloadFileType.TSV,
+        download_group="taxonomies.closed_reference.ssu",
+        download_type=DownloadType.TAXONOMIC_ANALYSIS,
+        path="results/taxonomies.tsv.gz",
+        long_description="This is a test file for taxonomies",
+        file_size_bytes=1024,
+        index_file=DownloadFileIndexFile(
+            path="results/taxonomies.tsv.gz.gzi", index_type="gzi"
+        ),
+    )
+    analysis.add_download(dl)
+    analysis.refresh_from_db()
+    api_analysis = call_endpoint_and_get_data(
+        ninja_api_client,
+        f"/analyses/{analysis.accession}",
+        getter=lambda j: j,
+    )
+
+    assert api_analysis["accession"] == analysis.accession
+    dl_api = next(
+        d for d in api_analysis["downloads"] if d["alias"] == "taxonomies-ssu.tsv.gz"
+    )
+    print(json.dumps(dl_api, indent=2))
+    assert (
+        dl_api["url"]
+        == "http://localhost:8080/app/data/tests/amplicon_v6_output/results/taxonomies.tsv.gz"
+    )
+    assert dl_api["index_file"]["relative_url"] == "taxonomies.tsv.gz.gzi"
+    assert "path" not in dl_api

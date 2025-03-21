@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import List, Optional, Union, Dict, Any
+from urllib.parse import urljoin
 
 from django.conf import settings
 from ninja import Field, ModelSchema, Schema
+from pydantic import field_validator
 from typing_extensions import Annotated
 
 import analyses.models
-from analyses.base_models.with_downloads_models import DownloadFile
+from analyses.base_models.with_downloads_models import (
+    DownloadFile,
+    DownloadFileIndexFile,
+)
 from emgapiv2.enum_utils import FutureStrEnum
 
 EMG_CONFIG = settings.EMG_CONFIG
@@ -61,11 +67,41 @@ class MGnifySample(ModelSchema):
         fields = ["id", "ena_sample"]
 
 
+class MGnifyDownloadFileIndexFile(Schema, DownloadFileIndexFile):
+    path: Annotated[str, Field(exclude=True)]
+    relative_url: str = Field(
+        None,
+        description="URL of the index file, relative to the DownloadFile it relates to.",
+        examples=["annotations.tsv.gz.gzi"],
+    )
+
+    @staticmethod
+    def resolve_relative_url(obj: DownloadFileIndexFile):
+        # NB! This assumes that the index file is ALWAYS a sibling of the file it indexes.
+        # Generally fine, but if not we would need to know about the parent DownloadFile object
+        #  in this resolver, to calculate a true relative path or an absolute URL.
+        return Path(obj.path).name
+
+
 class MGnifyAnalysisDownloadFile(Schema, DownloadFile):
     path: Annotated[str, Field(exclude=True)]
     parent_identifier: Annotated[Union[int, str], Field(exclude=True)]
+    index_file: Optional[MGnifyDownloadFileIndexFile] = None
 
-    url: str = None
+    url: str = Field(
+        None,
+        examples=[
+            urljoin(
+                EMG_CONFIG.service_urls.transfer_services_url_root, "annotations.tsv.gz"
+            )
+        ],
+    )
+
+    @field_validator("index_file", mode="before")
+    def coerce_index_file(cls, value):
+        if isinstance(value, DownloadFileIndexFile):
+            return MGnifyDownloadFileIndexFile.model_validate(value.model_dump())
+        return value
 
     @staticmethod
     def resolve_url(obj: MGnifyAnalysisDownloadFile):
@@ -76,7 +112,10 @@ class MGnifyAnalysisDownloadFile(Schema, DownloadFile):
             )
             return None
 
-        return f"{EMG_CONFIG.service_urls.transfer_services_url_root.rstrip('/')}/{analysis.results_dir}/{obj.path}"
+        return urljoin(
+            EMG_CONFIG.service_urls.transfer_services_url_root,
+            urljoin(analysis.results_dir, obj.path),
+        )
 
 
 class MGnifyStudyDownloadFile(MGnifyAnalysisDownloadFile):
