@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List
 
-from prefect import flow, task, State
+from prefect import flow, task
 
 import analyses.models
 from workflows.data_io_utils.mgnify_v6_utils.amplicon import (
@@ -46,11 +46,12 @@ def import_completed_analyses(
         analysis.results_dir = str(dir_for_analysis)
         analysis.save()
 
-        import_state: State = import_completed_analysis(analysis, return_state=True)
-        if import_state.is_failed():
+        try:
+            import_completed_analysis(analysis)
+        except Exception as e:
             # TODO: there shouldn't really be cases where sanity passes but import fails... but currently there are.
-            print(f"{analysis} failed import! {import_state.result()}")
+            print(f"{analysis} failed import! {e}")
             analysis.mark_status(
                 analysis.AnalysisStates.ANALYSIS_POST_SANITY_CHECK_FAILED,
-                reason=f"Failed during import: {import_state.result()}",
+                reason=f"Failed during import: {e}",
             )
