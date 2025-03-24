@@ -10,7 +10,7 @@ from activate_django_first import EMG_CONFIG
 
 import analyses.models
 from workflows.flows.analyse_study_tasks.import_completed_amplicon_analyses import (
-    import_completed_analysis,
+    import_completed_analyses,
 )
 from workflows.flows.analyse_study_tasks.make_samplesheet_amplicon import (
     make_samplesheet_amplicon,
@@ -33,7 +33,7 @@ from workflows.prefect_utils.slurm_policies import ResubmitIfFailedPolicy
 
 
 @flow(name="Run analysis pipeline-v6 in parallel", log_prints=True)
-def run_amplicon_pipeline_in_chunks(
+def run_amplicon_pipeline_via_samplesheet(
     mgnify_study: analyses.models.Study,
     amplicon_analysis_ids: List[Union[str, int]],
 ):
@@ -91,7 +91,7 @@ def run_amplicon_pipeline_in_chunks(
     else:
         # assume that if job finished, all finished... set statuses
         set_post_analysis_states(amplicon_current_outdir, amplicon_analyses)
-        import_completed_analysis(amplicon_current_outdir, amplicon_analyses)
+        import_completed_analyses(amplicon_current_outdir, amplicon_analyses)
         generate_study_summary_for_pipeline_run(
             pipeline_outdir=amplicon_current_outdir,
             mgnify_study_accession=mgnify_study.accession,

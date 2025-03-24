@@ -616,6 +616,7 @@ class Analysis(
         ANALYSIS_FAILED = "analysis_failed"
         ANALYSIS_QC_FAILED = "analysis_qc_failed"
         ANALYSIS_POST_SANITY_CHECK_FAILED = "analysis_post_sanity_check_failed"
+        ANALYSIS_ANNOTATIONS_IMPORTED = "analysis_annotations_imported"
 
         @classmethod
         def default_status(cls):
@@ -625,6 +626,7 @@ class Analysis(
                 cls.ANALYSIS_COMPLETED: False,
                 cls.ANALYSIS_BLOCKED: False,
                 cls.ANALYSIS_FAILED: False,
+                cls.ANALYSIS_ANNOTATIONS_IMPORTED: False,
             }
 
     status = models.JSONField(

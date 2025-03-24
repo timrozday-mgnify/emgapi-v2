@@ -1,4 +1,3 @@
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -40,9 +39,9 @@ def amplicon_analysis_with_downloads(
     )
     analysis.mark_status(analysis.AnalysisStates.ANALYSIS_COMPLETED)
 
-    import_completed_analysis.fn(
-        Path("/app/data/tests/amplicon_v6_output/"), [analysis]
-    )
+    analysis.results_dir = "/app/data/tests/amplicon_v6_output/"
+    analysis.save()
+    import_completed_analysis.fn(analysis)
 
 
 @pytest.mark.dev_data_maker

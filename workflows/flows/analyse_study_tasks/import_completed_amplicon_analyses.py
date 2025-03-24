@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List
 
-from prefect import flow
+from prefect import flow, task, State
 
 import analyses.models
 from workflows.data_io_utils.mgnify_v6_utils.amplicon import (
@@ -15,8 +15,21 @@ from workflows.flows.analyse_study_tasks.copy_amplicon_pipeline_results import (
 )
 
 
+@task
+def import_completed_analysis(analysis: analyses.models.Analysis):
+    dir_for_analysis = Path(analysis.results_dir)
+
+    import_qc(analysis, dir_for_analysis)
+
+    for source in analyses.models.Analysis.TaxonomySources:
+        import_taxonomy(analysis, dir_for_analysis, source=source, allow_non_exist=True)
+    import_asv(analysis, dir_for_analysis)
+    copy_amplicon_pipeline_results(analysis.accession)
+    analysis.mark_status(analysis.AnalysisStates.ANALYSIS_ANNOTATIONS_IMPORTED)
+
+
 @flow(log_prints=True)
-def import_completed_analysis(
+def import_completed_analyses(
     amplicon_current_outdir: Path, amplicon_analyses: List[analyses.models.Analysis]
 ):
     for analysis in amplicon_analyses:
@@ -33,11 +46,11 @@ def import_completed_analysis(
         analysis.results_dir = str(dir_for_analysis)
         analysis.save()
 
-        import_qc(analysis, dir_for_analysis)
-
-        for source in analyses.models.Analysis.TaxonomySources:
-            import_taxonomy(
-                analysis, dir_for_analysis, source=source, allow_non_exist=True
+        import_state: State = import_completed_analysis(analysis, return_state=True)
+        if import_state.is_failed():
+            # TODO: there shouldn't really be cases where sanity passes but import fails... but currently there are.
+            print(f"{analysis} failed import! {import_state.result()}")
+            analysis.mark_status(
+                analysis.AnalysisStates.ANALYSIS_POST_SANITY_CHECK_FAILED,
+                reason=f"Failed during import: {import_state.result()}",
             )
-        import_asv(analysis, dir_for_analysis)
-        copy_amplicon_pipeline_results(analysis.accession)

@@ -7,7 +7,7 @@ from workflows.flows.analyse_study_tasks.get_analyses_to_attempt import (
     get_analyses_to_attempt,
 )
 from workflows.flows.analyse_study_tasks.run_amplicon_pipeline_in_chunks import (
-    run_amplicon_pipeline_in_chunks,
+    run_amplicon_pipeline_via_samplesheet,
 )
 
 import analyses.models
@@ -80,7 +80,7 @@ def analysis_amplicon_study(study_accession: str):
         logger.info(
             f"Working on amplicon analyses: {analyses_chunk[0]}-{analyses_chunk[-1]}"
         )
-        run_amplicon_pipeline_in_chunks(mgnify_study, analyses_chunk)
+        run_amplicon_pipeline_via_samplesheet(mgnify_study, analyses_chunk)
 
     merge_study_summaries(
         mgnify_study.accession,
