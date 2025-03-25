@@ -102,6 +102,8 @@ class WebinConfig(BaseModel):
     webin_cli_executor: str = "/usr/bin/webin-cli/webin-cli.jar"
     broker_prefix: str = "mg-"
     broker_password: str = None
+    webin_cli_retries: int = 6
+    webin_cli_retry_delay_seconds: int = 60
 
 
 class ENAConfig(BaseModel):

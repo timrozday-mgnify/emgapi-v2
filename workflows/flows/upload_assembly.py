@@ -365,7 +365,10 @@ def submit_assembly_slurm(
         command += "-submit "
 
     try:
-        run_cluster_job(
+        run_cluster_job.with_options(
+            retries=EMG_CONFIG.webin.webin_cli_retries,
+            retry_delay_seconds=EMG_CONFIG.webin.webin_cli_retry_delay_seconds,
+        )(
             name=f"Upload assembly for {mgnify_assembly} to ENA",
             command=command,
             expected_time=timedelta(
