@@ -342,6 +342,7 @@ def test_get_study_readruns_from_ena(
     assert run.metadata["host_tax_id"] == "7460"
 
 
+@pytest.mark.httpx_mock(should_mock=should_not_mock_httpx_requests_to_prefect_server)
 def test_ena_api_query_maker(httpx_mock):
     # test generic part combiners
     planet_is_tatooine = ENAQueryClause(search_field="planet", value="tatooine")

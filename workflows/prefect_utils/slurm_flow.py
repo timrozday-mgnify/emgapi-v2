@@ -472,7 +472,7 @@ def run_cluster_job(
         else:
             logger.debug(
                 f"Job {orchestrated_cluster_job} is still running. "
-                f"Sleeping for {EMG_CONFIG.slurm.default_seconds_between_submission_attempts} seconds."
+                f"Sleeping for {EMG_CONFIG.slurm.default_seconds_between_job_checks} seconds."
             )
             time.sleep(EMG_CONFIG.slurm.default_seconds_between_job_checks)
 
