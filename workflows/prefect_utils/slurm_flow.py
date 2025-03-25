@@ -189,7 +189,6 @@ def start_or_attach_cluster_job(
     :return: OrchestratedClusterJob submitted or attached.
     """
     logger = get_run_logger()
-    logger.debug(f"Hash is {hash}")
 
     ### Prepare working directory for job
     job_workdir = workdir
