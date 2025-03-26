@@ -13,7 +13,6 @@ from emgapiv2.enum_utils import FutureStrEnum
 
 from activate_django_first import EMG_CONFIG
 
-from django.contrib.auth.models import User
 import analyses.models
 import ena.models
 from workflows.ena_utils.ena_api_requests import (
@@ -30,7 +29,10 @@ from workflows.flows.assemble_study_tasks.make_samplesheets import (
     make_samplesheets_for_runs_to_assemble,
 )
 from workflows.flows.assemble_study_tasks.upload_assemblies import upload_assemblies
-from workflows.prefect_utils.analyses_models_helpers import get_users_as_choices
+from workflows.prefect_utils.analyses_models_helpers import (
+    get_users_as_choices,
+    add_study_watchers,
+)
 
 
 class AssemblerChoices(FutureStrEnum):
@@ -143,9 +145,7 @@ def assemble_study(
         webin_owner = None
 
     if assemble_study_input.watchers:
-        for watcher in assemble_study_input.watchers:
-            user = User.objects.get(username=watcher.name)
-            mgnify_study.watchers.add(user)
+        add_study_watchers(mgnify_study, assemble_study_input.watchers)
 
     biome = analyses.models.Biome.objects.get(path=assemble_study_input.biome.name)
 

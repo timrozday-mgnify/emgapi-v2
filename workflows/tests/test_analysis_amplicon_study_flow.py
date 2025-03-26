@@ -1,14 +1,17 @@
 import json
 import os
 import shutil
+from enum import Enum
 from pathlib import Path
 from textwrap import dedent
+from typing import List
 from unittest.mock import patch
 
 import pytest
 from django.conf import settings
 from django.db.models import Q
 from prefect.artifacts import Artifact
+from pydantic import BaseModel
 
 import analyses.models
 from workflows.data_io_utils.file_rules.base_rules import FileRule, GlobRule
@@ -18,6 +21,7 @@ from workflows.flows.analyse_study_tasks.shared.study_summary import (
     merge_study_summaries,
 )
 from workflows.flows.analysis_amplicon_study import analysis_amplicon_study
+from workflows.prefect_utils.analyses_models_helpers import get_users_as_choices
 from workflows.prefect_utils.testing_utils import (
     should_not_mock_httpx_requests_to_prefect_server,
 )
@@ -394,6 +398,9 @@ MockFileIsNotEmptyRule = FileRule(
     "workflows.data_io_utils.mgnify_v6_utils.amplicon.FileIsNotEmptyRule",
     MockFileIsNotEmptyRule,
 )
+@pytest.mark.parametrize(
+    "mock_suspend_flow_run", ["workflows.flows.analysis_amplicon_study"], indirect=True
+)
 def test_prefect_analyse_amplicon_flow(
     mock_queryset_hash_for_amplicon,
     prefect_harness,
@@ -402,6 +409,9 @@ def test_prefect_analyse_amplicon_flow(
     mock_start_cluster_job,
     mock_check_cluster_job_all_completed,
     raw_read_ena_study,
+    mock_suspend_flow_run,
+    admin_user,
+    top_level_biomes,
 ):
     """
     Test should create/get ENA and MGnify study into DB.
@@ -588,11 +598,29 @@ def test_prefect_analyse_amplicon_flow(
             )
         )
 
+        ## Pretend that a human resumed the flow with the biome picker.
+        BiomeChoices = Enum("BiomeChoices", {"root.engineered": "Root:Engineered"})
+        UserChoices = get_users_as_choices()
+
+        class AnalyseStudyInput(BaseModel):
+            biome: BiomeChoices
+            watchers: List[UserChoices]
+
+        def suspend_side_effect(wait_for_input=None):
+            if wait_for_input.__name__ == "AnalyseStudyInput":
+                return AnalyseStudyInput(
+                    biome=BiomeChoices["root.engineered"],
+                    watchers=[UserChoices[admin_user.username]],
+                )
+
+        mock_suspend_flow_run.side_effect = suspend_side_effect
+
     # RUN MAIN FLOW
     analysis_amplicon_study(study_accession=study_accession)
 
     mock_start_cluster_job.assert_called()
     mock_check_cluster_job_all_completed.assert_called()
+    mock_suspend_flow_run.assert_called()
 
     assembly_samplesheet_table = Artifact.get("amplicon-v6-initial-sample-sheet")
     assert assembly_samplesheet_table.type == "table"

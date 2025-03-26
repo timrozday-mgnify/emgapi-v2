@@ -1,10 +1,11 @@
+import logging
 from enum import Enum
-from typing import List, TypeVar
+from typing import List, TypeVar, Type
 
 from django.contrib.auth.models import User
 from prefect import task
 
-from analyses.models import Analysis, Assembly
+from analyses.models import Analysis, Assembly, Study
 
 
 @task(log_prints=True)
@@ -96,9 +97,20 @@ def chunk_list(items: List[I], chunk_size: int) -> List[List[I]]:
     return [items[j : j + chunk_size] for j in range(0, len(items), chunk_size)]
 
 
-def get_users_as_choices():
+UserChoicesEnum = TypeVar("UserChoicesEnum", bound=Enum)
+
+
+def get_users_as_choices() -> Type[UserChoicesEnum]:
     users = {
         user.username: f"{user.username} ({user.email})" for user in User.objects.all()
     }
     UserChoices = Enum("UserChoices", users)
     return UserChoices
+
+
+def add_study_watchers(study: Study, watcher_usernames: List[UserChoicesEnum]):
+    for watcher in watcher_usernames:
+        user = User.objects.get(username=watcher.name)
+        study.watchers.add(user)
+        logging.info(f"{user} now watches {study}")
+    study.save()

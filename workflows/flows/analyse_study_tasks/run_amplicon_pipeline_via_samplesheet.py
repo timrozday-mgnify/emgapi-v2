@@ -32,7 +32,7 @@ from workflows.prefect_utils.slurm_flow import (
 from workflows.prefect_utils.slurm_policies import ResubmitIfFailedPolicy
 
 
-@flow(name="Run analysis pipeline-v6 in parallel", log_prints=True)
+@flow(name="Run analysis pipeline-v6 via samplesheet", log_prints=True)
 def run_amplicon_pipeline_via_samplesheet(
     mgnify_study: analyses.models.Study,
     amplicon_analysis_ids: List[Union[str, int]],
