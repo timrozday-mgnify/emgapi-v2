@@ -79,7 +79,10 @@ class JSONFieldWidgetOverridesMixin(ModelAdmin):
     def formfield_for_dbfield(
         self, db_field: Field, request: HttpRequest, **kwargs
     ) -> Optional[Field]:
-        if isinstance(db_field, JSONField) and db_field.name == "ena_accessions":
+        if isinstance(db_field, JSONField) and db_field.name in [
+            "ena_accessions",
+            "additional_accessions",
+        ]:
             kwargs["widget"] = ENAAccessionsListWidget
         elif isinstance(db_field, JSONField):
             kwargs["widget"] = JSONTreeWidget
