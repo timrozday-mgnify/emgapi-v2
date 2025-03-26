@@ -6,4 +6,6 @@ from analyses.models import Sample
 
 
 @admin.register(Sample)
-class SampleAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin): ...
+class SampleAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin):
+    search_fields = ["id", "ena_accessions"]
+    autocomplete_fields = ["ena_sample", "ena_study"]

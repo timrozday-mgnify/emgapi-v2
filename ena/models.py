@@ -1,5 +1,6 @@
 import logging
 
+from django.conf import settings
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import models
 from django.db.models import Model, QuerySet
@@ -17,6 +18,10 @@ class ENAModel(models.Model):
 
     class Meta:
         abstract = True
+
+    @property
+    def ena_browser_url(self):
+        return f"{settings.EMG_CONFIG.ena.browser_view_url_prefix}/{self.accession}"
 
 
 class StudyManager(models.Manager):

@@ -43,6 +43,7 @@ class AnalysisAdmin(JSONFieldWidgetOverridesMixin, ModelAdmin):
         "study__ena_accessions",
         "pipeline_version",
     ]
+    autocomplete_fields = ["run", "sample", "study", "ena_study", "assembly"]
 
     readonly_fields = ["created_at", "accession"]
 

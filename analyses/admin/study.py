@@ -129,6 +129,7 @@ class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin)
         "show_run_type_summary",
         "show_analysis_status_summary",
     ] + ENABrowserLinkMixin.actions_detail
+    autocomplete_fields = ["ena_study", "biome"]
 
     fieldsets = (
         (None, {"fields": ["title", "ena_study", "biome", "ena_accessions"]}),
