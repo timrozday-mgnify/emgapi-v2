@@ -125,10 +125,17 @@ class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin)
         "biome__biome_name",
     ]
     actions_detail = [
-        "show_assembly_status_summary",
-        "show_run_type_summary",
-        "show_analysis_status_summary",
+        {
+            "title": "Study reports",
+            "icon": "table_chart",
+            "items": [
+                "show_assembly_status_summary",
+                "show_run_type_summary",
+                "show_analysis_status_summary",
+            ],
+        },
     ] + ENABrowserLinkMixin.actions_detail
+
     autocomplete_fields = ["ena_study", "biome"]
 
     fieldsets = (
@@ -167,7 +174,7 @@ class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin)
         return instance.ena_accessions
 
     @action(
-        description="Report: assembly statuses",
+        description="Assembly statuses",
         url_path="study-assembly-status-summary",
     )
     def show_assembly_status_summary(self, request, object_id):
@@ -222,7 +229,7 @@ class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin)
         )
 
     @action(
-        description="Report: run types",
+        description="Run types",
         url_path="study-run-type-summary",
     )
     def show_run_type_summary(self, request, object_id):
@@ -270,7 +277,7 @@ class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin)
         )
 
     @action(
-        description="Report: analysis statuses",
+        description="Analysis statuses",
         url_path="study-analysis-status-summary",
     )
     def show_analysis_status_summary(self, request, object_id):

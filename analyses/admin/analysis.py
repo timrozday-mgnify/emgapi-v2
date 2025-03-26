@@ -1,6 +1,9 @@
+import logging
 from typing import Iterable
 
 from django.contrib import admin
+from django.contrib import messages
+from django.db.models import QuerySet
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from unfold.admin import ModelAdmin
@@ -121,3 +124,22 @@ class AnalysisAdmin(JSONFieldWidgetOverridesMixin, ModelAdmin):
             f'attachment; filename="{analysis.accession}_annotations.json"'
         )
         return response
+
+    @admin.action(description="Reset analyses by removing statuses and downloads")
+    def reset_analyses(self, request, queryset: QuerySet):
+        logging.warning(
+            f"{request.user} resetting analyses {queryset.first()} and {queryset.count() - 1} others"
+        )
+        queryset.update(
+            annotations=Analysis.default_annotations(),
+            downloads=[],
+            status=Analysis.AnalysisStates.default_status(),
+            results_dir="",
+        )
+        self.message_user(
+            request,
+            f"{queryset.count()} analyses reset successfully",
+            messages.SUCCESS,
+        )
+
+    actions = ["reset_analyses"]
