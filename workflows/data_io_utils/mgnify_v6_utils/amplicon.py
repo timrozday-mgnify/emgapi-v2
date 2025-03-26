@@ -87,7 +87,7 @@ def get_annotations_from_tax_table(tax_table: File) -> (List[dict], Optional[int
             tax_tsv, delimiter=CSVDelimiter.TAB, comment_char="#"
         )
         try:
-            tax_df = pd.read_csv(tax_tsv, sep=CSVDelimiter.TAB)
+            tax_df = pd.read_csv(tax_tsv, sep=CSVDelimiter.TAB, usecols=[0, 1, 2])
         except pd.errors.EmptyDataError:
             logging.error(
                 f"Found empty taxonomy TSV at {tax_table.path}. Probably unit testing, otherwise we should never be here"

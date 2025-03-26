@@ -8,7 +8,7 @@ def move_file_pointer_past_comment_lines(
     f, comment_char: str = "#", delimiter: str = ","
 ):
     """
-    Take a file point, and move the current read pointer to the start of meaninful content.
+    Take a file point, and move the current read pointer to the start of meaningful content.
     This skips over any pure comment lines (like "# Created by MGnify")
     and past any leading comment chars on a col header line like the "# " in "# id   name    count"
     :param f: File-like object.
