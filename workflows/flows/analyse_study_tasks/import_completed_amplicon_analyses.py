@@ -13,6 +13,7 @@ from workflows.flows.analyse_study_tasks.analysis_states import AnalysisStates
 from workflows.flows.analyse_study_tasks.copy_amplicon_pipeline_results import (
     copy_amplicon_pipeline_results,
 )
+from workflows.prefect_utils.analyses_models_helpers import task_mark_analysis_status
 
 
 @task
@@ -25,7 +26,16 @@ def import_completed_analysis(analysis: analyses.models.Analysis):
         import_taxonomy(analysis, dir_for_analysis, source=source, allow_non_exist=True)
     import_asv(analysis, dir_for_analysis)
     copy_amplicon_pipeline_results(analysis.accession)
-    analysis.mark_status(analysis.AnalysisStates.ANALYSIS_ANNOTATIONS_IMPORTED)
+    task_mark_analysis_status(
+        analysis,
+        analysis.AnalysisStates.ANALYSIS_ANNOTATIONS_IMPORTED,
+        unset_statuses=[
+            analysis.AnalysisStates.ANALYSIS_QC_FAILED,
+            analysis.AnalysisStates.ANALYSIS_POST_SANITY_CHECK_FAILED,
+            analysis.AnalysisStates.ANALYSIS_QC_FAILED,
+            analysis.AnalysisStates.ANALYSIS_BLOCKED,
+        ],
+    )
 
 
 @flow(log_prints=True)
