@@ -88,7 +88,7 @@ def check_cluster_job(
 
     job_log_path = Path(job.working_directory) / Path(f"slurm-{job_id}.out")
     if job_log_path.exists():
-        with open(job_log_path, "r") as job_log:
+        with open(job_log_path, "r", encoding="utf-8", errors="ignore") as job_log:
             full_log = job_log.readlines()
             log = "\n".join(full_log[-EMG_CONFIG.slurm.job_log_tail_lines :])
             logger.info(

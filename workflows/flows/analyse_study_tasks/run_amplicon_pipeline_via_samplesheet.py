@@ -25,6 +25,7 @@ from workflows.flows.analyse_study_tasks.set_post_analysies_states import (
 from workflows.flows.analyse_study_tasks.shared.study_summary import (
     generate_study_summary_for_pipeline_run,
 )
+from workflows.prefect_utils.build_cli_command import cli_command
 from workflows.prefect_utils.slurm_flow import (
     run_cluster_job,
     ClusterJobFailedException,
@@ -56,16 +57,19 @@ def run_amplicon_pipeline_via_samplesheet(
     )
     print(f"Using output dir {amplicon_current_outdir} for this execution")
 
-    command = (
-        f"nextflow run {EMG_CONFIG.amplicon_pipeline.amplicon_pipeline_repo} "
-        f"-r {EMG_CONFIG.amplicon_pipeline.amplicon_pipeline_git_revision} "
-        f"-latest "  # Pull changes from GitHub
-        f"-profile {EMG_CONFIG.amplicon_pipeline.amplicon_pipeline_nf_profile} "
-        f"-resume "
-        f"--input {samplesheet} "
-        f"--outdir {amplicon_current_outdir} "
-        f"{'-with-tower' if settings.EMG_CONFIG.slurm.use_nextflow_tower else ''} "
-        f"-name amplicon-v6-for-samplesheet-{slugify(samplesheet)[-30:]} "
+    command = cli_command(
+        [
+            ("nextflow", "run", EMG_CONFIG.amplicon_pipeline.amplicon_pipeline_repo),
+            ("-r", EMG_CONFIG.amplicon_pipeline.amplicon_pipeline_git_revision),
+            "-latest",  # Pull changes from GitHub
+            ("-profile", EMG_CONFIG.amplicon_pipeline.amplicon_pipeline_nf_profile),
+            "-resume ",
+            ("--input", samplesheet),
+            ("--outdir", amplicon_current_outdir),
+            EMG_CONFIG.slurm.use_nextflow_tower and "-with-tower",
+            ("-name", f"amplicon-v6-for-samplesheet-{slugify(samplesheet)[-30:]}"),
+            ("-ansi-log", "false"),
+        ]
     )
 
     try:
