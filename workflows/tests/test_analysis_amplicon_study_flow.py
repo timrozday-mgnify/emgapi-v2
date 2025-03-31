@@ -649,7 +649,7 @@ def test_prefect_analyse_amplicon_flow(
         analyses.models.Analysis.objects.filter(
             status__analysis_post_sanity_check_failed=True
         ).count()
-        == 2
+        == 3  # 2 fail sanity check for missing qc, a third fails import
     )
     assert (
         analyses.models.Analysis.objects.filter(

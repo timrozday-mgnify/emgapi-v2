@@ -172,10 +172,11 @@ def assemble_study(
 
     get_or_create_assemblies_for_runs(mgnify_study, read_runs)
     samplesheets = make_samplesheets_for_runs_to_assemble(mgnify_study, assembler)
-    for samplesheet in samplesheets:
+    for samplesheet_path, samplesheet_hash in samplesheets:
         run_assembler_for_samplesheet(
             mgnify_study,
-            samplesheet,
+            samplesheet_path,
+            samplesheet_hash,
         )
 
     if upload:

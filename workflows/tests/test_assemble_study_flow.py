@@ -4,6 +4,7 @@ import shutil
 from enum import Enum
 from pathlib import Path
 from typing import Optional, List
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -37,7 +38,9 @@ EMG_CONFIG = settings.EMG_CONFIG
 @pytest.mark.parametrize(
     "mock_suspend_flow_run", ["workflows.flows.assemble_study"], indirect=True
 )
+@patch("workflows.flows.assemble_study_tasks.make_samplesheets.queryset_hash")
 def test_prefect_assemble_study_flow(
+    mock_queryset_hash_for_assemblies,
     prefect_harness,
     httpx_mock,
     mock_suspend_flow_run,
@@ -192,8 +195,12 @@ def test_prefect_assemble_study_flow(
 
     mock_suspend_flow_run.side_effect = suspend_side_effect
 
-    assembly_folder = f"{EMG_CONFIG.slurm.default_workdir}/PRJNA1_miassembler"
-    os.mkdir(assembly_folder)
+    mock_queryset_hash_for_assemblies.return_value = "abc123"
+
+    assembly_folder = Path(
+        f"{EMG_CONFIG.slurm.default_workdir}/PRJNA1_miassembler/abc123"
+    )
+    assembly_folder.mkdir(exist_ok=True, parents=True)
 
     with open(f"{assembly_folder}/assembled_runs.csv", "w") as file:
         file.write("SRR1,metaspades,3.15.5\n")
@@ -328,7 +335,9 @@ def test_prefect_assemble_study_flow(
 @pytest.mark.parametrize(
     "mock_suspend_flow_run", ["workflows.flows.assemble_study"], indirect=True
 )
+@patch("workflows.flows.assemble_study_tasks.make_samplesheets.queryset_hash")
 def test_prefect_assemble_private_study_flow(
+    mock_queryset_hash_for_assemblies,
     prefect_harness,
     httpx_mock,
     mock_suspend_flow_run,
@@ -453,8 +462,12 @@ def test_prefect_assemble_private_study_flow(
 
     mock_suspend_flow_run.side_effect = suspend_side_effect
 
-    assembly_folder = Path(f"{EMG_CONFIG.slurm.default_workdir}/PRJNA1_miassembler")
-    assembly_folder.mkdir(exist_ok=True)
+    mock_queryset_hash_for_assemblies.return_value = "abc123"
+
+    assembly_folder = Path(
+        f"{EMG_CONFIG.slurm.default_workdir}/PRJNA1_miassembler/abc123"
+    )
+    assembly_folder.mkdir(exist_ok=True, parents=True)
 
     with (assembly_folder / "assembled_runs.csv").open("w") as file:
         file.write("SRR1,metaspades,3.15.5")
@@ -557,7 +570,9 @@ def test_assembler_changed_in_samplesheet(
     samplesheets = make_samplesheets_for_runs_to_assemble(
         mgnify_study=study, assembler=mgnify_assemblies[0].assembler
     )
-    samplesheet: Path = samplesheets[0]
+    samplesheet: Path = samplesheets[0][
+        0
+    ]  # first samplesheet, path component of path,hash tuple
     assert samplesheet.exists()
 
     # edit samplesheet, change assembler

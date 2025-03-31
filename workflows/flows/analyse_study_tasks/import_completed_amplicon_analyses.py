@@ -20,7 +20,7 @@ from workflows.prefect_utils.analyses_models_helpers import task_mark_analysis_s
 def import_completed_analysis(analysis: analyses.models.Analysis):
     dir_for_analysis = Path(analysis.results_dir)
 
-    import_qc(analysis, dir_for_analysis)
+    import_qc(analysis, dir_for_analysis, allow_non_exist=False)
 
     for source in analyses.models.Analysis.TaxonomySources:
         import_taxonomy(analysis, dir_for_analysis, source=source, allow_non_exist=True)
@@ -46,6 +46,9 @@ def import_completed_analyses(
         analysis.refresh_from_db()
         if not analysis.status.get(AnalysisStates.ANALYSIS_COMPLETED):
             print(f"{analysis} is not completed successfully. Skipping.")
+            continue
+        if analysis.status.get(AnalysisStates.ANALYSIS_POST_SANITY_CHECK_FAILED):
+            print(f"{analysis} failed post-analysis sanity check. Skipping.")
             continue
         if analysis.annotations.get(analysis.TAXONOMIES):
             print(f"{analysis} already has taxonomic annotations. Skipping.")

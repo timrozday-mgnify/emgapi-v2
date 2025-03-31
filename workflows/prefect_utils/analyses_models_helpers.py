@@ -37,7 +37,7 @@ def task_mark_assembly_status(
     print(f"Assembly {assembly} status is {status} now.")
     assembly.mark_status(status, reason=reason)
     for unset_status in unset_statuses or []:
-        if assembly.status[unset_status]:
+        if assembly.status.get(unset_status, None):
             assembly.mark_status(
                 unset_status,
                 set_status_as=False,
@@ -74,7 +74,7 @@ def task_mark_analysis_status(
     print(f"Analysis {analysis} status is {status} now.")
     analysis.mark_status(status, reason=reason)
     for unset_status in unset_statuses or []:
-        if analysis.status[unset_status]:
+        if analysis.status.get(unset_status, None):
             analysis.mark_status(
                 unset_status,
                 set_status_as=False,
