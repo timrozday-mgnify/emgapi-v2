@@ -634,6 +634,11 @@ def test_prefect_analyse_amplicon_flow(
         == 1
     )
 
+    # check biome and watchers were set correctly
+    study = analyses.models.Study.objects.get_or_create_for_ena_study(study_accession)
+    assert study.biome.biome_name == "Engineered"
+    assert admin_user == study.watchers.first()
+
     # check completed runs (all runs in completed list - might contain sanity check not passed as well)
     assert (
         analyses.models.Analysis.objects.filter(status__analysis_completed=True).count()
@@ -699,7 +704,6 @@ def test_prefect_analyse_amplicon_flow(
     assert len(ssu) == 3
     assert ssu[0]["organism"] == "sk__Bacteria;k__;p__Bacillota;c__Bacilli"
 
-    study = analyses.models.Study.objects.get_or_create_for_ena_study(study_accession)
     assert (
         study.results_dir == f"{EMG_CONFIG.slurm.default_workdir}/{study_accession}_v6"
     )

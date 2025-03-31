@@ -96,6 +96,7 @@ def analysis_amplicon_study(study_accession: str):
     )
 
     biome = analyses.models.Biome.objects.get(path=analyse_study_input.biome.name)
+    mgnify_study.biome = biome
     mgnify_study.save()
     logger.info(f"MGnify study {mgnify_study.accession} has biome {biome.path}.")
 
