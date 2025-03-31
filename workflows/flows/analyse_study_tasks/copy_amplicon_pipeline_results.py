@@ -1,13 +1,14 @@
 from pathlib import Path
 
-from prefect import flow
+from prefect import flow, task
 
+from workflows.data_io_utils.filenames import accession_prefix_separated_dir_path
 from workflows.prefect_utils.build_cli_command import cli_command
 from workflows.prefect_utils.datamovers import move_data
 
 from activate_django_first import EMG_CONFIG
 
-from analyses.models import Analysis
+from analyses.models import Analysis, Study
 
 
 @flow(
@@ -23,7 +24,7 @@ def copy_amplicon_pipeline_results(analysis_accession: str):
     experiment_type_label = Analysis.ExperimentTypes(
         analysis.experiment_type
     ).label.lower()
-    target = f"{EMG_CONFIG.slurm.ftp_results_dir}/{study.first_accession[:-3]}/{study.first_accession}/{run.first_accession[:-3]}/{run.first_accession}/{analysis.pipeline_version}/{experiment_type_label}"
+    target = f"{EMG_CONFIG.slurm.ftp_results_dir}/{accession_prefix_separated_dir_path(study.first_accession, -3)}/{accession_prefix_separated_dir_path(run.first_accession, -3)}/{analysis.pipeline_version}/{experiment_type_label}"
 
     allowed_extensions = [
         "yml",
@@ -54,3 +55,27 @@ def copy_amplicon_pipeline_results(analysis_accession: str):
         f"Analysis {analysis} now has results at {analysis.results_dir} in {EMG_CONFIG.slurm.ftp_results_dir}"
     )
     analysis.save()
+
+
+@task(name="Copy Amplicon Study Summaries", log_prints=True)
+def copy_amplicon_study_summaries(study_accession: str):
+    study = Study.objects.get(accession=study_accession)
+    command = cli_command(
+        [
+            "rsync",
+            "-av",
+            "--include=PRJ*study_summary.tsv",
+            "--include=[DES]RP*study_summary.tsv",
+            "--exclude=*",
+        ]
+    )
+    source = study.results_dir
+    target = f"{EMG_CONFIG.slurm.ftp_results_dir}/{accession_prefix_separated_dir_path(study.first_accession, -3)}/study-summaries/"
+    move_data(str(source), target, command, make_target=True)
+    study.results_dir = Path(target).parent.relative_to(
+        EMG_CONFIG.slurm.ftp_results_dir
+    )
+    study.save()
+    print(
+        f"Study {study} now has results at {study.results_dir} in {EMG_CONFIG.slurm.ftp_results_dir}"
+    )

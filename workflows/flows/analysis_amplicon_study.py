@@ -8,6 +8,9 @@ from prefect.runtime import flow_run, deployment
 from pydantic import Field
 
 from activate_django_first import EMG_CONFIG
+from workflows.flows.analyse_study_tasks.copy_amplicon_pipeline_results import (
+    copy_amplicon_study_summaries,
+)
 
 from workflows.flows.analyse_study_tasks.create_analyses import create_analyses
 from workflows.flows.analyse_study_tasks.get_analyses_to_attempt import (
@@ -131,6 +134,7 @@ def analysis_amplicon_study(study_accession: str):
         cleanup_partials=not EMG_CONFIG.amplicon_pipeline.keep_study_summary_partials,
     )
     add_study_summaries_to_downloads(mgnify_study.accession)
+    copy_amplicon_study_summaries(mgnify_study.accession)
 
     emit_event(
         event="flow.analysis.finished",

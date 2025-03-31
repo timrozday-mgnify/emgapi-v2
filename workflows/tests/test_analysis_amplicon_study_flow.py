@@ -704,9 +704,12 @@ def test_prefect_analyse_amplicon_flow(
     assert len(ssu) == 3
     assert ssu[0]["organism"] == "sk__Bacteria;k__;p__Bacillota;c__Bacilli"
 
-    assert (
-        study.results_dir == f"{EMG_CONFIG.slurm.default_workdir}/{study_accession}_v6"
-    )
+    workdir = Path(f"{EMG_CONFIG.slurm.default_workdir}/{study_accession}_v6")
+    assert workdir.is_dir()
+
+    assert study.results_dir == f"{study_accession[:-3]}/{study_accession}"
+    study.results_dir = workdir
+    study.save()
 
     Directory(
         path=study.results_dir,
@@ -715,9 +718,9 @@ def test_prefect_analyse_amplicon_flow(
         ],  # 6 for the samplesheet, same 6 for the "merge"
     )
 
-    with (
-        Path(study.results_dir) / "abc123_DADA2-SILVA_18S-V9_asv_study_summary.tsv"
-    ).open("r") as summary:
+    with (workdir / "abc123_DADA2-SILVA_18S-V9_asv_study_summary.tsv").open(
+        "r"
+    ) as summary:
         lines = summary.readlines()
         assert lines[0] == "taxonomy\tSRR_all_results\n"  # one run (the one with ASVs)
         assert "100" in lines[-1]
