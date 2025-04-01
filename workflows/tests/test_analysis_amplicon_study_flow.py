@@ -19,11 +19,13 @@ from workflows.data_io_utils.file_rules.common_rules import GlobHasFilesCountRul
 from workflows.data_io_utils.file_rules.nodes import Directory
 from workflows.flows.analyse_study_tasks.shared.study_summary import (
     merge_study_summaries,
+    STUDY_SUMMARY_TSV,
 )
 from workflows.flows.analysis_amplicon_study import analysis_amplicon_study
 from workflows.prefect_utils.analyses_models_helpers import get_users_as_choices
 from workflows.prefect_utils.testing_utils import (
     should_not_mock_httpx_requests_to_prefect_server,
+    run_flow_and_capture_logs,
 )
 
 EMG_CONFIG = settings.EMG_CONFIG
@@ -730,15 +732,46 @@ def test_prefect_analyse_amplicon_flow(
     for file in Path(study.results_dir).glob(f"{study.first_accession}*"):
         file.unlink()
 
-    # test merging of study summaries again, with cleanup enabled
-    merge_study_summaries(mgnify_study_accession=study.accession, cleanup_partials=True)
+    # test merging of study summaries again, with cleanup disabled
+    merge_study_summaries(
+        mgnify_study_accession=study.accession, cleanup_partials=False
+    )
     Directory(
         path=study.results_dir,
         glob_rules=[
-            GlobHasFilesCountRule[6],
+            GlobHasFilesCountRule[
+                12
+            ],  # study ones generated, and partials left in place
+            GlobRule(
+                rule_name="All study level files are present",
+                glob_patten=f"{study.first_accession}*{STUDY_SUMMARY_TSV}",
+                test=lambda f: len(list(f)) == 6,
+            ),
+        ],
+    )
+
+    study.refresh_from_db()
+    assert len(study.downloads_as_objects) == 6
+
+    # test merging of study summaries again – expect default bludgeon should overwrite the existing ones
+    logged_run = run_flow_and_capture_logs(
+        merge_study_summaries,
+        mgnify_study_accession=study.accession,
+        cleanup_partials=True,
+    )
+    assert (
+        logged_run.logs.count(
+            f"Deleting {str(Path(study.results_dir) / study.first_accession)}"
+        )
+        == 6
+    )
+    Directory(
+        path=study.results_dir,
+        glob_rules=[
+            GlobHasFilesCountRule[6],  # partials deleted, just merged ones
             GlobRule(
                 rule_name="All files are study level",
-                glob_patten=f"{study.first_accession}*study_summary.tsv",
+                glob_patten=f"{study.first_accession}*{STUDY_SUMMARY_TSV}",
                 test=lambda f: len(list(f)) == 6,
             ),
         ],

@@ -21,7 +21,14 @@ from workflows.data_io_utils.file_rules.common_rules import (
     FileIsNotEmptyRule,
 )
 from workflows.data_io_utils.file_rules.nodes import Directory, File
+from workflows.ena_utils.ena_accession_matching import (
+    INSDC_PROJECT_ACCESSION_GLOB,
+    INSDC_STUDY_ACCESSION_GLOB,
+)
 from workflows.prefect_utils.dir_context import chdir
+
+STUDY_SUMMARY = "study_summary"
+STUDY_SUMMARY_TSV = STUDY_SUMMARY + ".tsv"
 
 
 @flow
@@ -84,7 +91,7 @@ def generate_study_summary_for_pipeline_run(
             )
 
     generated_files = list(
-        study_dir.path.glob(f"{pipeline_outdir.name}*_study_summary.tsv")
+        study_dir.path.glob(f"{pipeline_outdir.name}*_{STUDY_SUMMARY_TSV}")
     )
     logger.info(f"Study summary generator made files: {generated_files}")
     return generated_files
@@ -92,7 +99,9 @@ def generate_study_summary_for_pipeline_run(
 
 @flow
 def merge_study_summaries(
-    mgnify_study_accession: str, cleanup_partials: bool = False
+    mgnify_study_accession: str,
+    cleanup_partials: bool = False,
+    bludgeon: bool = True,
 ) -> [Path]:
     """
     Merge multiple study summary files for a study, where each part was made by e.g. a single samplesheet.
@@ -100,13 +109,31 @@ def merge_study_summaries(
 
     :param mgnify_study_accession: e.g. MGYS0000001
     :param cleanup_partials: If True, will also delete the partial study summary files if and when they're merged.
+    :param bludgeon: If True, will delete any existing study-level summaries before merging.
     :return: List of paths to the study summary files generated in the study dir
     """
     logger = get_run_logger()
     study = Study.objects.get(accession=mgnify_study_accession)
 
-    logger.info(f"Merging study summaries for {study}")
-    summary_files = list(Path(study.results_dir).glob("*study_summary.tsv"))
+    logger.info(f"Merging study summaries for {study}, in {study.results_dir}")
+    logger.debug(f"Glob of dir is {list(Path(study.results_dir).glob('*'))}")
+    existing_merged_files = list(
+        Path(study.results_dir).glob(
+            f"{INSDC_PROJECT_ACCESSION_GLOB}{STUDY_SUMMARY_TSV}"
+        )
+    ) + list(
+        Path(study.results_dir).glob(f"{INSDC_STUDY_ACCESSION_GLOB}{STUDY_SUMMARY_TSV}")
+    )
+    if existing_merged_files:
+        logger.warning(
+            f"{len(existing_merged_files)} study-level summaries already exist in {study.results_dir}"
+        )
+    if bludgeon:
+        for existing_merged_file in existing_merged_files:
+            logger.warning(f"Deleting {existing_merged_file}")
+            existing_merged_file.unlink()
+
+    summary_files = list(Path(study.results_dir).glob(f"*{STUDY_SUMMARY_TSV}"))
     logger.info(
         f"There appear to be {len(summary_files)} study summary files in {study.results_dir}"
     )
@@ -127,7 +154,7 @@ def merge_study_summaries(
             )
 
     generated_files = list(
-        study_dir.path.glob(f"{study.first_accession}*_study_summary.tsv")
+        study_dir.path.glob(f"{study.first_accession}*_{STUDY_SUMMARY_TSV}")
     )
 
     if not generated_files:
@@ -149,10 +176,12 @@ def add_study_summaries_to_downloads(mgnify_study_accession: str):
     study = Study.objects.get(accession=mgnify_study_accession)
 
     for summary_file in Path(study.results_dir).glob(
-        f"{study.first_accession}*study_summary.tsv"
+        f"{study.first_accession}*{STUDY_SUMMARY_TSV}"
     ):
         db_or_region = (
-            summary_file.stem.split("_")[1].rstrip("_study_summary.tsv").rstrip("asv")
+            summary_file.stem.split("_")[1]
+            .rstrip(f"_{STUDY_SUMMARY_TSV}")
+            .rstrip("asv")
         )
         try:
             study.add_download(

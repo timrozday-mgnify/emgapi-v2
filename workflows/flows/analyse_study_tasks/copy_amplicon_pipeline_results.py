@@ -3,6 +3,7 @@ from pathlib import Path
 from prefect import flow, task
 
 from workflows.data_io_utils.filenames import accession_prefix_separated_dir_path
+from workflows.flows.analyse_study_tasks.shared.study_summary import STUDY_SUMMARY_TSV
 from workflows.prefect_utils.build_cli_command import cli_command
 from workflows.prefect_utils.datamovers import move_data
 
@@ -64,8 +65,8 @@ def copy_amplicon_study_summaries(study_accession: str):
         [
             "rsync",
             "-av",
-            "--include=PRJ*study_summary.tsv",
-            "--include=[DES]RP*study_summary.tsv",
+            f"--include=PRJ*{STUDY_SUMMARY_TSV}",
+            f"--include=[DES]RP*{STUDY_SUMMARY_TSV}",
             "--exclude=*",
         ]
     )

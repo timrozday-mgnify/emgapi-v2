@@ -10,6 +10,7 @@ from Bio import SeqIO
 from prefect.tasks import task_input_hash
 
 from activate_django_first import EMG_CONFIG
+from workflows.ena_utils.ena_accession_matching import ENA_ASSEMBLY_ACCESSION_REGEX
 
 from workflows.prefect_utils.env_context import TemporaryEnv, UNSET
 from workflows.prefect_utils.slurm_policies import ResubmitIfFailedPolicy
@@ -313,7 +314,7 @@ def get_assigned_assembly_accession(assembly: analyses.models.Assembly, manifest
         with open(webin_cli_log, "r") as report:
             report_lines = report.readlines()
         assembly_accession_match_list = re.findall(
-            EMG_CONFIG.ena.assembly_accession_re, ",".join(report_lines)
+            ENA_ASSEMBLY_ACCESSION_REGEX, ",".join(report_lines)
         )
         if assembly_accession_match_list:
             logger.info(f"Got {assembly_accession_match_list[0]}")

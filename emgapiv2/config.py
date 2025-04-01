@@ -107,8 +107,6 @@ class WebinConfig(BaseModel):
 
 
 class ENAConfig(BaseModel):
-    primary_study_accession_re: str = "(PRJ[EDN][A-Z][0-9]+)"
-    assembly_accession_re: str = "([EDS]RZ[0-9]{6,})"
     portal_search_api: AnyHttpUrl = "https://www.ebi.ac.uk/ena/portal/api/search"
     portal_search_api_max_retries: int = 4
     portal_search_api_retry_delay_seconds: int = 15
