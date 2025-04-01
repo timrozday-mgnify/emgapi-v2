@@ -11,6 +11,9 @@ fileignoreconfig:
 - filename: analyses/tests/test_models.py
   allowed_patterns: [key]
 
+- filename: deployment/ebi-wp-k8s-hl/ebi-wp-k8s-hl.yaml
+  checksum: 175062099bb655bc0df826c80c0869e49b5600dc5e4148dd308b57c27b991bb8
+
 - filename: emgapiv2/config.py
   checksum: 1e1a8f41069509ddfe643f09455c5c8a52c98ecfa3e3f467cca9798ef0639030
 
