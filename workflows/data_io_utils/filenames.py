@@ -125,3 +125,10 @@ def next_enumerated_subdir(
     if mkdirs:
         next_int_dir.mkdir(parents=True, exist_ok=True)
     return next_int_dir
+
+
+def trailing_slash_ensured_dir(dir_path: Path | str) -> str:
+    d = dir_path
+    if isinstance(d, Path):
+        d = str(d.as_posix())
+    return str(d).rstrip("/") + "/"

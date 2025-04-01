@@ -2,7 +2,10 @@ from pathlib import Path
 
 from prefect import flow, task
 
-from workflows.data_io_utils.filenames import accession_prefix_separated_dir_path
+from workflows.data_io_utils.filenames import (
+    accession_prefix_separated_dir_path,
+    trailing_slash_ensured_dir,
+)
 from workflows.flows.analyse_study_tasks.shared.study_summary import STUDY_SUMMARY_TSV
 from workflows.prefect_utils.build_cli_command import cli_command
 from workflows.prefect_utils.datamovers import move_data
@@ -70,9 +73,9 @@ def copy_amplicon_study_summaries(study_accession: str):
             "--exclude=*",
         ]
     )
-    source = study.results_dir
+    source = trailing_slash_ensured_dir(study.results_dir)
     target = f"{EMG_CONFIG.slurm.ftp_results_dir}/{accession_prefix_separated_dir_path(study.first_accession, -3)}/study-summaries/"
-    move_data(str(source), target, command, make_target=True)
+    move_data(source, target, command, make_target=True)
     study.results_dir = Path(target).parent.relative_to(
         EMG_CONFIG.slurm.ftp_results_dir
     )
