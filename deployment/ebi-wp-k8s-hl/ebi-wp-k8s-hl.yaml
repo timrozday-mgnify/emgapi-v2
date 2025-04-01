@@ -93,6 +93,7 @@ items:
       EMG_SLURM__SAMPLESHEET_EDITING_ALLOWED_INSIDE: "/nfs/production/rdf/metagenomics/projects/automation/slurm_workdir"
       EMG_SLURM__SAMPLE_EDITING_PATH_FROM_SHARED_FILESYSTEM: "temporary_samplesheet_edits"
       EMG_SLURM__DEFAULT_WORKDIR: "/nfs/production/rdf/metagenomics/projects/automation/slurm_workdir"
+      EMG_SERVICE_URLS__TRANSFER_SERVICES_URL_ROOT: "https://ftp.ebi.ac.uk/pub/databases/metagenomics/mgnify_results"
   - apiVersion: apps/v1
     kind: Deployment
     metadata:
