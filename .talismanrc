@@ -12,7 +12,7 @@ fileignoreconfig:
   allowed_patterns: [key]
 
 - filename: deployment/ebi-wp-k8s-hl/ebi-wp-k8s-hl.yaml
-  checksum: 175062099bb655bc0df826c80c0869e49b5600dc5e4148dd308b57c27b991bb8
+  checksum: a4476f78908b6e6a9f4801fd21c0c9f034869f088dea9eff7baffa2117693255
 
 - filename: emgapiv2/config.py
   checksum: 1e1a8f41069509ddfe643f09455c5c8a52c98ecfa3e3f467cca9798ef0639030

@@ -131,6 +131,12 @@ items:
                     name: emgapi-config
                 - configMapRef:
                     name: proxy-config
+              env:
+                - name: PREFECT_API_AUTH_STRING
+                  valueFrom:
+                    secretKeyRef:
+                      key: PREFECT_SERVER_API_AUTH_STRING
+                      name: emgapi-secret
               ports:
                 - containerPort: 8000
                   name: gunicorn
