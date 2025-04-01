@@ -21,7 +21,7 @@ def test_public_api_studies_endpoint(ninja_api_client):
     """Test that public API only returns public studies"""
     public_study = Study.objects.create(title="Public Study", is_private=False)
     Study.objects.create(title="Private Study", is_private=True)
-    response = ninja_api_client.get("/studies")
+    response = ninja_api_client.get("/studies/")
     # assert response.status_code == status.HTTP_200_OK
     assert response.status_code == 200
     assert len(response.json()["items"]) == 1  # Only public study
@@ -35,7 +35,7 @@ def test_public_api_analyses_endpoint(raw_read_run, ninja_api_client):
     public_analysis = create_analysis(is_private=False)
     create_analysis(is_private=True)
 
-    response = ninja_api_client.get("/analyses")
+    response = ninja_api_client.get("/analyses/")
 
     # assert response.status_code == status.HTTP_200_OK
     assert response.status_code == 200
