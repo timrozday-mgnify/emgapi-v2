@@ -39,7 +39,7 @@ def amplicon_analysis_with_downloads(
     )
     analysis.mark_status(analysis.AnalysisStates.ANALYSIS_COMPLETED)
 
-    analysis.results_dir = "/app/data/tests/amplicon_v6_output/"
+    analysis.results_dir = "/app/data/tests/amplicon_v6_output/SRR1111111"
     analysis.save()
     import_completed_analysis.fn(analysis)
 
@@ -52,6 +52,7 @@ def test_make_dev_data(
     raw_read_analyses,
     mgnify_assemblies_completed,
     amplicon_analysis_with_downloads,
+    prefect_harness,
 ):
     """
     Dummy test that just sets up fixtures and dumps them to JSON for using as dev data.
