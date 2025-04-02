@@ -6,6 +6,7 @@ from ninja.pagination import RouterPaginated
 from emgapiv2.api.schema_utils import OpenApiKeywords, ApiSections
 from .analyses import router as analyses_router
 from .private import router as my_data_router
+from .samples import router as samples_router
 from .studies import router as studies_router
 
 api = NinjaAPI(
@@ -57,5 +58,6 @@ api = NinjaAPI(
 )
 
 api.add_router("/analyses", analyses_router, tags=[ApiSections.ANALYSES])
+api.add_router("/samples", samples_router, tags=[ApiSections.SAMPLES])
 api.add_router("/studies", studies_router, tags=[ApiSections.STUDIES])
 api.add_router("/my-data", my_data_router, tags=[ApiSections.PRIVATE_DATA])

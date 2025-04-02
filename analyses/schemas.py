@@ -62,9 +62,22 @@ class MGnifyStudyDetail(MGnifyStudy):
 
 
 class MGnifySample(ModelSchema):
+    accession: str = Field(
+        ..., alias="first_accession", examples=["ERS000001", "SAMEA000000001"]
+    )
+    ena_accessions: List[str] = Field(
+        ..., examples=[["ERS000001", "SAMEA000000001"], ["ERS000002"]]
+    )
+
     class Meta:
         model = analyses.models.Sample
-        fields = ["id", "ena_sample"]
+        fields = ["updated_at"]
+
+
+class MGnifySampleDetail(MGnifySample):
+    studies: List[MGnifyStudy]
+
+    class Meta(MGnifySample.Meta): ...
 
 
 class MGnifyDownloadFileIndexFile(Schema, DownloadFileIndexFile):

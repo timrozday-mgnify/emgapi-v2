@@ -51,9 +51,9 @@ class GetByENAAccessionManagerMixin:
     def get_by_accession(self, ena_accession):
         qs = self.get_queryset().filter(ena_accessions__contains=ena_accession)
         if qs.count() > 1:
-            raise self.MultipleObjectsReturned()
+            raise self.model.MultipleObjectsReturned()
         elif not qs.exists():
-            raise self.ObjectDoesNotExist()
+            raise self.model.DoesNotExist()
         return qs.first()
 
 

@@ -14,6 +14,10 @@ from analyses.base_models.with_downloads_models import (
 R = TypeVar("R")
 
 
+def _whole_object(j):
+    return j
+
+
 def call_endpoint_and_get_data(
     client: TestClient,
     endpoint: str,
@@ -69,7 +73,7 @@ def test_api_analysis_detail(raw_read_analyses, ninja_api_client):
     analysis = call_endpoint_and_get_data(
         ninja_api_client,
         f"/analyses/{raw_read_analyses[0].accession}",
-        getter=lambda j: j,
+        getter=_whole_object,
     )
     assert analysis["accession"] == raw_read_analyses[0].accession
     assert analysis["study_accession"] == raw_read_analyses[0].study.accession
@@ -97,9 +101,7 @@ def test_api_analysis_downloads(raw_read_analyses, ninja_api_client):
     analysis.add_download(dl)
     analysis.refresh_from_db()
     api_analysis = call_endpoint_and_get_data(
-        ninja_api_client,
-        f"/analyses/{analysis.accession}",
-        getter=lambda j: j,
+        ninja_api_client, f"/analyses/{analysis.accession}", getter=_whole_object
     )
 
     assert api_analysis["accession"] == analysis.accession
@@ -113,3 +115,26 @@ def test_api_analysis_downloads(raw_read_analyses, ninja_api_client):
     )
     assert dl_api["index_file"]["relative_url"] == "taxonomies.tsv.gz.gzi"
     assert "path" not in dl_api
+
+
+@pytest.mark.django_db
+def test_api_samples_list(raw_reads_mgnify_sample, ninja_api_client):
+    items = call_endpoint_and_get_data(
+        ninja_api_client, "/samples/", count=len(raw_reads_mgnify_sample)
+    )
+    assert items[0]["accession"] in [s.first_accession for s in raw_reads_mgnify_sample]
+    assert items[0]["ena_accessions"] in [
+        s.ena_accessions for s in raw_reads_mgnify_sample
+    ]
+
+
+@pytest.mark.django_db
+def test_api_sample_detail(raw_reads_mgnify_sample, ninja_api_client):
+    db_sample = raw_reads_mgnify_sample[0]
+    sample = call_endpoint_and_get_data(
+        ninja_api_client, f"/samples/{db_sample.first_accession}", getter=_whole_object
+    )
+    assert sample["accession"] == db_sample.first_accession
+    assert sample["ena_accessions"] == db_sample.ena_accessions
+    assert len(sample["studies"]) == 1
+    assert sample["studies"][0]["accession"] == db_sample.studies.first().accession

@@ -25,7 +25,7 @@ def make_related_detail_link(
     related_id_in_response: str,
     related_lookup_param: str = "accession",
     from_list_to_detail: bool = False,
-    is_paginated: bool = True,
+    from_list_at_path: str = "items/",
 ) -> dict:
     if from_list_to_detail:
         link_name = f"Get{related_object_name.capitalize()}From{self_object_name.capitalize()}List"
@@ -33,11 +33,12 @@ def make_related_detail_link(
         link_name = (
             f"Get{related_object_name.capitalize()}For{self_object_name.capitalize()}"
         )
+    from_list_at_path = from_list_at_path.rstrip("/") + "/"
     return {
         link_name: {
             OpenApiKeywords.OPERATIONID.value: related_detail_operation_id,
             OpenApiKeywords.PARAMETERS.value: {
-                related_lookup_param: f"$response.body#/{'items/' if is_paginated and from_list_to_detail else ''}{'0/' if from_list_to_detail else ''}{related_id_in_response}"
+                related_lookup_param: f"$response.body#/{from_list_at_path if from_list_to_detail else ''}{'0/' if from_list_to_detail else ''}{related_id_in_response}"
             },
             OpenApiKeywords.DESCRIPTION.value: f"The {related_id_in_response} is an identifier that can be used to access the {related_object_name} detail",
         }

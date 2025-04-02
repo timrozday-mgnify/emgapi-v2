@@ -21,6 +21,7 @@ from analyses.base_models.base_models import (
     PrivacyFilterManagerMixin,
     TimeStampedModel,
     VisibilityControlledModel,
+    GetByENAAccessionManagerMixin,
 )
 from analyses.base_models.mgnify_accessioned_models import MGnifyAccessionField
 from analyses.base_models.with_downloads_models import WithDownloadsModel
@@ -130,7 +131,9 @@ class Study(
         verbose_name_plural = "studies"
 
 
-class PublicSampleManager(PrivacyFilterManagerMixin, models.Manager): ...
+class PublicSampleManager(
+    PrivacyFilterManagerMixin, GetByENAAccessionManagerMixin, models.Manager
+): ...
 
 
 class Sample(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
@@ -138,6 +141,7 @@ class Sample(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
     public_objects = PublicSampleManager()
 
     ena_sample = models.ForeignKey(ena.models.Sample, on_delete=models.CASCADE)
+    studies = models.ManyToManyField(Study)
 
     def __str__(self):
         return f"Sample {self.id}: {self.ena_sample}"

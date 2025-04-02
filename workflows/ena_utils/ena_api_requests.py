@@ -542,6 +542,7 @@ def get_study_readruns_from_ena(
                 "is_private": mgys_study.is_private,
             },
         )
+        mgnify_sample.studies.add(mgys_study)
 
         run, _ = analyses.models.Run.objects.update_or_create(
             ena_accessions=[read_run["run_accession"]],
