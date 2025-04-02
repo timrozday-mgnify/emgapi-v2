@@ -10,10 +10,12 @@ if TYPE_CHECKING:
 def associate_samples_with_studies(apps, schema_editor):
     Sample: "mg_models.Sample" = apps.get_model("analyses", "Sample")
     for sample in Sample.objects.all():
-        if sample.runs:
-            for run in sample.runs.all():
-                sample.studies.add(run.study)
-                print(f"Added study {run.study} to {sample}")
+        studies_of_runs = {run.study_id for run in sample.runs.all()}
+        studies_to_associate = studies_of_runs.difference(
+            {study.id for study in sample.studies.all()}
+        )  # in case re-running
+        sample.studies.add(*studies_to_associate)
+        print(f"Added studies {studies_to_associate} to {sample}")
 
 
 class Migration(migrations.Migration):
