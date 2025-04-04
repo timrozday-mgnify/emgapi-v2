@@ -49,6 +49,35 @@ def test_api_study(raw_reads_mgnify_study, ninja_api_client):
 
 
 @pytest.mark.django_db
+def test_api_study_filtering(
+    raw_reads_mgnify_study, ninja_api_client, top_level_biomes
+):
+    call_endpoint_and_get_data(ninja_api_client, "/studies/", count=1)
+    call_endpoint_and_get_data(ninja_api_client, "/studies/?biome_lineage=", count=1)
+    raw_reads_mgnify_study.biome = top_level_biomes[-1]
+    raw_reads_mgnify_study.save()
+    assert raw_reads_mgnify_study.biome.biome_name == "Human"
+    call_endpoint_and_get_data(ninja_api_client, "/studies/?biome_lineage=", count=1)
+    call_endpoint_and_get_data(
+        ninja_api_client, "/studies/?biome_lineage=root", count=1
+    )
+    call_endpoint_and_get_data(
+        ninja_api_client, "/studies/?biome_lineage=root:host-associated", count=1
+    )
+    call_endpoint_and_get_data(
+        ninja_api_client, "/studies/?biome_lineage=root:host-associated:human", count=1
+    )
+    call_endpoint_and_get_data(
+        ninja_api_client,
+        "/studies/?biome_lineage=root:host-associated:human:gut",
+        count=0,
+    )
+    call_endpoint_and_get_data(
+        ninja_api_client, "/studies/?biome_lineage=root:engineered", count=0
+    )
+
+
+@pytest.mark.django_db
 def test_api_analyses_list(raw_read_analyses, ninja_api_client):
     items = call_endpoint_and_get_data(
         ninja_api_client, "/analyses/", count=len(raw_read_analyses)
