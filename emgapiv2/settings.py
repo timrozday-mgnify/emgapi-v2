@@ -104,6 +104,16 @@ CORS_ALLOWED_ORIGINS = [
     "http://apiv2-dev.mgnify.org",
 ]
 
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_HEADERS = [
+    "content-type",
+    "accept",
+    "authorization",
+    "x-csrftoken",
+    "sentry-trace",
+]
+
 ROOT_URLCONF = "emgapiv2.urls"
 
 TEMPLATES = [
