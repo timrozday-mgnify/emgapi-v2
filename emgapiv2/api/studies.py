@@ -1,11 +1,21 @@
-from typing import List
+from typing import List, Literal
 
 from django.shortcuts import get_object_or_404
+from ninja import Query
 from ninja.pagination import RouterPaginated
 
 import analyses.models
-from analyses.schemas import MGnifyStudyDetail, MGnifyStudy, MGnifyAnalysis
-from emgapiv2.api.schema_utils import make_links_section, make_related_detail_link
+from analyses.schemas import (
+    MGnifyStudyDetail,
+    MGnifyStudy,
+    MGnifyAnalysis,
+    OrderByFilter,
+)
+from emgapiv2.api.schema_utils import (
+    make_links_section,
+    make_related_detail_link,
+    BiomeFilter,
+)
 
 router = RouterPaginated()
 
@@ -29,8 +39,16 @@ def get_mgnify_study(request, accession: str):
     description="MGnify studies inherit directly from studies (or projects) in ENA.",
     operation_id="list_mgnify_studies",
 )
-def list_mgnify_studies(request):
+def list_mgnify_studies(
+    request,
+    order: OrderByFilter[
+        Literal["accession", "-accession", "updated_at", "-updated_at", ""]
+    ] = Query(...),
+    filters: BiomeFilter = Query(...),
+):
     qs = analyses.models.Study.public_objects.all()
+    qs = order.order_by(qs)
+    qs = filters.filter(qs)
     return qs
 
 

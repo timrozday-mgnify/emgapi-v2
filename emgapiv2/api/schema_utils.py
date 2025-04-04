@@ -1,3 +1,10 @@
+from typing import Optional
+
+from django.db.models import Q
+from ninja import FilterSchema
+from pydantic import Field
+
+from analyses.models import Biome
 from emgapiv2.enum_utils import FutureStrEnum
 
 
@@ -51,3 +58,14 @@ def make_links_section(links: dict, response_code: int = 200) -> dict:
             response_code: {OpenApiKeywords.LINKS.value: links}
         }
     }
+
+
+class BiomeFilter(FilterSchema):
+    biome_lineage: Optional[str] = Field(
+        None, description="The lineage to match, including all descendant biomes"
+    )
+
+    def filter_biome_lineage(self, lineage: str | None) -> Q:
+        if not lineage:
+            return Q()
+        return Q(biome__path__descendants=Biome.lineage_to_path(lineage))

@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Union, Dict, Any
+from typing import List, Optional, Union, Dict, Any, TypeVar, Generic
 from urllib.parse import urljoin
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from ninja import Field, ModelSchema, Schema
-from pydantic import field_validator
+from pydantic import field_validator, BaseModel
 from typing_extensions import Annotated
 
 import analyses.models
@@ -21,8 +23,10 @@ EMG_CONFIG = settings.EMG_CONFIG
 
 
 class Biome(ModelSchema):
-    biome_name: str = Field(..., examples=["Mammals", "Engineered"])
-    lineage: str = Field(None, examples=["root:Host-associated:Mammals"])
+    biome_name: str = Field(..., examples=["Engineered", "Mammals"])
+    lineage: str = Field(
+        None, examples=["root:Engineered", "root:Host-associated:Mammals"]
+    )
 
     @staticmethod
     def resolve_lineage(obj: analyses.models.Biome) -> str:
@@ -38,6 +42,14 @@ class MGnifyStudy(ModelSchema):
     ena_accessions: List[str] = Field(..., examples=[["SRP135937", "PRJNA438545"]])
     title: str = Field(..., examples=["ISS Metagenomes"])
     biome: Optional[Biome]
+    updated_at: datetime = Field(
+        ...,
+        examples=[
+            datetime(
+                1998, 11, 20, 9, 40, 00, tzinfo=ZoneInfo("Europe/Moscow")
+            ).isoformat()
+        ],
+    )
 
     @staticmethod
     def resolve_biome_name(obj: analyses.models.Study):
@@ -59,6 +71,26 @@ class MGnifyStudyDetail(MGnifyStudy):
             "ena_study",
             "title",
         ]
+
+
+T = TypeVar("T", bound=str)
+
+
+class OrderByFilter(BaseModel, Generic[T]):
+    """
+    Usage:
+    MyModelOrderBy = OrderByFilter[Literal["name", "-name", "created_at", "-created_at", ""]]
+
+    @router.get("/items")
+    def list_my_models(request, order: MyModelOrderBy = Query(...)):
+    """
+
+    order: Optional[T] = None
+
+    def order_by(self, qs):
+        if self.order:
+            return qs.order_by(self.order)
+        return qs
 
 
 class MGnifySample(ModelSchema):
