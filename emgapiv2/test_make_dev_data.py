@@ -10,9 +10,7 @@ from workflows.flows.analyse_study_tasks.import_completed_amplicon_analyses impo
 
 
 @pytest.fixture
-@patch(
-    "workflows.flows.analyse_study_tasks.import_completed_amplicon_analyses.copy_amplicon_pipeline_results"
-)
+@patch("workflows.flows.analyse_study_tasks.copy_amplicon_pipeline_results.move_data")
 def amplicon_analysis_with_downloads(
     mock_copy_flow, raw_reads_mgnify_study, raw_reads_mgnify_sample
 ):
@@ -41,7 +39,7 @@ def amplicon_analysis_with_downloads(
 
     analysis.results_dir = "/app/data/tests/amplicon_v6_output/SRR1111111"
     analysis.save()
-    import_completed_analysis.fn(analysis)
+    import_completed_analysis(analysis)
 
 
 @pytest.mark.dev_data_maker

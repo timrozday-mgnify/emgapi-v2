@@ -1,7 +1,4 @@
 from typing import List, Optional
-from urllib.parse import urljoin
-
-from django.conf import settings
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from ninja.pagination import RouterPaginated
@@ -37,38 +34,12 @@ router = RouterPaginated()
 )
 def get_mgnify_analysis(request, accession: str):
     analysis = get_object_or_404(
-        analyses.models.Analysis.public_objects.select_related("run"),
+        analyses.models.Analysis.public_objects.select_related(
+            "run", "assembly", "study", "sample"
+        ),
         accession=accession,
     )
-
-    run_accession = analysis.run.first_accession if analysis.run else None
-    study_accession = analysis.study.accession if analysis.study else None
-    sample_accession = analysis.sample.ena_sample.accession if analysis.sample else None
-    assembly_accession = (
-        analysis.assembly.first_accession if analysis.assembly else None
-    )
-    experiment_type = analysis.run.experiment_type if analysis.run else None
-    raw_run = analysis.raw_run
-
-    response = {
-        "accession": analysis.accession,
-        "run_accession": run_accession,
-        "downloads_as_objects": analysis.downloads_as_objects,
-        "study_accession": study_accession,
-        "sample_accession": sample_accession,
-        "assembly_accession": assembly_accession,
-        "experiment_type": experiment_type,
-        "raw_run": raw_run,
-        "pipeline_version": analysis.pipeline_version,
-        "quality_control": analysis.quality_control,
-        "results_dir": urljoin(
-            settings.EMG_CONFIG.service_urls.transfer_services_url_root,
-            analysis.results_dir,
-        ),
-        "metadata": analysis.metadata,
-    }
-
-    return response
+    return analysis
 
 
 @router.get(
@@ -139,5 +110,7 @@ def get_mgnify_analysis_with_annotations_of_type(
     operation_id="list_mgnify_analyses",
 )
 def list_mgnify_analyses(request):
-    qs = analyses.models.Analysis.public_objects.all()
+    qs = analyses.models.Analysis.public_objects.select_related(
+        "study", "sample", "run", "assembly"
+    )
     return qs

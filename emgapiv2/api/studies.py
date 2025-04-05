@@ -71,4 +71,4 @@ def list_mgnify_studies(
 )
 def list_mgnify_study_analyses(request, accession: str):
     study = get_object_or_404(analyses.models.Study.public_objects, accession=accession)
-    return study.analyses.all()
+    return study.analyses.select_related("study", "sample", "run", "assembly")

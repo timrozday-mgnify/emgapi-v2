@@ -83,7 +83,11 @@ def test_api_analyses_list(raw_read_analyses, ninja_api_client):
         ninja_api_client, "/analyses/", count=len(raw_read_analyses)
     )
     assert items[0]["accession"] in [a.accession for a in raw_read_analyses]
-    assert sorted([a["experiment_type"] for a in items]) == ["AMPLI", "METAG", "METAG"]
+    assert sorted([a["experiment_type"] for a in items]) == [
+        "Amplicon",
+        "Metagenomic",
+        "Metagenomic",
+    ]
 
 
 @pytest.mark.django_db
@@ -94,7 +98,11 @@ def test_api_study_analyses_list(raw_read_analyses, ninja_api_client):
         count=len(raw_read_analyses),
     )
     assert items[0]["accession"] in [a.accession for a in raw_read_analyses]
-    assert sorted([a["experiment_type"] for a in items]) == ["AMPLI", "METAG", "METAG"]
+    assert sorted([a["experiment_type"] for a in items]) == [
+        "Amplicon",
+        "Metagenomic",
+        "Metagenomic",
+    ]
 
 
 @pytest.mark.django_db
@@ -140,7 +148,7 @@ def test_api_analysis_downloads(raw_read_analyses, ninja_api_client):
     print(json.dumps(dl_api, indent=2))
     assert (
         dl_api["url"]
-        == "http://localhost:8080/app/data/tests/amplicon_v6_output/results/taxonomies.tsv.gz"
+        == f"http://localhost:8080/app/data/tests/amplicon_v6_output/{analysis.run.first_accession}/results/taxonomies.tsv.gz"
     )
     assert dl_api["index_file"]["relative_url"] == "taxonomies.tsv.gz.gzi"
     assert "path" not in dl_api

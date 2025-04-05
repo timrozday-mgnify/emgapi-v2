@@ -148,7 +148,7 @@ class LegacyServiceConfig(BaseModel):
 class ServiceURLsConfig(BaseModel):
     app_root: str = "http://localhost:8000"
     transfer_services_url_root: str = (
-        "http://localhost:8080/pub/databases/metagenomics/mgnify_results"
+        "http://localhost:8080/pub/databases/metagenomics/mgnify_results/"
     )
 
 

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from prefect import flow, task
+from prefect import task
 
 from workflows.data_io_utils.filenames import (
     accession_prefix_separated_dir_path,
@@ -15,9 +15,9 @@ from activate_django_first import EMG_CONFIG
 from analyses.models import Analysis, Study
 
 
-@flow(
+@task(
     name="Copy Amplicon Pipeline Results",
-    flow_run_name="Copy Amplicon Pipeline Results",
+    task_run_name="Copy Amplicon Pipeline Results for {analysis_accession}",
     log_prints=True,
 )
 def copy_amplicon_pipeline_results(analysis_accession: str):
@@ -29,6 +29,9 @@ def copy_amplicon_pipeline_results(analysis_accession: str):
         analysis.experiment_type
     ).label.lower()
     target = f"{EMG_CONFIG.slurm.ftp_results_dir}/{accession_prefix_separated_dir_path(study.first_accession, -3)}/{accession_prefix_separated_dir_path(run.first_accession, -3)}/{analysis.pipeline_version}/{experiment_type_label}"
+    print(
+        f"Will copy results for {analysis_accession} from {analysis.results_dir} to {target}"
+    )
 
     allowed_extensions = [
         "yml",

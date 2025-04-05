@@ -18,6 +18,7 @@ from analyses.base_models.with_downloads_models import (
     DownloadFileIndexFile,
 )
 from emgapiv2.enum_utils import FutureStrEnum
+from workflows.data_io_utils.filenames import trailing_slash_ensured_dir
 
 EMG_CONFIG = settings.EMG_CONFIG
 
@@ -159,7 +160,7 @@ class MGnifyAnalysisDownloadFile(Schema, DownloadFile):
 
         return urljoin(
             EMG_CONFIG.service_urls.transfer_services_url_root,
-            urljoin(analysis.results_dir, obj.path),
+            urljoin(trailing_slash_ensured_dir(analysis.results_dir), obj.path),
         )
 
 
@@ -181,20 +182,6 @@ class MGnifyStudyDownloadFile(MGnifyAnalysisDownloadFile):
         return f"{EMG_CONFIG.service_urls.transfer_services_url_root.rstrip('/')}/{study.results_dir}/{obj.path}"
 
 
-class MGnifyAnalysis(ModelSchema):
-    study_accession: str = Field(..., alias="study_id", examples=["MGYS000000001"])
-    accession: str = Field(..., examples=["MGYA000000001"])
-    experiment_type: analyses.models.Analysis.ExperimentTypes = Field(
-        ...,
-        examples=analyses.models.Analysis.ExperimentTypes.values,
-        description="Experiment type refers to the type of sequencing data that was analysed, e.g. amplicon reads or a metagenome assembly",
-    )
-
-    class Meta:
-        model = analyses.models.Analysis
-        fields = ["accession", "experiment_type"]
-
-
 class AnalysedRun(ModelSchema):
     accession: str = Field(..., alias="first_accession", examples=["ERR0000001"])
     instrument_model: Optional[str] = Field(..., examples=["Illumina HiSeq 2000"])
@@ -205,24 +192,40 @@ class AnalysedRun(ModelSchema):
         fields = ["instrument_model", "instrument_platform"]
 
 
+class Assembly(ModelSchema):
+    accession: str = Field(..., alias="first_accession", examples=["ERZ000001"])
+
+    class Meta:
+        model = analyses.models.Assembly
+        fields = ["updated_at"]
+
+
+class MGnifyAnalysis(ModelSchema):
+    study_accession: str = Field(..., alias="study_id", examples=["MGYS000000001"])
+
+    accession: str = Field(..., examples=["MGYA000000001"])
+    experiment_type: str = Field(
+        ...,
+        examples=[
+            label for _, label in analyses.models.Analysis.ExperimentTypes.choices
+        ],
+        description="Experiment type refers to the type of sequencing data that was analysed, e.g. amplicon reads or a metagenome assembly",
+        alias="get_experiment_type_display",
+    )
+    run: Optional[AnalysedRun]
+    sample: Optional[MGnifySample]
+    assembly: Optional[Assembly]
+    pipeline_version: Optional[analyses.models.Analysis.PipelineVersions]
+
+    class Meta:
+        model = analyses.models.Analysis
+        fields = ["accession", "experiment_type"]
+
+
 class MGnifyAnalysisDetail(MGnifyAnalysis):
     downloads: List[MGnifyAnalysisDownloadFile] = Field(
         ..., alias="downloads_as_objects"
     )
-    run_accession: Optional[str] = Field(
-        ...,
-        description="Accession number of the run this analysis is of, if this is a raw read analysis.",
-        examples=["ERR0000001"],
-    )
-    sample_accession: Optional[str] = Field(..., examples=["ERS0000001"])
-    study_accession: str = Field(..., examples=["MGYS000000001"])
-    assembly_accession: Optional[str] = Field(
-        ...,
-        description="Accession number of the assembly this analysis is of, if this is an assembly analysis.",
-        examples=["ERZ0000001"],
-    )
-    experiment_type: Optional[analyses.models.Analysis.ExperimentTypes]
-    pipeline_version: Optional[analyses.models.Analysis.PipelineVersions]
     read_run: Optional[AnalysedRun] = Field(
         ...,
         alias="raw_run",
@@ -244,6 +247,13 @@ class MGnifyAnalysisDetail(MGnifyAnalysis):
         description="Directory path where analysis results are stored",
         examples=["http://example.org/data/analyses/MGYA00000001/results"],
     )
+
+    @staticmethod
+    def resolve_results_dir(obj: analyses.models.Analysis) -> str:
+        return urljoin(
+            settings.EMG_CONFIG.service_urls.transfer_services_url_root,
+            obj.results_dir,
+        )
 
     metadata: Optional[Dict[str, Any]] = Field(
         None,
