@@ -135,6 +135,7 @@ services:
       - "8080:80"
     volumes:
       - "./slurm-dev-environment/fs/nfs/ftp/public:/usr/local/apache2/htdocs/pub/"
+      - "./slurm-dev-environment/configs/apache-override.conf:/usr/local/apache2/conf/httpd.conf:ro"
     restart: unless-stopped
     networks: [emg]
     profiles: ["all"]
