@@ -63,7 +63,7 @@ def run_amplicon_pipeline_via_samplesheet(
             ("-r", EMG_CONFIG.amplicon_pipeline.amplicon_pipeline_git_revision),
             "-latest",  # Pull changes from GitHub
             ("-profile", EMG_CONFIG.amplicon_pipeline.amplicon_pipeline_nf_profile),
-            "-resume ",
+            "-resume",
             ("--input", samplesheet),
             ("--outdir", amplicon_current_outdir),
             EMG_CONFIG.slurm.use_nextflow_tower and "-with-tower",
