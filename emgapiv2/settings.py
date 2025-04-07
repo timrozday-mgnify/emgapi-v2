@@ -117,6 +117,8 @@ CORS_ALLOW_HEADERS = [
     "sentry-trace",
 ]
 
+CSRF_TRUSTED_ORIGINS = ["https://*.ebi.ac.uk"]
+
 ROOT_URLCONF = "emgapiv2.urls"
 
 TEMPLATES = [
