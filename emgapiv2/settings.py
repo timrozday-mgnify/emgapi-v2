@@ -52,6 +52,9 @@ if emg_config_env:
     logging.warning(f"Using environment from {emg_config_env}")
 EMG_CONFIG: EMGConfig = EMGConfig(_env_file=emg_config_env)
 
+BASE_URL = EMG_CONFIG.service_urls.base_url.lstrip("/").rstrip("/")
+if BASE_URL:
+    BASE_URL += "/"
 
 # Application definition
 

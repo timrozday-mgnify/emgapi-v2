@@ -17,6 +17,7 @@ api = NinjaAPI(
     csrf=True,
     version="2.0-alpha",
     default_router=RouterPaginated(),
+    docs_url="/",
     openapi_extra={
         "tags": [
             {
