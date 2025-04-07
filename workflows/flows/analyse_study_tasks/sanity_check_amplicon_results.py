@@ -30,6 +30,7 @@ def sanity_check_amplicon_results(
         required:
          - ${run_id}_${gene}.fasta (depending on if the gene was SSU/LSU/ITS)
          - ${run_id}.tblout.deoverlapped
+         optional:
          - ${run_id}_${gene}_rRNA_${domain}.${domain_id}.fa (domain can be bacteria/archaea/eukarya)
     AMPLIFIED REGION INFERENCE folder:
         required:
@@ -109,19 +110,11 @@ def sanity_check_amplicon_results(
             True if f.is_file() and pattern_gene_fasta.match(f.name) else False
             for f in sequence_categorisation_folder.iterdir()
         ]
-        pattern_domain_fasta = re.compile(
-            r"\w+_(SSU|LSU|ITS)_rRNA_(bacteria|archaea|eukarya)\.[A-Z0-9]+\.fa$"
-        )
-        matching_domain_files = [
-            True if f.is_file() and pattern_domain_fasta.match(f.name) else False
-            for f in sequence_categorisation_folder.iterdir()
-        ]
         if not (
             Path(
                 f"{sequence_categorisation_folder}/{run_id}.tblout.deoverlapped"
             ).exists()
             and sum(matching_gene_files)
-            and sum(matching_domain_files)
         ):
             reason = f"missing required files in {EMG_CONFIG.amplicon_pipeline.sequence_categorisation_folder}"
             logger.info(f"Post sanity check for {run_id}: {reason}")
