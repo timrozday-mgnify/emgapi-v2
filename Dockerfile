@@ -1,4 +1,4 @@
-FROM ubuntu:jammy as base
+FROM ubuntu:jammy AS base
 LABEL authors="sandyr"
 
 ENV DEBIAN_FRONTEND="noninteractive" TZ="Etc/UTC"
@@ -9,13 +9,13 @@ COPY requirements.txt .
 RUN pip install --upgrade pip setuptools wheel
 RUN pip install -r requirements.txt
 
-FROM base as django
+FROM base AS django
 COPY . .
 RUN pip install -r requirements-dev.txt
 RUN pip install -r requirements-tools.txt
 ENTRYPOINT ["python3", "manage.py"]
 
-FROM base as agent
+FROM base AS agent
 RUN apt -y update && apt -y upgrade
 RUN apt -y install munge gosu netcat-traditional slurm-wlm libslurm-dev
 COPY slurm-dev-environment/configs/slurm_single_node.conf /etc/slurm/slurm.conf
