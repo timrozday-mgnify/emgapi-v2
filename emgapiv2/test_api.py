@@ -10,6 +10,7 @@ from analyses.base_models.with_downloads_models import (
     DownloadType,
     DownloadFileIndexFile,
 )
+from analyses.models import Analysis
 
 R = TypeVar("R")
 
@@ -75,10 +76,24 @@ def test_api_study_filtering(
     call_endpoint_and_get_data(
         ninja_api_client, "/studies/?biome_lineage=root:engineered", count=0
     )
+    call_endpoint_and_get_data(
+        ninja_api_client, "/studies/?require_v6_analyses", count=1
+    )
 
 
 @pytest.mark.django_db
 def test_api_analyses_list(raw_read_analyses, ninja_api_client):
+
+    raw_read_analyses[1].status[
+        Analysis.AnalysisStates.ANALYSIS_ANNOTATIONS_IMPORTED
+    ] = True
+    raw_read_analyses[1].save()
+
+    raw_read_analyses[2].status[
+        Analysis.AnalysisStates.ANALYSIS_ANNOTATIONS_IMPORTED
+    ] = True
+    raw_read_analyses[2].save()
+
     items = call_endpoint_and_get_data(
         ninja_api_client, "/analyses/", count=len(raw_read_analyses)
     )
@@ -148,7 +163,7 @@ def test_api_analysis_downloads(raw_read_analyses, ninja_api_client):
     print(json.dumps(dl_api, indent=2))
     assert (
         dl_api["url"]
-        == f"http://localhost:8080/app/data/tests/amplicon_v6_output/{analysis.run.first_accession}/results/taxonomies.tsv.gz"
+        == f"http://localhost:8080/pub/databases/metagenomics/mgnify_results/analyses/{analysis.accession}/results/taxonomies.tsv.gz"
     )
     assert dl_api["index_file"]["relative_url"] == "taxonomies.tsv.gz.gzi"
     assert "path" not in dl_api

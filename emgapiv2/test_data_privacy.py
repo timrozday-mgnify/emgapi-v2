@@ -5,15 +5,19 @@ from analyses.models import Analysis, Run, Study
 from ena.models import Study as ENAStudy
 
 
-def create_analysis(is_private=False):
+def create_analysis(is_private=False, is_ready=True):
     run = Run.objects.first()
-    return Analysis.objects.create(
+    a = Analysis.objects.create(
         study=run.study,
         run=run,
         ena_study=run.ena_study,
         sample=run.sample,
         is_private=is_private,
     )
+    if is_ready:
+        a.status[a.AnalysisStates.ANALYSIS_ANNOTATIONS_IMPORTED] = True
+        a.save()
+    return a
 
 
 @pytest.mark.django_db(transaction=True)

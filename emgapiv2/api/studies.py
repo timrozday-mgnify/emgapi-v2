@@ -1,8 +1,10 @@
-from typing import List, Literal
+from typing import List, Literal, Optional
 
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from ninja import Query
 from ninja.pagination import RouterPaginated
+from pydantic import Field
 
 import analyses.models
 from analyses.schemas import (
@@ -32,6 +34,24 @@ def get_mgnify_study(request, accession: str):
     return study
 
 
+class StudyListFilters(BiomeFilter):
+    has_analyses_from_pipeline: Optional[analyses.models.Analysis.PipelineVersions] = (
+        Field(
+            None,
+            description="If set, will only show studies with analyses from the specified MGnify pipeline version",
+        )
+    )
+
+    def filter_has_analyses_from_pipeline(self, version: str | None) -> Q:
+        if not version:
+            return Q()
+        if version == analyses.models.Analysis.PipelineVersions.v6:
+            return Q(features__has_v6_analyses=True)
+        if version == analyses.models.Analysis.PipelineVersions.v5:
+            # TODO
+            return Q(features__has_prev6_analyses=True)
+
+
 @router.get(
     "/",
     response=List[MGnifyStudy],
@@ -44,7 +64,7 @@ def list_mgnify_studies(
     order: OrderByFilter[
         Literal["accession", "-accession", "updated_at", "-updated_at", ""]
     ] = Query(...),
-    filters: BiomeFilter = Query(...),
+    filters: StudyListFilters = Query(...),
 ):
     qs = analyses.models.Study.public_objects.all()
     qs = order.order_by(qs)

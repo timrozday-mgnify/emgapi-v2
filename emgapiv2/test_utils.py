@@ -87,6 +87,13 @@ def test_json_field_with_schema():
     instance.full_clean()
 
     assert TestSchema.model_validate(instance.my_data).name == "X-wing"
+    assert TestSchema.model_validate(instance.my_data).length == 13
+
+    # should support partial update
+    instance.my_data["name"] = "Y-wing"
+    instance.full_clean()
+    assert TestSchema.model_validate(instance.my_data).name == "Y-wing"
+    assert TestSchema.model_validate(instance.my_data).length == 13
 
     # Create invalid data that violates the Pydantic schema
     invalid_data = {"name": "X-wing", "length": "thirteen"}

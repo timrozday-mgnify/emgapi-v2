@@ -57,9 +57,11 @@ def copy_amplicon_pipeline_results(analysis_accession: str):
         + ["--exclude=*"]
     )
     move_data(source, target, command)
-    analysis.results_dir = Path(target).relative_to(EMG_CONFIG.slurm.ftp_results_dir)
+    analysis.external_results_dir = Path(target).relative_to(
+        EMG_CONFIG.slurm.ftp_results_dir
+    )
     print(
-        f"Analysis {analysis} now has results at {analysis.results_dir} in {EMG_CONFIG.slurm.ftp_results_dir}"
+        f"Analysis {analysis} now has results at {analysis.external_results_dir} in {EMG_CONFIG.slurm.ftp_results_dir}"
     )
     analysis.save()
 
@@ -79,10 +81,10 @@ def copy_amplicon_study_summaries(study_accession: str):
     source = trailing_slash_ensured_dir(study.results_dir)
     target = f"{EMG_CONFIG.slurm.ftp_results_dir}/{accession_prefix_separated_dir_path(study.first_accession, -3)}/study-summaries/"
     move_data(source, target, command, make_target=True)
-    study.results_dir = Path(target).parent.relative_to(
+    study.external_results_dir = Path(target).parent.relative_to(
         EMG_CONFIG.slurm.ftp_results_dir
     )
     study.save()
     print(
-        f"Study {study} now has results at {study.results_dir} in {EMG_CONFIG.slurm.ftp_results_dir}"
+        f"Study {study} now has results at {study.external_results_dir} in {EMG_CONFIG.slurm.ftp_results_dir}"
     )

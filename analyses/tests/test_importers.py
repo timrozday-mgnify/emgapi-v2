@@ -111,7 +111,7 @@ def test_import_legacy_studies(
     assert Study.objects.order_by("-created_at").first().accession == "MGYS00005002"
 
     # should both be flagged as legacy
-    assert Study.objects.filter(has_legacy_data=True).count() == 2
+    assert Study.objects.filter(features__has_prev6_analyses=True).count() == 2
 
     # get_or_create on a new MGnify study, for the ENA study imported as legacy, should return legacy MGYS not new one
     ena_study = ena.models.Study.objects.get_ena_study("ERP3")  # should be MGYS00005002

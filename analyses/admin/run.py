@@ -61,7 +61,6 @@ class RunAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin):
             {
                 "classes": ["tab"],
                 "fields": [
-                    "is_ready",
                     "is_private",
                     "webin_submitter",
                     "is_suppressed",

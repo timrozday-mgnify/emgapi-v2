@@ -6,18 +6,19 @@ import re
 from pathlib import Path
 from typing import ClassVar, Union
 
+from django.contrib.postgres.indexes import GinIndex
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import models
-from django.db.models import JSONField, Q
+from django.db.models import JSONField, Q, Func, Value
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django_ltree.models import TreeModel
+from pydantic import BaseModel, ConfigDict, Field
 
 import ena.models
 from analyses.base_models.base_models import (
     ENADerivedManager,
     ENADerivedModel,
-    MGnifyAutomatedModel,
     PrivacyFilterManagerMixin,
     TimeStampedModel,
     VisibilityControlledModel,
@@ -29,6 +30,8 @@ from analyses.base_models.with_status_models import SelectByStatusManagerMixin
 from analyses.base_models.with_watchers_models import WithWatchersModel
 from emgapiv2.async_utils import anysync_property
 from emgapiv2.enum_utils import FutureStrEnum
+from emgapiv2.model_utils import JSONFieldWithSchema
+
 
 # Some models associated with MGnify Analyses (MGYS, MGYA etc).
 
@@ -98,7 +101,6 @@ class PublicStudyManager(PrivacyFilterManagerMixin, StudyManager):
 
 
 class Study(
-    MGnifyAutomatedModel,
     ENADerivedModel,
     WithDownloadsModel,
     TimeStampedModel,
@@ -110,6 +112,7 @@ class Study(
     DOWNLOAD_PARENT_IDENTIFIER_ATTR = "accession"
     ALLOWED_DOWNLOAD_GROUP_PREFIXES = ["study_summary"]
 
+    id = models.AutoField(primary_key=True)
     accession = MGnifyAccessionField(
         accession_prefix="MGYS", accession_length=8, db_index=True
     )
@@ -117,12 +120,24 @@ class Study(
         ena.models.Study, on_delete=models.CASCADE, null=True, blank=True
     )
     biome = models.ForeignKey(Biome, on_delete=models.CASCADE, null=True, blank=True)
-    has_legacy_data = models.BooleanField(
-        default=False, help_text="If the study has legacy data (pre V6)"
+
+    class StudyFeatures(BaseModel):
+        """
+        Pydantic schema for storing a feature set of a study in JSON.
+        """
+
+        model_config = ConfigDict(extra="allow")
+
+        has_prev6_analyses: bool = Field(False)
+        has_v6_analyses: bool = Field(False)
+
+    features: StudyFeatures = JSONFieldWithSchema(
+        schema=StudyFeatures, default=StudyFeatures
     )
 
     title = models.CharField(max_length=4000)  # same max as ENA DB
     results_dir = models.CharField(max_length=256, null=True, blank=True)
+    external_results_dir = models.CharField(max_length=256, null=True, blank=True)
 
     def __str__(self):
         return self.accession
@@ -130,16 +145,21 @@ class Study(
     class Meta:
         verbose_name_plural = "studies"
 
+        indexes = [
+            GinIndex(fields=["features"]),
+        ]
+
 
 class PublicSampleManager(
     PrivacyFilterManagerMixin, GetByENAAccessionManagerMixin, models.Manager
 ): ...
 
 
-class Sample(MGnifyAutomatedModel, ENADerivedModel, TimeStampedModel):
+class Sample(ENADerivedModel, TimeStampedModel):
     objects = models.Manager()
     public_objects = PublicSampleManager()
 
+    id = models.AutoField(primary_key=True)
     ena_sample = models.ForeignKey(ena.models.Sample, on_delete=models.CASCADE)
     studies = models.ManyToManyField(Study)
 
@@ -171,9 +191,7 @@ class WithExperimentTypeModel(models.Model):
 class PublicRunManager(PrivacyFilterManagerMixin, models.Manager): ...
 
 
-class Run(
-    TimeStampedModel, ENADerivedModel, MGnifyAutomatedModel, WithExperimentTypeModel
-):
+class Run(TimeStampedModel, ENADerivedModel, WithExperimentTypeModel):
     class CommonMetadataKeys:
         # TODO replace this with ENA result type pydantic model once available
         INSTRUMENT_PLATFORM = "instrument_platform"
@@ -197,6 +215,7 @@ class Run(
     objects = models.Manager()
     public_objects = PublicRunManager()
 
+    id = models.AutoField(primary_key=True)
     instrument_platform = models.CharField(
         db_column="instrument_platform", max_length=100, blank=True, null=True
     )
@@ -496,7 +515,8 @@ class PublicAnalysisManager(
     A custom manager that filters out private analyses by default.
     """
 
-    pass
+    def get_queryset(self, *args, **kwargs):
+        return super().get_queryset(*args, **kwargs).filter(is_ready=True)
 
 
 class PublicAnalysisManagerIncludingAnnotations(
@@ -510,7 +530,6 @@ class PublicAnalysisManagerIncludingAnnotations(
 
 
 class Analysis(
-    MGnifyAutomatedModel,
     TimeStampedModel,
     VisibilityControlledModel,
     WithDownloadsModel,
@@ -524,13 +543,25 @@ class Analysis(
 
     DOWNLOAD_PARENT_IDENTIFIER_ATTR = "accession"
 
+    id = models.AutoField(primary_key=True)
+    is_ready = models.GeneratedField(
+        expression=Func(
+            Value("analysis_annotations_imported"),
+            function="jsonb_extract_path_text",
+            template="(jsonb_extract_path_text(status, %(expressions)s)::boolean)",
+        ),
+        output_field=models.BooleanField(),
+        db_persist=True,
+    )
+
     accession = MGnifyAccessionField(accession_prefix="MGYA", accession_length=8)
 
-    suppression_following_fields = ["sample"]
+    suppression_following_fields = ["sample"]  # TODO
     study = models.ForeignKey(
         Study, on_delete=models.CASCADE, to_field="accession", related_name="analyses"
     )
     results_dir = models.CharField(max_length=256, null=True, blank=True)
+    external_results_dir = models.CharField(max_length=256, null=True, blank=True)
     sample = models.ForeignKey(
         Sample, on_delete=models.CASCADE, related_name="analyses"
     )
@@ -665,6 +696,14 @@ class Analysis(
 
     class Meta:
         verbose_name_plural = "Analyses"
+
+        indexes = [
+            models.Index(
+                name="idx_ready_and_not_suppressed",  # API queries might want this index for default queries
+                fields=["is_ready", "is_suppressed"],
+                condition=models.Q(is_ready=True, is_suppressed=False),
+            )
+        ]
 
     def __str__(self):
         return f"{self.accession} ({self.pipeline_version} {self.experiment_type})"

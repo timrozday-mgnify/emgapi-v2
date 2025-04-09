@@ -145,18 +145,17 @@ class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin)
             {
                 "classes": ["tab"],
                 "fields": [
-                    "is_ready",
                     "is_private",
                     "is_suppressed",
                     "webin_submitter",
-                    "has_legacy_data",
+                    "features",
                 ],
             },
         ),
         (
             "Files",
             {
-                "fields": ["results_dir", "downloads"],
+                "fields": ["results_dir", "external_results_dir", "downloads"],
                 "classes": ["tab"],
             },
         ),

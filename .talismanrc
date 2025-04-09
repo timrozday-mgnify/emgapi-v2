@@ -17,6 +17,9 @@ fileignoreconfig:
 - filename: emgapiv2/api/__init__.py
   allowed_patterns: [OpenApiKeywords]
 
+- filename: emgapiv2/model_utils.py
+  allowed_patterns: [key]
+
 - filename: emgapiv2/config.py
   checksum: 1e1a8f41069509ddfe643f09455c5c8a52c98ecfa3e3f467cca9798ef0639030
 

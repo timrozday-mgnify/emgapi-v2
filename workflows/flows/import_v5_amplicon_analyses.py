@@ -197,4 +197,5 @@ def import_v5_amplicon_analyses(mgys: str):
             analysis.annotations[Analysis.TAXONOMIES] = taxonomy
             analysis.mark_status(analysis.AnalysisStates.ANALYSIS_STARTED)
             analysis.mark_status(analysis.AnalysisStates.ANALYSIS_COMPLETED)
+            analysis.mark_status(analysis.AnalysisStates.ANALYSIS_ANNOTATIONS_IMPORTED)
             analysis.save()

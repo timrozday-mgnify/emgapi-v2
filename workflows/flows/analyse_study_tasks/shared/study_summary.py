@@ -71,7 +71,6 @@ def generate_study_summary_for_pipeline_run(
         logger.info(f"Setting {study}'s results_dir to default {study.results_dir}")
         study.results_dir.mkdir(exist_ok=True)
         study.save()
-        # TODO: needs to be synced after merge
     study_dir = Directory(
         path=Path(study.results_dir),
         rules=[DirectoryExistsRule],

@@ -48,7 +48,7 @@ class AnalysisAdmin(JSONFieldWidgetOverridesMixin, ModelAdmin):
     ]
     autocomplete_fields = ["run", "sample", "study", "ena_study", "assembly"]
 
-    readonly_fields = ["created_at", "accession"]
+    readonly_fields = ["created_at", "accession", "is_ready"]
 
     fieldsets = (
         (None, {"fields": ["accession"]}),
@@ -79,7 +79,13 @@ class AnalysisAdmin(JSONFieldWidgetOverridesMixin, ModelAdmin):
                 ],
             },
         ),
-        ("Files", {"classes": ["tab"], "fields": ["downloads", "results_dir"]}),
+        (
+            "Files",
+            {
+                "classes": ["tab"],
+                "fields": ["downloads", "results_dir", "external_results_dir"],
+            },
+        ),
         ("QC", {"classes": ["tab"], "fields": ["quality_control"]}),
     )
 
@@ -135,6 +141,7 @@ class AnalysisAdmin(JSONFieldWidgetOverridesMixin, ModelAdmin):
             downloads=[],
             status=Analysis.AnalysisStates.default_status(),
             results_dir="",
+            external_results_dir="",
         )
         self.message_user(
             request,

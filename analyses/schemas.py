@@ -160,7 +160,9 @@ class MGnifyAnalysisDownloadFile(Schema, DownloadFile):
 
         return urljoin(
             EMG_CONFIG.service_urls.transfer_services_url_root,
-            urljoin(trailing_slash_ensured_dir(analysis.results_dir), obj.path),
+            urljoin(
+                trailing_slash_ensured_dir(analysis.external_results_dir), obj.path
+            ),
         )
 
 
@@ -179,7 +181,7 @@ class MGnifyStudyDownloadFile(MGnifyAnalysisDownloadFile):
             )
             return None
 
-        return f"{EMG_CONFIG.service_urls.transfer_services_url_root.rstrip('/')}/{study.results_dir}/{obj.path}"
+        return f"{EMG_CONFIG.service_urls.transfer_services_url_root.rstrip('/')}/{study.external_results_dir}/{obj.path}"
 
 
 class AnalysedRun(ModelSchema):
@@ -252,7 +254,7 @@ class MGnifyAnalysisDetail(MGnifyAnalysis):
     def resolve_results_dir(obj: analyses.models.Analysis) -> str:
         return urljoin(
             settings.EMG_CONFIG.service_urls.transfer_services_url_root,
-            obj.results_dir,
+            obj.external_results_dir,
         )
 
     metadata: Optional[Dict[str, Any]] = Field(

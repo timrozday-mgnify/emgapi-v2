@@ -136,6 +136,12 @@ def analysis_amplicon_study(study_accession: str):
     add_study_summaries_to_downloads(mgnify_study.accession)
     copy_amplicon_study_summaries(mgnify_study.accession)
 
+    mgnify_study.refresh_from_db()
+    mgnify_study.features.has_v6_analyses = mgnify_study.analyses.filter(
+        pipeline_version=analyses.models.Analysis.PipelineVersions.v6, is_ready=True
+    ).exists()
+    mgnify_study.save()
+
     emit_event(
         event="flow.analysis.finished",
         resource={"prefect.resource.id": f"prefect.flow-run.{flow_run.id}"},

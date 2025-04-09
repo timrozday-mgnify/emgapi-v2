@@ -6,21 +6,6 @@ from django.db import models
 import ena.models
 
 
-class MGnifyAutomatedModel(models.Model):
-    """
-    Base class for models that have an autoincrementing ID (perhaps for use as an accession)
-    and an `is_ready` bool for when they should appear on website vs. in automation only.
-    """
-
-    id = models.AutoField(primary_key=True)
-    is_ready = models.BooleanField(default=False)
-
-    class Meta:
-        abstract = True
-
-    # TODO: suppression propagation
-
-
 class SelectRelatedEnaStudyManagerMixin:
     def get_queryset(self):
         return self().get_queryset().select_related("ena_study")

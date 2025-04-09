@@ -709,9 +709,7 @@ def test_prefect_analyse_amplicon_flow(
     workdir = Path(f"{EMG_CONFIG.slurm.default_workdir}/{study_accession}_v6")
     assert workdir.is_dir()
 
-    assert study.results_dir == f"{study_accession[:-3]}/{study_accession}"
-    study.results_dir = workdir
-    study.save()
+    assert study.external_results_dir == f"{study_accession[:-3]}/{study_accession}"
 
     Directory(
         path=study.results_dir,
@@ -779,3 +777,4 @@ def test_prefect_analyse_amplicon_flow(
 
     study.refresh_from_db()
     assert len(study.downloads_as_objects) == 6
+    assert study.features.has_v6_analyses
