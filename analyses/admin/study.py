@@ -187,8 +187,10 @@ class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin)
         assemblies_total = study.assemblies_reads.count()
 
         def make_state_link(state: Assembly.AssemblyStates) -> str:
-            url = reverse_lazy("admin:analyses_assembly_changelist")
-            url += f"?status={state}&study_accession={study.accession}"
+            url = reverse_lazy(
+                "admin:analyses_assembly_changelist",
+                query={"status": state, "study_accession": study.accession},
+            )
             return format_html(
                 "<a class='flex items-center' href='{}'>"
                 "<span>{}</span>"
@@ -241,8 +243,13 @@ class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin)
         runs_total = study.runs.count()
 
         def make_experiment_type_link(experiment_type_code: str) -> str:
-            url = reverse_lazy("admin:analyses_run_changelist")
-            url += f"?experiment_type__exact={experiment_type_code}&study_accession={study.accession}"
+            url = reverse_lazy(
+                "admin:analyses_run_changelist",
+                query={
+                    "experiment_type__exact": experiment_type_code,
+                    "study_accession": study.accession,
+                },
+            )
             return format_html(
                 "<a class='flex items-center' href='{}'>"
                 "<span>{}</span>"
@@ -288,8 +295,13 @@ class StudyAdmin(ENABrowserLinkMixin, JSONFieldWidgetOverridesMixin, ModelAdmin)
         analyses_total = study.analyses.count()
 
         def make_state_link(state: Analysis.AnalysisStates) -> str:
-            url = reverse_lazy("admin:analyses_analysis_changelist")
-            url += f"?{AnalysisStatusListFilter.parameter_name}={state.value}&{StudyFilter.parameter_name}={study.accession}"
+            url = reverse_lazy(
+                "admin:analyses_analysis_changelist",
+                query={
+                    AnalysisStatusListFilter.parameter_name: state.value,
+                    StudyFilter.parameter_name: study.accession,
+                },
+            )
             return format_html(
                 "<a class='flex items-center' href='{}'>"
                 "<span>{}</span>"
@@ -342,6 +354,8 @@ def jump_to_latest_study_admin(request):
 @staff_member_required
 def jump_to_watched_studies_admin(request):
     return redirect(
-        reverse_lazy("admin:analyses_study_changelist")
-        + f"?watchers__id__exact={request.user.id}"
+        reverse_lazy(
+            "admin:analyses_study_changelist",
+            query={"watchers__id__exact": request.user.id},
+        )
     )

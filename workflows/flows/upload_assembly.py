@@ -100,7 +100,8 @@ def create_study_xml(
     study_accession: str,
     library: str,
     output_dir: Path,
-    is_third_patty_assembly: bool = False,
+    is_third_party_assembly: bool = False,
+    is_private: bool = False,
 ) -> (Path, str):
     logger = get_run_logger()
 
@@ -108,7 +109,8 @@ def create_study_xml(
         study=study_accession,
         center_name=EMG_CONFIG.webin.submitting_center_name,
         library=library,
-        tpa=is_third_patty_assembly,  # todo: private
+        tpa=is_third_party_assembly,
+        private=is_private,
         output_dir=output_dir,
     )
     assembly_study_writer.write()
@@ -195,7 +197,8 @@ def handle_tpa_study(
             study_accession=assembly.reads_study.first_accession,
             library=define_library(assembly.run.experiment_type),
             output_dir=upload_folder,
-            is_third_patty_assembly=True,  # TODO: support for non-TPAs
+            is_third_party_assembly=True,
+            is_private=False,
         )
 
         registered_study = submit_study_xml(
@@ -292,6 +295,8 @@ def prepare_assembly(
             assembly_study=mgnify_assembly.assembly_study.first_accession,
             assemblies_csv=data_csv_path,
             output_dir=upload_folder,
+            private=mgnify_assembly.is_private,
+            tpa=mgnify_assembly.assembly_study.id != mgnify_assembly.reads_study.id,
         )
         assembly_manifest_writer.write()
 
