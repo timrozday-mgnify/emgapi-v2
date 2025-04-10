@@ -149,6 +149,18 @@ class Study(
             GinIndex(fields=["features"]),
         ]
 
+    @property
+    def first_accession(self):
+        # Prefer ERP--,SRP--,DRP-- etc style accessions over PRJ--, if available
+        return next(
+            (
+                accession
+                for accession in self.ena_accessions
+                if not accession.upper().startswith("PRJ")
+            ),
+            super().first_accession,
+        )
+
 
 class PublicSampleManager(
     PrivacyFilterManagerMixin, GetByENAAccessionManagerMixin, models.Manager

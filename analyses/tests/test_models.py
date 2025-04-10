@@ -33,6 +33,17 @@ def test_study():
     ena_study = ENAStudy.objects.create(accession="PRJ1", title="Project 1")
     study = Study.objects.create(ena_study=ena_study, title="Project 1")
     assert study.accession == "MGYS00000001"
+    study.inherit_accessions_from_related_ena_object("ena_study")
+    assert "PRJ1" in study.ena_accessions
+    study.ena_study.additional_accessions = ["ERP1"]
+    study.ena_study.save()
+    study.inherit_accessions_from_related_ena_object("ena_study")
+    assert "PRJ1" in study.ena_accessions
+    assert "ERP1" in study.ena_accessions
+    assert study.first_accession == "ERP1"
+    study.ena_accessions = ["PRJ1", "ERP1"]
+    study.save()
+    assert study.first_accession == "ERP1"
 
 
 def test_biome_lineage_path_generator():
