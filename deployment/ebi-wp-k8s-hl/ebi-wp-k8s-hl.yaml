@@ -86,6 +86,7 @@ items:
       namespace: emgapiv2-hl-exp
     data:
       DJANGO_SETTINGS_MODULE: "emgapiv2.settings"
+      PREFECT_UI_URL: "http://prefect-dev.mgnify.org"
       PREFECT_API_URL: "http://prefect-server.emgapiv2-hl-exp.svc.cluster.local:4200/api"
       PREFECT_HOME: "/app/data/prefect"
       EMG_SLURM__SHARED_FILESYSTEM_ROOT_ON_SLURM: "/nfs/public/rw/metagenomics/mgnify/deployments/apiv2/DEV"

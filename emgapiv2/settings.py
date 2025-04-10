@@ -281,9 +281,7 @@ UNFOLD = {
                     {
                         "title": _("Prefect Flows dashboard"),
                         "icon": "rebase",
-                        "link": os.getenv("PREFECT_API_URL", "").replace(
-                            "api", "dashboard"
-                        ),
+                        "link": os.getenv("PREFECT_UI_URL", ""),
                     },
                     {
                         "title": _("HPC Cluster jobs"),
