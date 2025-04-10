@@ -2,6 +2,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from workflows.data_io_utils.filenames import trailing_slash_ensured_dir
 from workflows.data_io_utils.mgnify_v6_utils.amplicon import EMG_CONFIG
 from workflows.flows.analyse_study_tasks.copy_amplicon_pipeline_results import (
     copy_amplicon_pipeline_results,
@@ -34,7 +35,7 @@ def test_copy_amplicon_pipeline_results(raw_read_analyses):
         print(call_args)
 
         # Check source path
-        expected_source = analysis.results_dir
+        expected_source = trailing_slash_ensured_dir(analysis.results_dir)
         assert call_args[0] == expected_source
 
         # Check target path structure

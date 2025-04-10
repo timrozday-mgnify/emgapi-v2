@@ -24,7 +24,7 @@ def copy_amplicon_pipeline_results(analysis_accession: str):
     analysis = Analysis.objects.get(accession=analysis_accession)
     study = analysis.study
     run = analysis.run
-    source = analysis.results_dir
+    source = trailing_slash_ensured_dir(analysis.results_dir)
     experiment_type_label = Analysis.ExperimentTypes(
         analysis.experiment_type
     ).label.lower()
