@@ -18,6 +18,7 @@ from workflows.prefect_utils.analyses_models_helpers import task_mark_analysis_s
 
 @task
 def import_completed_analysis(analysis: analyses.models.Analysis):
+    analysis.refresh_from_db()
     dir_for_analysis = Path(analysis.results_dir)
 
     import_qc(analysis, dir_for_analysis, allow_non_exist=False)
