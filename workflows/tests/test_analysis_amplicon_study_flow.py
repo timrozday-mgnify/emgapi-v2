@@ -119,14 +119,24 @@ def generate_fake_pipeline_all_results(amplicon_run_folder, run):
     ), open(
         f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.asv_folder}/18S-V9/{run}_18S-V9_asv_read_counts.tsv",
         "w",
-    ), open(
+    ) as v9_tsv, open(
         f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.asv_folder}/16S-V3-V4/{run}_16S-V3-V4_asv_read_counts.tsv",
         "w",
-    ), open(
+    ) as v3v4_tsv, open(
         f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.asv_folder}/concat/{run}_concat_asv_read_counts.tsv",
         "w",
     ):
-        pass
+        for tsv in [v9_tsv, v3v4_tsv]:
+            tsv.write(
+                dedent(
+                    """\
+                    asv	count
+                    seq_1	886
+                    seq_10	1011
+                    seq_100	160
+                    """
+                )
+            )
 
     # SEQUENCE CATEGORISATION
     os.makedirs(
@@ -142,8 +152,15 @@ def generate_fake_pipeline_all_results(amplicon_run_folder, run):
     ), open(
         f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.sequence_categorisation_folder}/{run}_SSU_rRNA_bacteria.RF00177.fa",
         "w",
-    ):
-        pass
+    ) as fasta:
+        fasta.write(
+            dedent(
+                f"""\
+                >{run}.100-SSU_rRNA_archaea/5-421 100/1 merged_251_171
+                ACTCGGTCTAAAGGGTCCGTAGCCGGTCCAGTAAGTCCCTGCTTAAATCCTACGGCTTAA
+                """
+            )
+        )
 
     # TAXONOMY SUMMARY
     os.makedirs(
@@ -336,8 +353,15 @@ def generate_fake_pipeline_no_asvs(amplicon_run_folder, run):
     ), open(
         f"{amplicon_run_folder}/{EMG_CONFIG.amplicon_pipeline.sequence_categorisation_folder}/{run}_SSU_rRNA_bacteria.RF00177.fa",
         "w",
-    ):
-        pass
+    ) as fasta:
+        fasta.write(
+            dedent(
+                f"""\
+                >{run}.100-SSU_rRNA_archaea/5-421 100/1 merged_251_171
+                ACTCGGTCTAAAGGGTCCGTAGCCGGTCCAGTAAGTCCCTGCTTAAATCCTACGGCTTAA
+                """
+            )
+        )
 
     # TAXONOMY SUMMARY
     os.makedirs(
@@ -705,6 +729,17 @@ def test_prefect_analyse_amplicon_flow(
     ][analyses.models.Analysis.TaxonomySources.SSU.value]
     assert len(ssu) == 3
     assert ssu[0]["organism"] == "sk__Bacteria;k__;p__Bacillota;c__Bacilli"
+
+    assert (
+        analysis_which_should_have_taxonomies_imported.KnownMetadataKeys.MARKER_GENE_SUMMARY
+        in analysis_which_should_have_taxonomies_imported.metadata
+    )
+    assert (
+        analysis_which_should_have_taxonomies_imported.metadata[
+            analysis_which_should_have_taxonomies_imported.KnownMetadataKeys.MARKER_GENE_SUMMARY
+        ]["marker_genes"]["SSU"]["Bacteria"]["read_count"]
+        == 1
+    )
 
     workdir = Path(f"{EMG_CONFIG.slurm.default_workdir}/{study_accession}_v6")
     assert workdir.is_dir()

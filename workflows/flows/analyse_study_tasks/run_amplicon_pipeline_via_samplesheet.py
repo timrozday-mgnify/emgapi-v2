@@ -22,6 +22,9 @@ from workflows.flows.analyse_study_tasks.analysis_states import (
 from workflows.flows.analyse_study_tasks.set_post_analysies_states import (
     set_post_analysis_states,
 )
+from workflows.flows.analyse_study_tasks.shared.markergene_study_summary import (
+    generate_markergene_summary_for_pipeline_run,
+)
 from workflows.flows.analyse_study_tasks.shared.study_summary import (
     generate_study_summary_for_pipeline_run,
 )
@@ -96,6 +99,10 @@ def run_amplicon_pipeline_via_samplesheet(
         # assume that if job finished, all finished... set statuses
         set_post_analysis_states(amplicon_current_outdir, amplicon_analyses)
         import_completed_analyses(amplicon_current_outdir, amplicon_analyses)
+        generate_markergene_summary_for_pipeline_run(
+            mgnify_study_accession=mgnify_study.accession,
+            pipeline_outdir=amplicon_current_outdir,
+        )
         generate_study_summary_for_pipeline_run(
             pipeline_outdir=amplicon_current_outdir,
             mgnify_study_accession=mgnify_study.accession,

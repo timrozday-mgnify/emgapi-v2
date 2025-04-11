@@ -203,10 +203,6 @@ def import_taxonomy(
                 long_description="Table with read counts for each taxonomic assignment",
             )
         )
-        analysis.metadata.setdefault(
-            analysis.KnownMetadataKeys.MARKER_GENE_SUMMARY, {}
-        )[source] = {"total_read_count": total_read_count}
-        # TODO: switch to file from results once available
 
     if schema.expect_krona:
         for krona in krona_files:
