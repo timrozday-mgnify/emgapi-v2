@@ -64,7 +64,7 @@ class DownloadFile(BaseModel):
     long_description: str = Field(..., examples=["A table of taxonomic assignments"])
     short_description: str = Field(..., examples=["Tax. assignments"])
     download_group: Optional[str] = Field(
-        ..., examples=["taxonomies.closed_reference.ssu"]
+        None, examples=["taxonomies.closed_reference.ssu"]
     )
     file_size_bytes: Optional[int] = Field(None, examples=[1024])
     index_file: Optional[DownloadFileIndexFile] = Field(None)

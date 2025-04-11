@@ -48,6 +48,7 @@ def test_make_dev_data(
     top_level_biomes,
     assemblers,
     raw_read_analyses,
+    study_downloads,
     mgnify_assemblies_completed,
     amplicon_analysis_with_downloads,
     prefect_harness,
