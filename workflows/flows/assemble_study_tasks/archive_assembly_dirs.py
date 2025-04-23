@@ -1,7 +1,7 @@
-import operator
-from functools import reduce
 from pathlib import Path
+from shutil import rmtree
 
+from django.db.models import QuerySet
 from prefect import flow, get_run_logger
 
 from activate_django_first import EMG_CONFIG
@@ -29,21 +29,17 @@ def archive_assembly_dirs(reads_study_mgys: str, dry_run: bool = True):
         f"Study has {assemblies_started.count()} reads-assemblies in STARTED state"
     )
 
-    is_terminal_filters = study.assemblies_reads.get_queryset()._build_q_objects(
-        keys=[
+    started_not_finished: QuerySet = assemblies_started.exclude_by_statuses(
+        [
             Assembly.AssemblyStates.ASSEMBLY_UPLOADED,
             Assembly.AssemblyStates.ASSEMBLY_BLOCKED,
             Assembly.AssemblyStates.ASSEMBLY_FAILED,
             Assembly.AssemblyStates.PRE_ASSEMBLY_QC_FAILED,
             Assembly.AssemblyStates.POST_ASSEMBLY_QC_FAILED,
-        ],
-        allow_null=True,
-        truthy_target=True,
+        ]
     )
 
-    is_terminal = reduce(operator.or_, is_terminal_filters)
-
-    if (started_not_finished := assemblies_started.exclude(is_terminal)).exists():
+    if started_not_finished.exists():
         logger.warning(
             f"{started_not_finished.count()} of the assemblies are not in any terminal state."
         )
@@ -73,6 +69,7 @@ def archive_assembly_dirs(reads_study_mgys: str, dry_run: bool = True):
             logger.info(
                 f"No directory found at {potential_workdirs_root}. Nothing to be done."
             )
+            continue
         logger.info(f"Looking for workdirs under {potential_workdirs_root}")
 
         if (workdir := potential_workdirs_root / "work").is_dir():
@@ -80,7 +77,7 @@ def archive_assembly_dirs(reads_study_mgys: str, dry_run: bool = True):
             if dry_run:
                 logger.info("No action since in dry_run mode.")
             else:
-                workdir.rmdir()
+                rmtree(workdir)
 
         samplesheet_workdirs = potential_workdirs_root.glob("**/work")
         for workdir in samplesheet_workdirs:
@@ -89,4 +86,4 @@ def archive_assembly_dirs(reads_study_mgys: str, dry_run: bool = True):
                 if dry_run:
                     logger.info("No action since in dry_run mode.")
                 else:
-                    workdir.rmdir()
+                    rmtree(workdir)

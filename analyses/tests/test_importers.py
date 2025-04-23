@@ -6,8 +6,12 @@ from django.db import connection
 import ena.models
 from analyses.models import Biome, Study
 from workflows.data_io_utils.legacy_emg_dbs import LegacyStudy
+from workflows.prefect_utils.testing_utils import (
+    should_not_mock_httpx_requests_to_prefect_server,
+)
 
 
+@pytest.mark.httpx_mock(should_mock=should_not_mock_httpx_requests_to_prefect_server)
 @pytest.mark.django_db(transaction=True)
 def test_biome_importer(httpx_mock):
     httpx_mock.add_response(

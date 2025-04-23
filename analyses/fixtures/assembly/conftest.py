@@ -52,6 +52,7 @@ def mgnify_assemblies_completed(mgnify_assemblies):
         assembler__name="metaspades", run__ena_accessions__contains=run_accession
     )
     for item in metaspades_assemblies:
+        item.mark_status("assembly_started")
         item.mark_status("assembly_completed")
     return metaspades_assemblies
 
