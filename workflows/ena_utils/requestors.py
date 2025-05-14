@@ -95,7 +95,7 @@ class ENAAPIRequest(BaseModel):
     def serialize_data_portal(self, result: ENAPortalDataPortal):
         return result.value
 
-    def _parse_response(self, response: httpx.Response):
+    def _parse_response(self, response: httpx.Response, raise_on_empty: bool = True):
         if self.format == "json":
             try:
                 j = response.json()
@@ -103,12 +103,14 @@ class ENAAPIRequest(BaseModel):
                 raise ENAAccessException("Bad JSON response.")
             if isinstance(j, dict) and "message" in j:
                 raise ENAAccessException(f"Error response: {j['message']}")
-            elif isinstance(j, list) and len(j) == 0:
+            elif isinstance(j, list) and len(j) == 0 and raise_on_empty:
                 raise ENAAvailabilityException("Empty response.")
             return j
         return response.text  # TODO: tsv
 
-    def get(self, auth: Type[Auth] = None) -> Union[List[Dict[str, Any]], str]:
+    def get(
+        self, auth: Type[Auth] = None, raise_on_empty: bool = True
+    ) -> Union[List[Dict[str, Any]], str]:
         url = EMG_CONFIG.ena.portal_search_api
         params = self.model_dump(by_alias=True)
         r = httpx.get(
@@ -118,7 +120,7 @@ class ENAAPIRequest(BaseModel):
         )
         if httpx.codes.is_error(r.status_code):
             raise ENAAccessException(r.text)
-        return self._parse_response(r)
+        return self._parse_response(r, raise_on_empty=raise_on_empty)
 
 
 class ENAAccessException(Exception): ...

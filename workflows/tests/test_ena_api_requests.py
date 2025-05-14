@@ -476,6 +476,21 @@ def test_ena_api_query_maker(httpx_mock):
     response = request.get()
     assert response == [{"study_accession": "ERP1"}]
 
+    # empty response by default raise an error
+    httpx_mock.add_response(
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28%28study_accession%3DERP1%20OR%20secondary_study_accession%3DERP1%29%20AND%20tax_id%3D408170%29%22&fields=study_name,study_accession,tax_id,secondary_study_accession&limit=10&format=json&dataPortal=metagenome",
+        json=[],
+    )
+    with pytest.raises(ENAAvailabilityException):
+        request.get()
+
+    # ... but can be set to not do so
+    httpx_mock.add_response(
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22%28%28study_accession%3DERP1%20OR%20secondary_study_accession%3DERP1%29%20AND%20tax_id%3D408170%29%22&fields=study_name,study_accession,tax_id,secondary_study_accession&limit=10&format=json&dataPortal=metagenome",
+        json=[],
+    )
+    assert request.get(raise_on_empty=False) == []
+
 
 @pytest.mark.httpx_mock(should_mock=should_not_mock_httpx_requests_to_prefect_server)
 def test_is_study_public(httpx_mock, prefect_harness):

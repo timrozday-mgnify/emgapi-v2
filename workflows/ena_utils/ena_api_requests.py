@@ -168,6 +168,7 @@ def get_study_readruns_from_ena(
     accession: str,
     limit: int = 20,
     filter_library_strategy: str = None,
+    raise_on_empty: bool = True,
 ) -> List[str]:
     """
     Retrieve a list of read_runs from the ENA Portal API, for a given study.
@@ -176,6 +177,7 @@ def get_study_readruns_from_ena(
     :param accession: Study accession on ENA
     :param limit: Maximum number of read_runs to fetch
     :param filter_library_strategy: E.g. AMPLICON, to only fetch library-strategy: amplicon reads
+    :param raise_on_empty: Raise an exception if no read_runs are found for the given study (default True, as some ENA failure modes may result in no read_runs being returned)
     :return: A list of run accessions that have been fetched and matched the specified library strategy. Study may also contain other non-matching runs.
     """
 
@@ -222,7 +224,7 @@ def get_study_readruns_from_ena(
         limit=limit,
         query=query,
         data_portal=ENAPortalDataPortal.METAGENOME,
-    ).get(auth=ena_auth)
+    ).get(auth=ena_auth, raise_on_empty=raise_on_empty)
 
     run_accessions = []
     for read_run in portal_read_runs:
@@ -474,8 +476,7 @@ def get_study_assemblies_from_ena(accession: str, limit: int = 10) -> list[str]:
     ).get(auth=ena_auth)
 
     portal_runs = get_study_readruns_from_ena(
-        accession=accession,
-        limit=limit,
+        accession=accession, limit=limit, raise_on_empty=False
     )
 
     if study.assemblies_assembly.exists():
