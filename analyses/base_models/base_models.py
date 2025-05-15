@@ -47,7 +47,7 @@ class GetByENAAccessionManagerMixin:
         return qs.first()
 
 
-class UpdateOrCrateByAccessionManagerMixin:
+class UpdateOrCreateByAccessionManagerMixin:
     def update_or_create_by_accession(
         self,
         known_accessions: list[str],
@@ -112,7 +112,7 @@ class UpdateOrCrateByAccessionManagerMixin:
 class ENADerivedManager(
     SelectRelatedEnaStudyManagerMixin,
     GetByENAAccessionManagerMixin,
-    UpdateOrCrateByAccessionManagerMixin,
+    UpdateOrCreateByAccessionManagerMixin,
     models.Manager,
 ): ...
 
