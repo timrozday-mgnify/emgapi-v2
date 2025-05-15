@@ -466,6 +466,7 @@ def get_study_assemblies_from_ena(accession: str, limit: int = 10) -> list[str]:
             _.LOCATION,
             _.LAT,
             _.LON,
+            _.GENERATED_FTP,
         ],
         limit=limit,
         query=ENAAnalysisQuery(study_accession=accession)
@@ -526,7 +527,7 @@ def get_study_assemblies_from_ena(accession: str, limit: int = 10) -> list[str]:
         else:
             run = mgnify_sample.runs.first()
 
-        assembly = analyses.models.Assembly.objects.update_or_create_by_accession(
+        assembly, __ = analyses.models.Assembly.objects.update_or_create_by_accession(
             known_accessions=[assembly_data[_.ANALYSIS_ACCESSION]],
             defaults={
                 "sample": mgnify_sample,
@@ -540,5 +541,7 @@ def get_study_assemblies_from_ena(accession: str, limit: int = 10) -> list[str]:
             },
             include_update_defaults_in_create_defaults=True,
         )
+        assembly.metadata[_.GENERATED_FTP] = assembly_data[_.GENERATED_FTP]
+        assembly.save()
         assemblies.append(assembly)
     return assemblies

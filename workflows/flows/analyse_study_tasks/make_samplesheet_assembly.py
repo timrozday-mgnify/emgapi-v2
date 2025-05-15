@@ -9,7 +9,7 @@ from prefect.artifacts import create_table_artifact
 from activate_django_first import EMG_CONFIG
 
 import analyses.models
-from workflows.ena_utils.ena_file_fetching import convert_ena_ftp_to_fire_fastq
+from workflows.ena_utils.analysis import ENAAnalysisFields
 from workflows.nextflow_utils.samplesheets import (
     queryset_hash,
     queryset_to_samplesheet,
@@ -52,9 +52,10 @@ def make_samplesheet_assembly(
                 renderer=lambda accessions: accessions[0] if accessions else "",
             ),
             "assembly_fasta": SamplesheetColumnSource(
-                lookup_string="metadata__ftp_path",
+                lookup_string=f"metadata__{ENAAnalysisFields.GENERATED_FTP}",
                 renderer=lambda ftp_path: (
-                    convert_ena_ftp_to_fire_fastq(ftp_path) if ftp_path else ""
+                    # convert_ena_ftp_to_fire_fastq(ftp_path) if ftp_path else ""  # TODO: once ASA supports FIRE
+                    ftp_path
                 ),
             ),
         },
