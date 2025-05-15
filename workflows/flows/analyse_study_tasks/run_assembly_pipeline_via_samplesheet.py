@@ -78,7 +78,7 @@ def run_assembly_pipeline_via_samplesheet(
             ),
             "-latest",
             (
-                "-C",
+                "-c",
                 settings.EMG_CONFIG.assembly_analysis_pipeline.pipeline_nf_config,
             ),
             (
