@@ -95,8 +95,9 @@ class AmpliconPipelineConfig(BaseModel):
 
 class AssemblyAnalysisPipelineConfig(BaseModel):
     pipeline_repo: str = "ebi-metagenomics/assembly-analysis-pipeline"
-    pipeline_git_revision: str = "main"
-    pipeline_nf_profile: str = "codon_slurm"
+    pipeline_git_revision: str = "dev"
+    pipeline_nf_config: str = "test.config"
+    pipeline_nf_profile: str = "debug"
     pipeline_time_limit_days: int = 5
     samplesheet_chunk_size: int = 10
     nextflow_master_job_memory_gb: int = 1
