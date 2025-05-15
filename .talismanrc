@@ -20,6 +20,9 @@ fileignoreconfig:
 - filename: emgapiv2/api/__init__.py
   allowed_patterns: [OpenApiKeywords]
 
+- filename: emgapiv2/dict_utils.py
+  allowed_patterns: [keys]
+
 - filename: emgapiv2/model_utils.py
   allowed_patterns: [key]
 

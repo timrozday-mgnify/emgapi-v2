@@ -8,6 +8,7 @@ from prefect.tasks import task_input_hash
 
 import analyses.models
 import ena.models
+from emgapiv2.dict_utils import some
 from workflows.ena_utils.abstract import ENAPortalResultType, ENAPortalDataPortal
 from workflows.ena_utils.analysis import ENAAnalysisFields, ENAAnalysisQuery
 from workflows.ena_utils.ena_accession_matching import (
@@ -157,6 +158,75 @@ def check_reads_fastq(
     return None
 
 
+def _make_samples_and_run(
+    run_or_assembly_response: dict, study: analyses.models.Study
+) -> (ena.models.Sample, analyses.models.Sample, analyses.models.Run):
+    _ = ENAReadRunFields  # fields used here are also present on ENAAnalysisFields
+
+    ena_sample, __ = ena.models.Sample.objects.update_or_create(
+        accession__in=[
+            run_or_assembly_response[_.SAMPLE_ACCESSION],
+            run_or_assembly_response[_.SECONDARY_SAMPLE_ACCESSION],
+        ],
+        defaults={
+            "metadata": some(run_or_assembly_response, {_.SAMPLE_TITLE, _.LAT, _.LON}),
+        },
+        create_defaults={
+            "accession": run_or_assembly_response[_.SAMPLE_ACCESSION],
+            "additional_accessions": [
+                run_or_assembly_response[_.SECONDARY_SAMPLE_ACCESSION]
+            ],
+            "study": study.ena_study,  # TODO could be more than one...
+        },
+    )
+
+    mgnify_sample, __ = analyses.models.Sample.objects.update_or_create_by_accession(
+        known_accessions=[
+            run_or_assembly_response[_.SAMPLE_ACCESSION],
+            run_or_assembly_response[_.SECONDARY_SAMPLE_ACCESSION],
+        ],
+        defaults={
+            "is_private": study.is_private,
+            "metadata": some(run_or_assembly_response, {_.LAT, _.LON}),
+        },
+        create_defaults={
+            "ena_sample": ena_sample,
+            "ena_study": study.ena_study,
+        },
+    )
+    mgnify_sample.studies.add(study)
+
+    run, __ = analyses.models.Run.objects.update_or_create_by_accession(
+        known_accessions=[run_or_assembly_response[_.RUN_ACCESSION]],
+        defaults={
+            "metadata": some(
+                run_or_assembly_response,
+                {
+                    _.LIBRARY_STRATEGY,
+                    _.LIBRARY_LAYOUT,
+                    _.LIBRARY_SOURCE,
+                    _.SCIENTIFIC_NAME,
+                    _.HOST_TAX_ID,
+                    _.HOST_SCIENTIFIC_NAME,
+                    _.INSTRUMENT_PLATFORM,
+                    _.INSTRUMENT_MODEL,
+                },
+            ),
+            "is_private": study.is_private,
+        },
+        create_defaults={
+            "study": study,
+            "ena_study": study.ena_study,
+            "sample": mgnify_sample,
+        },
+    )
+    run.set_experiment_type_by_metadata(
+        run_or_assembly_response[_.LIBRARY_STRATEGY],
+        run_or_assembly_response[_.LIBRARY_SOURCE],
+    )
+    return ena_sample, mgnify_sample, run
+
+
 @task(
     retries=RETRIES,
     retry_delay_seconds=RETRY_DELAY,
@@ -252,88 +322,13 @@ def get_study_readruns_from_ena(
             continue
 
         logger.info(f"Creating objects for {read_run[_.RUN_ACCESSION]}")
-        ena_sample, __ = ena.models.Sample.objects.update_or_create(
-            accession__in=[
-                read_run[_.SAMPLE_ACCESSION],
-                read_run[_.SECONDARY_SAMPLE_ACCESSION],
-            ],
-            defaults={
-                "metadata": {
-                    "sample_title": read_run[_.SAMPLE_TITLE],
-                    "lat": read_run[_.LAT],
-                    "lon": read_run[_.LON],
-                },
-            },
-            create_defaults={
-                "accession": read_run[_.SAMPLE_ACCESSION],
-                "additional_accessions": [read_run[_.SECONDARY_SAMPLE_ACCESSION]],
-                "study": mgys_study.ena_study,  # TODO could be more than one...
-            },
-        )
 
-        mgnify_sample, __ = (
-            analyses.models.Sample.objects.update_or_create_by_accession(
-                known_accessions=[
-                    read_run["sample_accession"],
-                    read_run["secondary_sample_accession"],
-                ],
-                defaults={
-                    "is_private": mgys_study.is_private,
-                    "metadata": {
-                        analyses.models.Sample.CommonMetadataKeys.LAT: read_run[_.LAT],
-                        analyses.models.Sample.CommonMetadataKeys.LON: read_run[_.LON],
-                    },
-                },
-                create_defaults={
-                    "ena_sample": ena_sample,
-                    "ena_study": mgys_study.ena_study,
-                },
-            )
+        __, __, run = _make_samples_and_run(read_run, mgys_study)
+        run.metadata[analyses.models.Run.CommonMetadataKeys.FASTQ_FTPS] = (
+            fastq_ftp_reads
         )
-        mgnify_sample.studies.add(mgys_study)
+        run.save()
 
-        run, __ = analyses.models.Run.objects.update_or_create_by_accession(
-            known_accessions=[read_run[_.RUN_ACCESSION]],
-            defaults={
-                "metadata": {
-                    analyses.models.Run.CommonMetadataKeys.LIBRARY_STRATEGY: read_run[
-                        _.LIBRARY_STRATEGY
-                    ],
-                    analyses.models.Run.CommonMetadataKeys.LIBRARY_LAYOUT: read_run[
-                        _.LIBRARY_LAYOUT
-                    ],
-                    analyses.models.Run.CommonMetadataKeys.LIBRARY_SOURCE: read_run[
-                        _.LIBRARY_SOURCE
-                    ],
-                    analyses.models.Run.CommonMetadataKeys.SCIENTIFIC_NAME: read_run[
-                        _.SCIENTIFIC_NAME
-                    ],
-                    analyses.models.Run.CommonMetadataKeys.FASTQ_FTPS: fastq_ftp_reads,
-                    analyses.models.Run.CommonMetadataKeys.HOST_TAX_ID: read_run[
-                        _.HOST_TAX_ID
-                    ],
-                    analyses.models.Run.CommonMetadataKeys.HOST_SCIENTIFIC_NAME: read_run[
-                        _.HOST_SCIENTIFIC_NAME
-                    ],
-                    analyses.models.Run.CommonMetadataKeys.INSTRUMENT_MODEL: read_run[
-                        _.INSTRUMENT_MODEL
-                    ],
-                    analyses.models.Run.CommonMetadataKeys.INSTRUMENT_PLATFORM: read_run[
-                        _.INSTRUMENT_PLATFORM
-                    ],
-                },
-                "is_private": mgys_study.is_private,
-            },
-            create_defaults={
-                "study": mgys_study,
-                "ena_study": mgys_study.ena_study,
-                "sample": mgnify_sample,
-            },
-        )
-        run.set_experiment_type_by_metadata(
-            read_run[_.LIBRARY_STRATEGY],
-            read_run[_.LIBRARY_SOURCE],
-        )
         run_accessions.append(run.first_accession)
 
     return run_accessions
@@ -456,6 +451,7 @@ def get_study_assemblies_from_ena(accession: str, limit: int = 10) -> list[str]:
 
     ena_auth = dcc_auth if study.is_private else None
 
+    # fetch all assemblies in the "assembly study"
     portal_assemblies = ENAAPIRequest(
         result=ENAPortalResultType.ANALYSIS,
         fields=[
@@ -468,6 +464,8 @@ def get_study_assemblies_from_ena(accession: str, limit: int = 10) -> list[str]:
             _.CONTAMINATION_SCORE,
             _.SCIENTIFIC_NAME,
             _.LOCATION,
+            _.LAT,
+            _.LON,
         ],
         limit=limit,
         query=ENAAnalysisQuery(study_accession=accession)
@@ -475,18 +473,21 @@ def get_study_assemblies_from_ena(accession: str, limit: int = 10) -> list[str]:
         data_portal=ENAPortalDataPortal.METAGENOME,
     ).get(auth=ena_auth)
 
+    # read-runs may exist in same study as the assemblies
     portal_runs = get_study_readruns_from_ena(
         accession=accession, limit=limit, raise_on_empty=False
     )
 
     if study.assemblies_assembly.exists():
-        # Looks like a study we assembled / already know the connection to a reads study for
+        # Looks like a study we assembled / already know the connection to a reads study for these assemblies
+        # (assumption here: reads study is singular for all assemblies)
         reads_study = study.assemblies_assembly.first().reads_study
     elif (
         reads_study_accession := extract_study_accession_from_study_title(study.title)
         and not portal_runs
     ):
-        # Looks like a TPA study – no read-runs within it, and an accession in title
+        # Looks like a TPA study – no read-runs within it, and an accession in the study title
+        # e.g. "This is a TPA Study of PRJ123"
         ena_reads_study = ena.models.Study.objects.get_ena_study(reads_study_accession)
         if not ena_reads_study:
             ena_reads_study = get_study_from_ena(reads_study_accession)
@@ -505,27 +506,32 @@ def get_study_assemblies_from_ena(accession: str, limit: int = 10) -> list[str]:
         reads_study = None
 
     if reads_study:
+        # Reads-study is different from assembly-study, so fetch runs+samples from it
         get_study_readruns_from_ena(
             accession=reads_study.first_accession,
             limit=limit,
         )
 
+    # Build assembly objects
     assemblies = []
     for assembly_data in portal_assemblies:
         try:
-            sample = analyses.models.Sample.objects.get_by_accession(
+            # sample may have been made previously, e.g. prior to assembly or by read-run fetchers above
+            mgnify_sample = analyses.models.Sample.objects.get_by_accession(
                 assembly_data[_.SAMPLE_ACCESSION]
             )
         except analyses.models.Sample.DoesNotExist:
-            logger.warning(
-                f"Sample {assembly_data[_.SAMPLE_ACCESSION]} not found for assembly {assembly_data[_.ANALYSIS_ACCESSION]}"
-            )
-            continue
+            # make sample based on metadata available from ENA assembly
+            __, mgnify_sample, run = _make_samples_and_run(assembly_data, study)
+        else:
+            run = mgnify_sample.runs.first()
+
         assembly = analyses.models.Assembly.objects.update_or_create_by_accession(
             known_accessions=[assembly_data[_.ANALYSIS_ACCESSION]],
             defaults={
-                "sample": sample,
+                "sample": mgnify_sample,
                 "is_private": study.is_private,
+                "run": run,
             },
             create_defaults={
                 "assembly_study": study,
