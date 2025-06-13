@@ -8,6 +8,9 @@ from mgnify_pipelines_toolkit.analysis.amplicon import (
 from mgnify_pipelines_toolkit.analysis.assembly import (
     study_summary_generator as assembly_study_summary_generator,
 )
+from mgnify_pipelines_toolkit.analysis.rawreads import (
+    study_summary_generator as rawreads_study_summary_generator,
+)
 
 from prefect import flow, get_run_logger, task
 
@@ -39,7 +42,7 @@ STUDY_SUMMARY_TSV = STUDY_SUMMARY + ".tsv"
 def generate_study_summary_for_pipeline_run(
     mgnify_study_accession: str,
     pipeline_outdir: Path | str,
-    analysis_type: Literal["amplicon", "assembly"] = "amplicon",
+    analysis_type: Literal["amplicon", "assembly", "rawreads"] = "amplicon",
     completed_runs_filename: str = EMG_CONFIG.amplicon_pipeline.completed_runs_csv,
 ) -> [Path]:
     """
@@ -48,7 +51,7 @@ def generate_study_summary_for_pipeline_run(
 
     :param mgnify_study_accession: e.g. MGYS0000001
     :param pipeline_outdir: The path to dir where pipeline published results are, e.g. /nfs/my/dir/abcedfg
-    :param analysis_type: "amplicon" or "assembly" (different summaries are generated)
+    :param analysis_type: "amplicon", "rawreads" or "assembly" (different summaries are generated)
     :param completed_runs_filename: E.g. qs_completed_runs.csv, expects to be found in pipeline_outdir
     :return: List of paths to the study summary files generated in the study dir
     """
@@ -97,6 +100,17 @@ def generate_study_summary_for_pipeline_run(
                     non_insdc=EMG_CONFIG.amplicon_pipeline.allow_non_insdc_run_names,
                     output_prefix=pipeline_outdir.name,  # e.g. a hash of the samplesheet
                 )
+        elif analysis_type == "rawreads":
+            with click.Context(
+                rawreads_study_summary_generator.summarise_analyses
+            ) as ctx:
+                ctx.invoke(
+                    rawreads_study_summary_generator.summarise_analyses,
+                    runs=results_dir.files[0].path,
+                    analyses_dir=results_dir.path,
+                    non_insdc=EMG_CONFIG.rawreads_pipeline.allow_non_insdc_run_names,
+                    output_prefix=pipeline_outdir.name,  # e.g. a hash of the samplesheet
+                )
         elif analysis_type == "assembly":
             with click.Context(
                 assembly_study_summary_generator.summarise_analyses
@@ -109,7 +123,7 @@ def generate_study_summary_for_pipeline_run(
                 )
         else:
             raise ValueError(
-                f"analysis_type must be 'amplicon' or 'assembly', got {analysis_type}"
+                f"analysis_type must be 'amplicon', 'rawreads' or 'assembly', got {analysis_type}"
             )
 
     generated_files = list(
@@ -122,7 +136,7 @@ def generate_study_summary_for_pipeline_run(
 @flow
 def merge_study_summaries(
     mgnify_study_accession: str,
-    analysis_type: Literal["amplicon", "assembly"] = "amplicon",
+    analysis_type: Literal["amplicon", "rawreads", "assembly"] = "amplicon",
     cleanup_partials: bool = False,
     bludgeon: bool = True,
 ) -> [Path]:
@@ -131,7 +145,7 @@ def merge_study_summaries(
     The files will be found in the study's results_dir.
 
     :param mgnify_study_accession: e.g. MGYS0000001
-    :param analysis_type: "amplicon" or "assembly" (different summaries are generated)
+    :param analysis_type: "amplicon", "rawreads" or "assembly" (different summaries are generated)
     :param cleanup_partials: If True, will also delete the partial study summary files if and when they're merged.
     :param bludgeon: If True, will delete any existing study-level summaries before merging.
     :return: List of paths to the study summary files generated in the study dir
@@ -180,6 +194,13 @@ def merge_study_summaries(
                     analyses_dir=study_dir.path,
                     output_prefix=study.first_accession,
                 )
+        elif analysis_type == "rawreads":
+            with click.Context(rawreads_study_summary_generator.merge_summaries) as ctx:
+                ctx.invoke(
+                    rawreads_study_summary_generator.merge_summaries,
+                    analyses_dir=study_dir.path,
+                    output_prefix=study.first_accession,
+                )
         elif analysis_type == "assembly":
             with click.Context(assembly_study_summary_generator.merge_summaries) as ctx:
                 ctx.invoke(
@@ -189,7 +210,7 @@ def merge_study_summaries(
                 )
         else:
             raise ValueError(
-                f"analysis_type must be 'amplicon' or 'assembly', got {analysis_type}"
+                f"analysis_type must be 'amplicon', 'rawreads' or 'assembly', got {analysis_type}"
             )
 
     generated_files = list(
