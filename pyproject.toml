@@ -1,5 +1,6 @@
 [project]
 dynamic = ["version"]
+version = "2025.6.13"
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "emgapiv2.settings_test"
