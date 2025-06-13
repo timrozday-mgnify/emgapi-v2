@@ -1,5 +1,4 @@
 [project]
-dynamic = ["version"]
 version = "2025.6.13"
 
 [tool.pytest.ini_options]
