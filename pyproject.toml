@@ -1,6 +1,7 @@
 [project]
 version = "2025.6.13"
 name = "emgapi-v2"
+python_requires = ">=3.11"
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "emgapiv2.settings_test"
@@ -23,9 +24,6 @@ omit = ["*/tests/*", "*/migrations/*", "*settings*", "*asgi.py", "*wsgi.py", "*m
 [tool.ruff.lint]
 ignore = ["E402"]  # allow imports after django.setup()
 exclude = ["emgapiv2/settings_test.py"]
-
-[tool.setuptools]
-python_requires = ">=3.10"
 
 [tool.prefect]
 logging.level = "INFO"
