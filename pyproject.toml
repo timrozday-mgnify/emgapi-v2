@@ -1,7 +1,7 @@
 [project]
 version = "2025.6.13"
 name = "emgapi-v2"
-python-requires = ">= 3.11"
+requires-python = ">= 3.11"
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "emgapiv2.settings_test"
