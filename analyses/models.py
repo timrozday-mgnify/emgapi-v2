@@ -620,6 +620,7 @@ class Analysis(
     RHEA_REACTIONS = "rhea_reactions"
 
     TAXONOMIES = "taxonomies"
+    FUNCTIONAL = "functional"
     CLOSED_REFERENCE = "closed_reference"
     ASV = "asv"
     FUNCTIONAL_ANNOTATION = "functional_annotation"
@@ -627,6 +628,7 @@ class Analysis(
     class TaxonomySources(FutureStrEnum):
         SSU: str = "ssu"
         LSU: str = "lsu"
+        MOTUS: str = "motus"
         ITS_ONE_DB: str = "its_one_db"
         UNITE: str = "unite"
         PR2: str = "pr2"
@@ -652,6 +654,11 @@ class Analysis(
         "asv",
         FUNCTIONAL_ANNOTATION,
     ]
+
+    class FunctionalSources(FutureStrEnum):
+        PFAM: str = "pfam"
+
+    FUNCTIONAL_PFAM = f"{FUNCTIONAL}__{FunctionalSources.PFAM.value}"
 
     @staticmethod
     def default_annotations():

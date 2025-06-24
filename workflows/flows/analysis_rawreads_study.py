@@ -39,7 +39,7 @@ from workflows.prefect_utils.analyses_models_helpers import (
     add_study_watchers,
 )
 
-_METAGENOMIC = "METAGENOMIC"
+_METAGENOMIC = "WGS"
 
 
 @flow(
@@ -76,7 +76,7 @@ def analysis_rawreads_study(study_accession: str):
             _METAGENOMIC, policy=ENALibraryStrategyPolicy.ONLY_IF_CORRECT_IN_ENA
         ),
     )
-    logger.info(f"Returned {len(read_runs)} run from ENA portal API")
+    logger.info(f"Returned {len(read_runs)} runs from ENA portal API")
 
     BiomeChoices = get_biomes_as_choices()
     UserChoices = get_users_as_choices()
@@ -96,7 +96,7 @@ def analysis_rawreads_study(study_accession: str):
         wait_for_input=AnalyseStudyInput.with_initial_data(
             description=_(
                 f"""\
-                **Amplicon V6**
+                **Raw-Reads V6**
                 This will analyse all {len(read_runs)} read-runs of study {ena_study.accession} \
                 using [Raw Reads Pipeline V6](https://github.com/ebi-metagenomics/raw-reads-analysis-pipeline).
 
