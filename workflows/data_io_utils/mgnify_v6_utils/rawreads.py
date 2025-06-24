@@ -25,6 +25,7 @@ from workflows.data_io_utils.file_rules.common_rules import (
 )
 from workflows.data_io_utils.file_rules.mgnify_v6_result_rules import (
     FileConformsToTaxonomyTSVSchemaRule,
+    FileConformsToFunctionalTSVSchemaRule,
     GlobOfQcFolderHasFastpAndMultiqc,
     GlobOfTaxonomyFolderHasHtmlAndMseqRule,
     GlobOfAsvFolderHasRegionFolders,
@@ -34,7 +35,7 @@ from workflows.data_io_utils.file_rules.nodes import Directory, File
 EMG_CONFIG = settings.EMG_CONFIG
 
 _TAXONOMY = analyses.models.Analysis.TAXONOMIES
-_FUNTIONS = analyses.models.Analysis.FUNCTIONS
+_FUNCTIONAL = analyses.models.Analysis.FUNCTIONAL
 
 
 class RawReadsV6TaxonomyFolderSchema(BaseModel):
@@ -57,13 +58,17 @@ RESULT_SCHEMAS_FOR_TAXONOMY_SOURCES = {
     ),
     analyses.models.Analysis.TaxonomySources.SSU: RawReadsV6TaxonomyFolderSchema(
         taxonomy_summary_folder_name=Path("SILVA-SSU"),
-        expect_raw: False,
+        expect_raw = False,
     ),
     analyses.models.Analysis.TaxonomySources.LSU: RawReadsV6TaxonomyFolderSchema(
         taxonomy_summary_folder_name=Path("SILVA-LSU"),
-        expect_raw: False,
+        expect_raw = False,
     ),
-    analyses.models.Analysis.FunctionSources.PFAM: RawReadsV6FunctionFolderSchema(
+}
+
+
+RESULT_SCHEMAS_FOR_FUNCTIONAL_SOURCES = {
+    analyses.models.Analysis.FunctionalSources.PFAM: RawReadsV6FunctionFolderSchema(
         function_summary_folder_name=Path("Pfam-A"),
     ),
 }
@@ -240,7 +245,7 @@ def import_taxonomy(
     if schema.expect_raw:
         analysis.add_download(
             DownloadFile(
-                path=mapseq.path.relative_to(analysis.results_dir),
+                path=raw_out.path.relative_to(analysis.results_dir),
                 file_type=DownloadFileType.TSV,
                 alias=raw_out.path.name,
                 download_type=DownloadType.TAXONOMIC_ANALYSIS,
@@ -248,6 +253,133 @@ def import_taxonomy(
                 parent_identifier=analysis.accession,
                 short_description=f"{schema.taxonomy_summary_folder_name} raw mOTUs output",
                 long_description="mOTUs output table with taxonomic database hit details",
+            )
+        )
+
+    analysis.save()
+
+
+def get_annotations_from_func_table(func_table: File) -> (List[dict], Optional[int]):
+    """
+    Reads the functional profile TSV table from func_table.path
+
+    :param func_table: File whose property .path points at a TSV file
+    :return:  A records-oriented list of functions (genes) present along with their read count, and the total read count.
+    """
+    with func_table.path.open("r") as func_tsv:
+        move_file_pointer_past_comment_lines(
+            func_tsv, delimiter=CSVDelimiter.TAB, comment_char="#"
+        )
+        try:
+            func_df = pd.read_csv(func_tsv, sep=CSVDelimiter.TAB, usecols=[0, 1, 2, 3], columns=['function', 'count', 'coverage_depth', 'coverage_breadth'])
+        except pd.errors.EmptyDataError:
+            logging.error(
+                f"Found empty functional profile TSV at {func_table.path}. Probably unit testing, otherwise we should never be here"
+            )
+            return [], 0
+
+    func_df["count"] = (
+        pd.to_numeric(func_df["count"], errors="coerce").fillna(1).astype(int)
+    )
+    func_df["coverage_depth"] = (
+        pd.to_numeric(func_df["coverage_depth"], errors="coerce").fillna(0).astype(float)
+    )
+    func_df["coverage_breadth"] = (
+        pd.to_numeric(func_df["coverage_breadth"], errors="coerce").fillna(0).astype(float)
+    )
+
+    func_df: pd.DataFrame = func_df[["function", "count"]]
+
+    return func_df.to_dict(orient="records"), int(func_df["count"].sum())
+
+
+def import_functional(
+    analysis: analyses.models.Analysis,
+    dir_for_analysis: Path,
+    source: analyses.models.Analysis.FunctionalSources,
+    allow_non_exist: bool = True,
+):
+    schema = RESULT_SCHEMAS_FOR_FUNCTIONAL_SOURCES.get(source)
+
+    if not schema:
+        raise NotImplementedError(
+            f"There is no support for importing {source} annotations because a directory structure is not known for those."
+        )
+
+    # FILE CHECKS
+    # TODO: dedupe this with sanity check flow
+    dir_rules = [DirectoryExistsRule] if not allow_non_exist else []
+
+    func_dir = Directory(
+        path=dir_for_analysis  # /hps/prod/...../abc123/SRR999/
+        / EMG_CONFIG.rawreads_pipeline.function_summary_folder  # function-summary/
+        / schema.function_summary_folder_name,  # Pfam-A/
+        rules=dir_rules,
+    )
+
+    if not func_dir.path.is_dir():
+        print(f"No func dir at {func_dir.path} – no {source} functions to import.")
+        return
+
+    if schema.expect_tsv:
+        func_table = File(
+            path=func_dir.path
+            / f"{analysis.run.first_accession}_{schema.functional_profile_folder_name}.txt",
+            rules=[
+                FileExistsRule,
+                FileIsNotEmptyRule,
+                FileConformsToFunctionalTSVSchemaRule,
+            ],
+        )
+
+        func_dir.files.append(func_table)
+
+    if schema.expect_raw:
+        raw_out = File(
+            path=func_dir.path
+            / f"raw/{analysis.run.first_accession}_{schema.functional_profile_folder_name}.out",
+            rules=[
+                FileExistsRule,
+            ],
+        )
+
+        func_dir.files.append(raw_out)
+
+    # DOWNLOAD FILE IMPORTS
+    if schema.expect_tsv:
+        functions_to_import, total_read_count = get_annotations_from_func_table(
+            func_table
+        )
+        analysis_functions = analysis.annotations.get(analysis.FUNCTIONAL, {})
+        if not analysis_functions:
+            analysis_functions = {}
+        analysis_functions[source] = functions_to_import
+        analysis.annotations[analysis.FUNCTIONAL] = analysis_functions
+
+        analysis.add_download(
+            DownloadFile(
+                path=func_table.path.relative_to(analysis.results_dir),
+                file_type=DownloadFileType.TSV,
+                alias=func_dir.path.name,
+                download_type=DownloadType.FUNCTIONAL_ANALYSIS,
+                download_group=f"{_FUNCTIONAL}.{schema.reference_type}.{schema.functional_summary_folder_name}",
+                parent_identifier=analysis.accession,
+                short_description=f"{schema.functional_summary_folder_name} functional profile table",
+                long_description="Table with read counts for each functional assignment",
+            )
+        )
+
+    if schema.expect_raw:
+        analysis.add_download(
+            DownloadFile(
+                path=raw_out.path.relative_to(analysis.results_dir),
+                file_type=DownloadFileType.TSV,
+                alias=raw_out.path.name,
+                download_type=DownloadType.FUNCTIONAL_ANALYSIS,
+                download_group=f"{_FUNCTIONAL}.{schema.reference_type}.{schema.functional_summary_folder_name}",
+                parent_identifier=analysis.accession,
+                short_description=f"{schema.functional_summary_folder_name} raw HMMer output",
+                long_description="HMMer output table with hit details",
             )
         )
 

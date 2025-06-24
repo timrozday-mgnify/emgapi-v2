@@ -24,6 +24,20 @@ FileConformsToTaxonomyTSVSchemaRule = generate_csv_schema_file_rule(
     TaxonomyTSVRow, delimiter=CSVDelimiter.TAB, none_values=[""]
 )
 
+
+class FunctionalTSVRow(BaseModel):
+    function: str
+    read_count: Union[float, int] 
+    coverage_depth: float
+    coverage_breadth: float
+
+    model_config = ConfigDict(extra="allow")
+
+
+FileConformsToFunctionalTSVSchemaRule = generate_csv_schema_file_rule(
+    FunctionalTSVRow, delimiter=CSVDelimiter.TAB, none_values=[""]
+)
+
 GlobOfTaxonomyFolderHasHtmlAndMseqRule = GlobRule(
     rule_name="Folder should contain html and mseq files",
     glob_patten="*",

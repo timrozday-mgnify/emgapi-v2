@@ -70,13 +70,13 @@ def make_samplesheet_rawreads(
                 ),
             ),
             "library_layout": SamplesheetColumnSource(
-                lookup_string=analyses.models.Run.metadata.field.library_layout,
+                lookup_string=f"{analyses.models.Run.metadata.field.name}__library_layout",
             ),
             "library_strategy": SamplesheetColumnSource(
-                lookup_string=analyses.models.Run.metadata.field,library_strategy,
+                lookup_string=f"{analyses.models.Run.metadata.field.name}__library_strategy",
             ),
             "instrument_platform": SamplesheetColumnSource(
-                lookup_string=analyses.models.Run.metadata.field.instrument_platform,
+                lookup_string=f"{analyses.models.Run.metadata.field.name}__instrument_platform",
             ),
         },
         bludgeon=True,

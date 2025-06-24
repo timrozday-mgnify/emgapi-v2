@@ -36,7 +36,7 @@ from workflows.prefect_utils.slurm_flow import (
 from workflows.prefect_utils.slurm_policies import ResubmitIfFailedPolicy
 
 
-@flow(name="Run analysis pipeline-v6 via samplesheet", log_prints=True)
+@flow(name="Run raw-reads analysis pipeline-v6 via samplesheet", log_prints=True)
 def run_rawreads_pipeline_via_samplesheet(
     mgnify_study: analyses.models.Study,
     rawreads_analysis_ids: List[Union[str, int]],
@@ -67,10 +67,10 @@ def run_rawreads_pipeline_via_samplesheet(
             "-latest",  # Pull changes from GitHub
             ("-profile", EMG_CONFIG.rawreads_pipeline.rawreads_pipeline_nf_profile),
             "-resume",
-            ("--input", samplesheet),
+            ("--samplesheet", samplesheet),
             ("--outdir", rawreads_current_outdir),
             EMG_CONFIG.slurm.use_nextflow_tower and "-with-tower",
-            ("-name", f"ampl-v6-sheet-{slugify(samplesheet)[-10:]}"),
+            ("-name", f"rawreads-v6-sheet-{slugify(samplesheet)[-10:]}"),
             ("-ansi-log", "false"),
         ]
     )
@@ -99,13 +99,9 @@ def run_rawreads_pipeline_via_samplesheet(
         # assume that if job finished, all finished... set statuses
         set_post_analysis_states(rawreads_current_outdir, rawreads_analyses)
         import_completed_analyses(rawreads_current_outdir, rawreads_analyses)
-        generate_markergene_summary_for_pipeline_run(
-            mgnify_study_accession=mgnify_study.accession,
-            pipeline_outdir=rawreads_current_outdir,
-        )
         generate_study_summary_for_pipeline_run(
             pipeline_outdir=rawreads_current_outdir,
             mgnify_study_accession=mgnify_study.accession,
             analysis_type="rawreads",
             completed_runs_filename=EMG_CONFIG.rawreads_pipeline.completed_runs_csv,
-            )
+        )

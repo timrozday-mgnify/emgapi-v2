@@ -95,9 +95,9 @@ class AmpliconPipelineConfig(BaseModel):
 class RawReadsPipelineConfig(BaseModel):
     rawreads_pipeline_repo: str = "ebi-metagenomics/raw-reads-analysis-pipeline"
     rawreads_pipeline_git_revision: str = (
-        "main"  # branch or commit of ebi-metagenomics/raw-reads-analysis-pipeline
+        "master"  # branch or commit of ebi-metagenomics/raw-reads-analysis-pipeline
     )
-    rawreads_pipeline_nf_profile: str = "codon_slurm"
+    rawreads_pipeline_nf_profile: str = "singularity"
     samplesheet_chunk_size: int = 50
     # results stats
     completed_runs_csv: str = "qc_passed_runs.csv"
@@ -197,6 +197,7 @@ class LogMaskingConfig(BaseModel):
 
 class EMGConfig(BaseSettings):
     amplicon_pipeline: AmpliconPipelineConfig = AmpliconPipelineConfig()
+    rawreads_pipeline: RawReadsPipelineConfig = RawReadsPipelineConfig()
     assembly_analysis_pipeline: AssemblyAnalysisPipelineConfig = (
         AssemblyAnalysisPipelineConfig()
     )
