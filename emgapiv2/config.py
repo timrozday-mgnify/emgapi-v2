@@ -58,7 +58,7 @@ class AssemblerConfig(BaseModel):
     assembler_default: str = "metaspades"
     assembler_version_default: str = "3.15.5"
     miassemebler_git_revision: str = (
-        "main"  # branch or commit of ebi-metagenomics/miassembler
+        "v3.0.0"  # branch or commit of ebi-metagenomics/miassembler
     )
     miassembler_nf_profile: str = "codon_slurm"
     assembly_pipeline_time_limit_days: int = 5
