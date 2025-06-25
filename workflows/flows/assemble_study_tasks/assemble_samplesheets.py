@@ -26,11 +26,10 @@ from workflows.prefect_utils.slurm_policies import (
     ResubmitWithCleanedNextflowIfFailedPolicy,
 )
 
-
 HOST_TAXON_TO_REFERENCE_GENOME = {
     "9031": "chicken.fna",  # Gallus gallus
     "8030": "salmon.fna",  # Salmo salar
-    "8049": "cod.fna",  #  Gadus morhua
+    "8049": "cod.fna",  # Gadus morhua
     "9823": "pig.fna",  # Sus scrofa
     "9913": "cow.fna",  # Bos taurus
     "10090": "mouse.fna",  # Mus musculus
@@ -39,7 +38,7 @@ HOST_TAXON_TO_REFERENCE_GENOME = {
     "8022": "rainbow_trout.fna",  # Oncorhynchus mykiss
     "9940": "sheep.fna",  # Ovis aries
     "3847": "soybean.fna",  # Glycine max
-    "7955": "zebrafish.fna",  #  Danio rerio
+    "7955": "zebrafish.fna",  # Danio rerio
     "Gallus gallus": "chicken.fna",
     "Salmo salar": "salmon.fna",
     "Gadus morhua": "cod.fna",
@@ -136,11 +135,11 @@ def update_assembly_metadata(
 
 
 @task
-def update_assemblies_assemblers_from_samplesheet(
+def update_assemblies_and_contaminant_ref_assemblers_from_samplesheet(
     samplesheet_df: pd.DataFrame,
 ):
     """
-    Updates the assemblers associated with each assembly, based on what is in the samplesheet.
+    Updates the assemblers and contaminant reference associated with each assembly, based on what is in the samplesheet.
     This is done because a samplesheet CSV may have been edited since first created.
     :param samplesheet_df: Pandas dataframe of the samplesheet content
     :return:
@@ -148,7 +147,7 @@ def update_assemblies_assemblers_from_samplesheet(
     logger = get_run_logger()
     for _, assembly_row in samplesheet_df.iterrows():
         try:
-            latest_assembly = (
+            latest_assembly: analyses.models.Assembly = (
                 analyses.models.Assembly.objects.filter(
                     run__ena_accessions__0=assembly_row["reads_accession"]
                 )
@@ -165,19 +164,33 @@ def update_assemblies_assemblers_from_samplesheet(
                 f"Could not find unique assembly for {assembly_row['reads_accession']}"
             )
             continue
+
+        update = False
         try:
             assembler_in_samplesheet = assembly_row["assembler"]
+            latest_assembly.assembler = (
+                analyses.models.Assembler.objects.filter(
+                    name__iexact=assembler_in_samplesheet
+                )
+                .order_by("-version")
+                .first()
+            )
+            update = True
         except KeyError:
             logger.warning("Could not find assembler in samplesheet")
-            continue
-        latest_assembly.assembler = (
-            analyses.models.Assembler.objects.filter(
-                name__iexact=assembler_in_samplesheet
-            )
-            .order_by("-version")
-            .first()
-        )
-        latest_assembly.save()
+
+        try:
+            contaminant_reference = assembly_row.get("contaminant_reference")
+            if contaminant_reference and not pd.isna(contaminant_reference):
+                latest_assembly.metadata[
+                    analyses.models.Assembly.CommonMetadataKeys.CONTAMINANT_REFERENCE
+                ] = contaminant_reference
+                update = True
+        except KeyError:
+            logger.warning("Could not find contaminant reference in samplesheet")
+
+        if update:
+            latest_assembly.save()
 
 
 @flow(flow_run_name="Assemble {samplesheet_csv}", persist_result=True)
@@ -191,8 +204,7 @@ def run_assembler_for_samplesheet(
         )
     )
 
-    update_assemblies_assemblers_from_samplesheet(samplesheet_df)
-    host_reference = get_reference_genome(mgnify_study)
+    update_assemblies_and_contaminant_ref_assemblers_from_samplesheet(samplesheet_df)
 
     for assembly in assemblies:
         # Mark assembly as started
@@ -222,7 +234,6 @@ def run_assembler_for_samplesheet(
             mgnify_study.is_private and "--private_study",
             ("--outdir", miassembler_outdir),
             EMG_CONFIG.slurm.use_nextflow_tower and "-with-tower",
-            host_reference and ("--reference_genome", host_reference),
             (
                 "-name",
                 f"miassembler-samplesheet-{file_path_shortener(samplesheet_csv, 1, 15, True)}",
