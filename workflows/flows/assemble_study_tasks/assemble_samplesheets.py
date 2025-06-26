@@ -147,7 +147,7 @@ def update_assemblies_and_contaminant_ref_assemblers_from_samplesheet(
     logger = get_run_logger()
     for _, assembly_row in samplesheet_df.iterrows():
         try:
-            latest_assembly: analyses.models.Assembly = (
+            latest_assembly: analyses.models.Assembly | None = (
                 analyses.models.Assembly.objects.filter(
                     run__ena_accessions__0=assembly_row["reads_accession"]
                 )
