@@ -224,6 +224,7 @@ def run_assembler_for_samplesheet(
             ("-r", EMG_CONFIG.assembler.miassemebler_git_revision),
             "-latest",  # Pull changes from GitHub
             ("-profile", EMG_CONFIG.assembler.miassembler_nf_profile),
+            ("--config", EMG_CONFIG.assembler.miassembler_config_file),
             "-resume",
             ("--samplesheet", samplesheet_csv),
             mgnify_study.is_private and "--private_study",

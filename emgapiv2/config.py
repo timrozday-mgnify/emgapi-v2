@@ -60,6 +60,7 @@ class AssemblerConfig(BaseModel):
     miassemebler_git_revision: str = (
         "v3.0.1"  # branch or commit of ebi-metagenomics/miassembler
     )
+    miassembler_config_file: str = "/nfs/production/nextflow-configs/codon.conf"
     miassembler_nf_profile: str = "codon"
     assembly_pipeline_time_limit_days: int = 5
     assembly_nextflow_master_job_memory_gb: int = 8
