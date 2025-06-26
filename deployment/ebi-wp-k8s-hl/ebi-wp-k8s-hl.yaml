@@ -96,6 +96,7 @@ items:
       EMG_SLURM__DEFAULT_WORKDIR: "/nfs/production/rdf/metagenomics/projects/automation/slurm_workdir"
       EMG_SERVICE_URLS__TRANSFER_SERVICES_URL_ROOT: "https://ftp.ebi.ac.uk/pub/databases/metagenomics/mgnify_results/"
       EMG_SERVICE_URLS__PRIVATE_DATA_URL_ROOT: "https://www.ebi.ac.uk/metagenomics/api/v2/private-data/"
+      EMG_WEBIN__AUTH_ENDPOINT: "https://www.ebi.ac.uk/ena/submit/webin/auth/login"
       EMG_SERVICE_URLS__BASE_URL: "metagenomics/api/v2"
   - apiVersion: apps/v1
     kind: Deployment
@@ -646,7 +647,7 @@ items:
             - name: private-data-server
               image: openresty/openresty:1.25.3.2-5-alpine-fat
               imagePullPolicy: IfNotPresent
-              command: ["/bin/sh -c \"opm get jkeys089/lua-resty-hmac && openresty -g 'daemon off;'\""]
+              command: ["/bin/sh", "-c", "opm get jkeys089/lua-resty-hmac && openresty -g 'daemon off;'"]
 
               envFrom:
                 - secretRef:
