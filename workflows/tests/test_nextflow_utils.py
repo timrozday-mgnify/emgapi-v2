@@ -187,6 +187,26 @@ def test_queryset_to_samplesheet(raw_reads_mgnify_study):
         )
     samplesheet_ret.unlink(missing_ok=True)
 
+    samplesheet_ret = queryset_to_samplesheet(
+        queryset=run_qs,
+        filename=samplesheet,
+        column_map={
+            "fastq1": SamplesheetColumnSource(
+                lookup_string="metadata__fastq_ftps", renderer=lambda f: f[0]
+            ),
+            "contaminant_genome": SamplesheetColumnSource(
+                lookup_string="id", renderer=lambda _: "chicken.fna"
+            ),
+        },
+        bludgeon=True,
+    )
+    with open(samplesheet_ret) as f:
+        csv_reader = csv.DictReader(f, delimiter=",")
+        first_line = next(csv_reader)
+        assert first_line["fastq1"] == "/path/to/fastq_1.fastq.gz"
+        assert first_line["contaminant_genome"] == "chicken.fna"
+    samplesheet_ret.unlink(missing_ok=True)
+
 
 @pytest.mark.django_db(transaction=True)
 def test_queryset_hash(raw_reads_mgnify_study):

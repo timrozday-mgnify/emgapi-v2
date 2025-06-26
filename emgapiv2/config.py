@@ -58,9 +58,10 @@ class AssemblerConfig(BaseModel):
     assembler_default: str = "metaspades"
     assembler_version_default: str = "3.15.5"
     miassemebler_git_revision: str = (
-        "main"  # branch or commit of ebi-metagenomics/miassembler
+        "v3.0.1"  # branch or commit of ebi-metagenomics/miassembler
     )
-    miassembler_nf_profile: str = "codon_slurm"
+    miassembler_config_file: str = "/nfs/production/nextflow-configs/codon.conf"
+    miassembler_nf_profile: str = "codon"
     assembly_pipeline_time_limit_days: int = 5
     assembly_nextflow_master_job_memory_gb: int = 8
 

@@ -362,6 +362,7 @@ class Assembly(TimeStampedModel, ENADerivedModel):
         COVERAGE = "coverage"
         COVERAGE_DEPTH = "coverage_depth"
         N_CONTIGS = "n_contigs"
+        CONTAMINANT_REFERENCE = "contaminant_reference"
 
     metadata = JSONField(default=dict, db_index=True, blank=True)
 
