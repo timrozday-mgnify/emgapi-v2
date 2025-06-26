@@ -41,11 +41,11 @@ class WebinJwtController(NinjaJWTSlidingController):
         password = user_token.password
 
         # Authenticate via external (ENA Webin) API
-        if not authenticate_webin_user(username, password):
+        if not (webin_id := authenticate_webin_user(username, password)):
             raise HttpError(401, "Invalid credentials")
 
         token = SlidingToken()
-        token["username"] = username
+        token["username"] = webin_id
 
         return WebinTokenResponse(token=str(token), token_type="sliding")
 

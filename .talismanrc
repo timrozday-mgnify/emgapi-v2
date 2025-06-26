@@ -36,7 +36,7 @@ fileignoreconfig:
   checksum: be76261cc58f5ccea9a0b0d9179894ff3260cb5672aa69a4cfc66732200fed0d
 
 - filename: emgapiv2/test_auth.py
-  checksum: 19a51439bd343ffc74befbc568364a9fb7d1965f1c7dbcaefcd978762d9f17f4
+  checksum: 0a415d1b95a80e683db7275da1d4e62106863fb5670a7a377161295b9993c973
 
 - filename: emgapiv2/api/token_controller.py
   checksum: 545749dba1bdae2b79e23d43af01344331b8ff03cc909a730c57502ae016bbae

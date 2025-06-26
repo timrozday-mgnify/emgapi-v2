@@ -105,3 +105,30 @@ def test_token_endpoint(ninja_api_client, webin_private_study, httpx_mock):
         },
     )
     assert response.status_code == 401
+
+
+@pytest.mark.django_db
+def test_token_endpoint_as_broker(ninja_api_client, webin_private_study, httpx_mock):
+    httpx_mock.add_response(
+        url="http://fake-auth.example.com/auth",
+        status_code=200,
+    )
+
+    # Test successful token generation as broker
+    config = EMGConfig().webin
+    webin_broker = f"{config.broker_prefix}{webin_private_study.webin_submitter}"
+
+    response = ninja_api_client.post(
+        "/auth/sliding",
+        json={"username": webin_broker, "password": "password"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "token" in data
+    assert data["token_type"] == "sliding"
+
+    # Verify the token
+    token = data["token"]
+    validated_token = SlidingToken(token)
+    assert validated_token.get("username") == webin_private_study.webin_submitter
+    assert config.broker_prefix not in validated_token.get("username")
