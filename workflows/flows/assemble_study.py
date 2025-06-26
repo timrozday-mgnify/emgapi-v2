@@ -1,5 +1,5 @@
 from enum import Enum
-from textwrap import dedent as _
+from textwrap import dedent
 from typing import Optional, List
 
 from django.urls import reverse_lazy
@@ -8,6 +8,8 @@ from prefect.events import emit_event
 from prefect.input import RunInput
 from prefect.runtime import flow_run, deployment
 from pydantic import Field
+from workflows.views import encode_samplesheet_path
+from workflows.nextflow_utils.samplesheets import move_samplesheet_to_editable_location
 
 from emgapiv2.enum_utils import FutureStrEnum
 
@@ -110,11 +112,19 @@ def assemble_study(
             None,
             description="Webin ID of study owner, if data is private. Can be left as None, if public.",
         )
+        allow_samplesheet_editing: bool = Field(
+            False,
+            description="If True, the execution will be suspended after the samplesheets are created, to allow editing.",
+        )
+        suspend_timelimit: Optional[int] = Field(
+            60 * 60,  # 1 hour default
+            description="Time limit in seconds for the suspension to edit samplesheets. Default is 1 hour.",
+        )
 
     assemble_study_input: AssembleStudyInput = suspend_flow_run(
         wait_for_input=AssembleStudyInput.with_initial_data(
             assembler=AssemblerChoices.pipeline_default,
-            description=_(
+            description=dedent(
                 f"""\
                 **MI-Assembler**
                 This will assemble all {len(read_runs)} read-runs of study {ena_study.accession} \
@@ -133,6 +143,11 @@ def assemble_study(
                 **Webin owner**
                 If the study is private, the webin account owner is needed so that assemblies can be brokered into \
                 the reads study they own.
+
+                **Samplesheet Editing**
+                You can choose to suspend the execution after the sampplesheets are created, which give you time to edit them \. \
+                If enabled, you will be provided with the links to edit the samplesheets, and the flow will resume \
+                automatically after the specified time limit or when manually resumed.
                 """
             ),
         )
@@ -165,6 +180,43 @@ def assemble_study(
 
     get_or_create_assemblies_for_runs(mgnify_study, read_runs)
     samplesheets = make_samplesheets_for_runs_to_assemble(mgnify_study, assembler)
+
+    # If allow_samplesheet_editing is True, suspend the flow to allow editing
+    if assemble_study_input.allow_samplesheet_editing and samplesheets:
+
+        # Move samplesheets to editable location and generate URLs
+        edit_urls = []
+        for samplesheet_path, _ in samplesheets:
+            # Move samplesheet to editable location
+            _, _ = move_samplesheet_to_editable_location(
+                samplesheet_path, timeout=assemble_study_input.suspend_timelimit
+            )
+
+            # Generate URL for editing
+            encoded_path = encode_samplesheet_path(samplesheet_path)
+            edit_url = f"{EMG_CONFIG.service_urls.app_root}/workflows/edit-samplesheet/fetch/{encoded_path}"
+            edit_urls.append(f"[Edit samplesheet {samplesheet_path.name}]({edit_url})")
+
+        # Suspend the flow with a message showing the URLs
+        edit_urls_text = "\n".join(edit_urls)
+        suspend_message = f"""
+        ## Samplesheets are ready for editing
+
+        The following samplesheets have been created and are ready for editing:
+
+        {edit_urls_text}
+
+        Please edit the samplesheets as needed and then resume this flow.
+        The flow will automatically resume after {assemble_study_input.suspend_timelimit} seconds if not resumed manually.
+        """
+
+        suspend_flow_run(
+            timeout=assemble_study_input.suspend_timelimit, message=suspend_message
+        )
+
+        # After resuming, continue with the workflow
+        logger.info("Flow resumed after samplesheet editing")
+
     for samplesheet_path, samplesheet_hash in samplesheets:
         run_assembler_for_samplesheet(
             mgnify_study,
