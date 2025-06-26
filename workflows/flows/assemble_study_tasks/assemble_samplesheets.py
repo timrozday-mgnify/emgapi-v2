@@ -26,6 +26,7 @@ from workflows.prefect_utils.slurm_policies import (
     ResubmitWithCleanedNextflowIfFailedPolicy,
 )
 
+# TODO: move to a constants file
 HOST_TAXON_TO_REFERENCE_GENOME = {
     "9031": "chicken.fna",  # Gallus gallus
     "8030": "salmon.fna",  # Salmo salar
@@ -146,19 +147,13 @@ def update_assemblers_and_contaminant_ref_of_assemblies_from_samplesheet(
     """
     logger = get_run_logger()
     for _, assembly_row in samplesheet_df.iterrows():
-        try:
-            latest_assembly: analyses.models.Assembly | None = (
-                analyses.models.Assembly.objects.filter(
-                    run__ena_accessions__0=assembly_row["reads_accession"]
-                )
-                .order_by("-created_at")
-                .first()
+        latest_assembly: analyses.models.Assembly = (
+            analyses.models.Assembly.objects.filter(
+                run__ena_accessions__0=assembly_row["reads_accession"]
             )
-        except analyses.models.Assembly.DoesNotExist:
-            logger.warning(
-                f"Could not find unique assembly for {assembly_row['reads_accession']}"
-            )
-            continue
+            .order_by("-created_at")
+            .first()
+        )
         if not latest_assembly:
             logger.warning(
                 f"Could not find unique assembly for {assembly_row['reads_accession']}"
@@ -204,7 +199,7 @@ def run_assembler_for_samplesheet(
         )
     )
 
-    update_assemblies_and_contaminant_ref_assemblers_from_samplesheet(samplesheet_df)
+    update_assemblers_and_contaminant_ref_of_assemblies_from_samplesheet(samplesheet_df)
 
     for assembly in assemblies:
         # Mark assembly as started
