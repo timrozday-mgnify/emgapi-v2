@@ -135,7 +135,7 @@ def update_assembly_metadata(
 
 
 @task
-def update_assemblies_and_contaminant_ref_assemblers_from_samplesheet(
+def update_assemblers_and_contaminant_ref_of_assemblies_from_samplesheet(
     samplesheet_df: pd.DataFrame,
 ):
     """
