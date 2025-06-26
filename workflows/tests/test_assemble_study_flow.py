@@ -16,7 +16,7 @@ import ena.models
 from workflows.flows.assemble_study import AssemblerChoices, assemble_study
 from workflows.flows.assemble_study_tasks.assemble_samplesheets import (
     get_reference_genome,
-    update_assemblies_and_contaminant_ref_assemblers_from_samplesheet,
+    update_assemblers_and_contaminant_ref_of_assemblies_from_samplesheet,
 )
 from workflows.flows.assemble_study_tasks.make_samplesheets import (
     make_samplesheets_for_runs_to_assemble,
@@ -617,7 +617,7 @@ def test_assembler_changed_in_samplesheet(
     # run assembly on samplesheet
     # note that assembler arg will be metaspades
     ss_df = pd.read_csv(samplesheet)
-    update_assemblies_and_contaminant_ref_assemblers_from_samplesheet(ss_df)
+    update_assemblers_and_contaminant_ref_of_assemblies_from_samplesheet(ss_df)
 
     # flow should have updated assemblies to have megahit assembler, as per edited samplesheet
     assert (
