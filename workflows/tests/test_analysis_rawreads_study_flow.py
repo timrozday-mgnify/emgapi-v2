@@ -1,4 +1,5 @@
 import gzip
+from textwrap import dedent
 import json
 import logging
 import os
@@ -36,49 +37,30 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
     :param results_dir: Directory to create the fake results in
     :param sample_accession: Sample accession to use in file names
     """
+
+    logger = logging.getLogger('generate_dummy_data_debug')
     # Create the main directory
     os.makedirs(results_dir, exist_ok=True)
 
     # Create function-summary directory and subdirectories
     func_dir = f"{results_dir}/{sample_accession}/function-summary"
+    logger.info(f"Creating dummy functional results at {func_dir}")
     pfam_dir = f"{func_dir}/Pfam-A"
     os.makedirs(pfam_dir, exist_ok=True)
     with open(f"{pfam_dir}/{sample_accession}_Pfam-A.txt", "wt") as f:
         f.write(
-            """\
-            # Query\tAccession\tRead Count\tCoverage Depth\tCoverage Breadth
-            PF02826.25\t43\t9.162921348314606\t0.9606741573033708
-            PF00389.36\t14\t3.8358208955223883\t0.6567164179104478
-            PF10417.14\t5\t3.292682926829268\t0.7317073170731707
-            PF13614.12\t15\t3.0338983050847457\t0.807909604519774
-            PF03061.28\t7\t3.0126582278481013\t0.9620253164556962
-            PF00004.35\t12\t3.0\t0.7175572519083969
-            PF13173.12\t10\t2.7829457364341086\t0.8914728682170543
-            PF07724.20\t12\t2.63855421686747\t0.7650602409638554
-            PF00198.28\t13\t2.189655172413793\t0.8836206896551724
-            PF02737.24\t11\t2.1666666666666665\t0.6833333333333333
-            PF00393.24\t15\t1.8724137931034484\t0.8241379310344827
-            PF07726.17\t6\t1.6717557251908397\t0.6564885496183206
-            PF01367.25\t4\t1.597938144329897\t0.5257731958762887
-            PF17862.7\t2\t1.511111111111111\t0.8222222222222222
-            PF13555.12\t3\t1.1639344262295082\t0.5573770491803278
-            PF02739.22\t4\t1.146341463414634\t0.42073170731707316
-            PF20789.3\t4\t1.1285714285714286\t0.39285714285714285
-            PF13476.12\t6\t0.9154228855721394\t0.22885572139303484
-            PF09820.15\t7\t0.8960573476702509\t0.5806451612903226
-            PF02096.25\t3\t0.8220858895705522\t0.4171779141104294
-            PF02872.23\t3\t0.6075949367088608\t0.43670886075949367
-            PF13304.12\t5\t0.5723684210526315\t0.2894736842105263
-            PF04463.17\t2\t0.5531914893617021\t0.3546099290780142
-            PF06725.17\t1\t0.4444444444444444\t0.4444444444444444
-            PF16193.11\t1\t0.43209876543209874\t0.43209876543209874
-            PF06750.18\t1\t0.42857142857142855\t0.42857142857142855
-            PF06439.18\t2\t0.39037433155080214\t0.37433155080213903
-            PF09821.14\t1\t0.31932773109243695\t0.31932773109243695
-            PF13245.12\t1\t0.2835820895522388\t0.2835820895522388
-            PF12846.13\t2\t0.22099447513812154\t0.22099447513812154
-            PF13604.12\t1\t0.19895287958115182\t0.19895287958115182
-            """
+            dedent(
+                """\
+                # Function	Read count	Coverage depth	Coverage breadth
+                PF02826.25	43	9.162921348314606	0.9606741573033708
+                PF00389.36	14	3.8358208955223883	0.6567164179104478
+                PF10417.14	5	3.292682926829268	0.7317073170731707
+                PF13614.12	15	3.0338983050847457	0.807909604519774
+                PF03061.28	7	3.0126582278481013	0.9620253164556962
+                PF00004.35	12	3.0	0.7175572519083969
+                PF13173.12	10	2.7829457364341086	0.8914728682170543
+                """
+            )
         )
     os.makedirs(f"{pfam_dir}/raw", exist_ok=True)
     with open(f"{pfam_dir}/raw/{sample_accession}_Pfam-A.domtbl", "w"):
@@ -86,18 +68,22 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
 
 
     # Create function-summary directory and subdirectories
-    tax_dir = f"{results_dir}/{sample_accession}/taxonomic-summary"
+    tax_dir = f"{results_dir}/{sample_accession}/taxonomy-summary"
+    logger.info(f"Creating dummy taxonomy results at {tax_dir}")
     
     # mOTUs
     motus_dir = f"{tax_dir}/mOTUs"
     os.makedirs(motus_dir, exist_ok=True)
     with open(f"{motus_dir}/{sample_accession}_mOTUs.txt", "wt") as f:
         f.write(
-            """\
-            1.0\tk__Bacteria\tp__Firmicutes\tc__Bacilli\to__Lactobacillales\tf__Lactobacillaceae\tg__Lactobacillus\ts__Lactobacillus\tgasseri
-            2.0\tk__Bacteria\tp__Actinobacteria\tc__Actinobacteria\to__Bifidobacteriales\tf__Bifidobacteriaceae\tg__Bifidobacterium\ts__Bifidobacterium\tlongum\t[Bifidobacterium\tlongum\tCAG:69/Bifidobacterium\tlongum]
-            1.0\tk__Bacteria\tp__Bacteroidetes\tc__Bacteroidia\to__Bacteroidales\tf__Bacteroidaceae\tg__Bacteroides\ts__Bacteroides\tthetaiotaomicron
-            """
+            dedent(
+                """\
+                # Read count	Kingdom	Phylum	Class	Order	Family	Genus	Species
+                1.0	k__Bacteria	p__Firmicutes	c__Bacilli	o__Lactobacillales	f__Lactobacillaceae	g__Lactobacillus	s__Lactobacillus gasseri
+                2.0	k__Bacteria	p__Actinobacteria	c__Actinobacteria	o__Bifidobacteriales	f__Bifidobacteriaceae	g__Bifidobacterium	s__Bifidobacterium longum [Bifidobacterium longum CAG:69/Bifidobacterium longum]
+                1.0	k__Bacteria	p__Bacteroidetes	c__Bacteroidia	o__Bacteroidales	f__Bacteroidaceae	g__Bacteroides	s__Bacteroides thetaiotaomicron
+                """
+            )
         )
     os.makedirs(f"{motus_dir}/raw", exist_ok=True)
     with open(f"{motus_dir}/raw/{sample_accession}_mOTUs.out", "w"):
@@ -111,10 +97,13 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
     os.makedirs(silvassu_dir, exist_ok=True)
     with open(f"{silvassu_dir}/{sample_accession}_SILVA-SSU.txt", "wt") as f:
         f.write(
-            """\
-            1\tsk__Bacteria\tk__\tp__Actinobacteria\tc__Actinobacteria\to__Bifidobacteriales\tf__Bifidobacteriaceae\tg__Bifidobacterium\ts__Bifidobacterium_breve
-            3\tsk__Bacteria\tk__\tp__Actinobacteria\tc__Actinobacteria\to__Bifidobacteriales\tf__Bifidobacteriaceae\tg__Bifidobacterium\ts__Bifidobacterium_longum
-            """
+            dedent(
+                """\
+                # Read count	Superkingdom	Kingdom	Phylum	Class	Order	Family	Genus	Species
+                1	sk__Bacteria	k__	p__Actinobacteria	c__Actinobacteria	o__Bifidobacteriales	f__Bifidobacteriaceae	g__Bifidobacterium	s__Bifidobacterium_breve
+                3	sk__Bacteria	k__	p__Actinobacteria	c__Actinobacteria	o__Bifidobacteriales	f__Bifidobacteriaceae	g__Bifidobacterium	s__Bifidobacterium_longum
+                """
+            )
         )
     os.makedirs(f"{silvassu_dir}/mapseq", exist_ok=True)
     with open(f"{silvassu_dir}/mapseq/{sample_accession}_SILVA-SSU.mseq", "w"):
@@ -128,10 +117,13 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
     os.makedirs(silvalsu_dir, exist_ok=True)
     with open(f"{silvalsu_dir}/{sample_accession}_SILVA-LSU.txt", "wt") as f:
         f.write(
-            """\
-            4\tsk__Bacteria\tk__\tp__Actinobacteria\tc__Actinobacteria\to__Bifidobacteriales\tf__Bifidobacteriaceae\tg__Bifidobacterium\ts__Bifidobacterium_breve
-            18\tsk__Bacteria\tk__\tp__Actinobacteria\tc__Actinobacteria\to__Bifidobacteriales\tf__Bifidobacteriaceae\tg__Bifidobacterium\ts__Bifidobacterium_longum
-            """
+            dedent(
+                """\
+                # Read count	Superkingdom	Kingdom	Phylum	Class	Order	Family	Genus	Species
+                4	sk__Bacteria	k__	p__Actinobacteria	c__Actinobacteria	o__Bifidobacteriales	f__Bifidobacteriaceae	g__Bifidobacterium	s__Bifidobacterium_breve
+                18	sk__Bacteria	k__	p__Actinobacteria	c__Actinobacteria	o__Bifidobacteriales	f__Bifidobacteriaceae	g__Bifidobacterium	s__Bifidobacterium_longum
+                """
+            )
         )
     os.makedirs(f"{silvalsu_dir}/mapseq", exist_ok=True)
     with open(f"{silvalsu_dir}/mapseq/{sample_accession}_SILVA-LSU.mseq", "w"):
@@ -142,32 +134,228 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
 
 
     # Create qc directory and subdirectories
-    qc_dir = f"{results_dir}/qc-stats"
+    qc_dir = f"{results_dir}/{sample_accession}/qc-stats"
+    logger.info(f"Creating dummy QC results at {qc_dir}")
     fastp_dir = f"{qc_dir}/fastp"
     os.makedirs(fastp_dir, exist_ok=True)
-    with open(f"{fastp_dir}/{sample_accession}_fastp.json", "w"):
-        pass
+    with open(f"{fastp_dir}/{sample_accession}_fastp.json", "w") as f:
+        f.write(
+            """\
+            {
+                    "summary": {
+                            "fastp_version": "0.23.4",
+                            "sequencing": "paired end (150 cycles + 150 cycles)",
+                            "before_filtering": {
+                                    "total_reads":2012,
+                                    "total_bases":251320,
+                                    "q20_bases":247619,
+                                    "q30_bases":241027,
+                                    "q20_rate":0.985274,
+                                    "q30_rate":0.959044,
+                                    "read1_mean_length":125,
+                                    "read2_mean_length":124,
+                                    "gc_content":0.46886
+                            },
+                            "after_filtering": {
+                                    "total_reads":2012,
+                                    "total_bases":251273,
+                                    "q20_bases":247578,
+                                    "q30_bases":240993,
+                                    "q20_rate":0.985295,
+                                    "q30_rate":0.959088,
+                                    "read1_mean_length":125,
+                                    "read2_mean_length":124,
+                                    "gc_content":0.468884
+                            }
+                    },
+                    "filtering_result": {
+                            "passed_filter_reads": 2012,
+                            "low_quality_reads": 0,
+                            "too_many_N_reads": 0,
+                            "too_short_reads": 0,
+                            "too_long_reads": 0
+                    }
+            }
+            """
+        )
 
     # Create decontam directory and subdirectories
-    decontam_dir = f"{results_dir}/decontam-stats"
+    decontam_dir = f"{results_dir}/{sample_accession}/decontam-stats"
+    logger.info(f"Creating dummy Decontam results at {decontam_dir}")
 
     host_dir = f"{decontam_dir}/host"
     os.makedirs(host_dir, exist_ok=True)
-    with open(f"{host_dir}/{sample_accession}_short_read_host_all_summary_stats.txt", "w"):
-        pass
-    with open(f"{host_dir}/{sample_accession}_short_read_host_mapped_summary_stats.txt", "w"):
-        pass
-    with open(f"{host_dir}/{sample_accession}_short_read_host_unmapped_summary_stats.txt", "w"):
-        pass
+    with open(f"{host_dir}/{sample_accession}_short_read_host_all_summary_stats.txt", "w") as f:
+        f.write(
+            dedent(
+                """\
+                # This file was produced by samtools stats (1.21+htslib-1.21) and can be plotted using plot-bamstats
+                # This file contains statistics for all reads.
+                # The command line was:  stats test_sample.bam
+                # CHK, Checksum [2]Read Names   [3]Sequences    [4]Qualities
+                # CHK, CRC32 of reads which passed filtering followed by addition (32bit overflow)
+                CHK	45671ef4	e06d1a38	571d0a18
+                # Summary Numbers. Use `grep ^SN | cut -f 2-` to extract this part.
+                SN	raw total sequences:	2012	# excluding supplementary and secondary reads
+                SN	filtered sequences:	0
+                SN	sequences:	2012
+                SN	is sorted:	0
+                SN	1st fragments:	1006
+                SN	last fragments:	1006
+                SN	reads mapped:	53
+                SN	reads mapped and paired:	50	# paired-end technology bit set + both mates mapped
+                SN	reads unmapped:	1959
+                SN	reads properly paired:	50	# proper-pair bit set
+                SN	reads paired:	2012	# paired-end technology bit set
+                # First Fragment Qualities. Use `grep ^FFQ | cut -f 2-` to extract this part.
+                # Columns correspond to qualities and rows to cycles. First column is the cycle number.
+                FFQ	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	171	0	0	0	1	0	0	52	0	15	43	1	75	81	228	272	48	2	1	2	14	0
+                """
+            )
+        )
+    with open(f"{host_dir}/{sample_accession}_short_read_host_mapped_summary_stats.txt", "w") as f:
+        f.write(
+            dedent(
+                """\
+                # This file was produced by samtools stats (1.21+htslib-1.21) and can be plotted using plot-bamstats
+                # This file contains statistics for all reads.
+                # The command line was:  stats test_sample.bam
+                # CHK, Checksum [2]Read Names   [3]Sequences    [4]Qualities
+                # CHK, CRC32 of reads which passed filtering followed by addition (32bit overflow)
+                CHK	45671ef4	e06d1a38	571d0a18
+                # Summary Numbers. Use `grep ^SN | cut -f 2-` to extract this part.
+                SN	raw total sequences:	2012	# excluding supplementary and secondary reads
+                SN	filtered sequences:	0
+                SN	sequences:	2012
+                SN	is sorted:	0
+                SN	1st fragments:	1006
+                SN	last fragments:	1006
+                SN	reads mapped:	53
+                SN	reads mapped and paired:	50	# paired-end technology bit set + both mates mapped
+                SN	reads unmapped:	1959
+                SN	reads properly paired:	50	# proper-pair bit set
+                SN	reads paired:	2012	# paired-end technology bit set
+                # First Fragment Qualities. Use `grep ^FFQ | cut -f 2-` to extract this part.
+                # Columns correspond to qualities and rows to cycles. First column is the cycle number.
+                FFQ	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	171	0	0	0	1	0	0	52	0	15	43	1	75	81	228	272	48	2	1	2	14	0
+                """
+            )
+        )
+    with open(f"{host_dir}/{sample_accession}_short_read_host_unmapped_summary_stats.txt", "w") as f:
+        f.write(
+            dedent(
+                """\
+                # This file was produced by samtools stats (1.21+htslib-1.21) and can be plotted using plot-bamstats
+                # This file contains statistics for all reads.
+                # The command line was:  stats test_sample.bam
+                # CHK, Checksum [2]Read Names   [3]Sequences    [4]Qualities
+                # CHK, CRC32 of reads which passed filtering followed by addition (32bit overflow)
+                CHK	45671ef4	e06d1a38	571d0a18
+                # Summary Numbers. Use `grep ^SN | cut -f 2-` to extract this part.
+                SN	raw total sequences:	2012	# excluding supplementary and secondary reads
+                SN	filtered sequences:	0
+                SN	sequences:	2012
+                SN	is sorted:	0
+                SN	1st fragments:	1006
+                SN	last fragments:	1006
+                SN	reads mapped:	53
+                SN	reads mapped and paired:	50	# paired-end technology bit set + both mates mapped
+                SN	reads unmapped:	1959
+                SN	reads properly paired:	50	# proper-pair bit set
+                SN	reads paired:	2012	# paired-end technology bit set
+                # First Fragment Qualities. Use `grep ^FFQ | cut -f 2-` to extract this part.
+                # Columns correspond to qualities and rows to cycles. First column is the cycle number.
+                FFQ	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	171	0	0	0	1	0	0	52	0	15	43	1	75	81	228	272	48	2	1	2	14	0
+                """
+            )
+        )
 
     phix_dir = f"{decontam_dir}/phix"
     os.makedirs(phix_dir, exist_ok=True)
-    with open(f"{phix_dir}/{sample_accession}_short_read_phix_all_summary_stats.txt", "w"):
-        pass
-    with open(f"{phix_dir}/{sample_accession}_short_read_phix_mapped_summary_stats.txt", "w"):
-        pass
-    with open(f"{phix_dir}/{sample_accession}_short_read_phix_unmapped_summary_stats.txt", "w"):
-        pass
+    with open(f"{phix_dir}/{sample_accession}_short_read_phix_all_summary_stats.txt", "w") as f:
+        f.write(
+            dedent(
+                """\
+                # This file was produced by samtools stats (1.21+htslib-1.21) and can be plotted using plot-bamstats
+                # This file contains statistics for all reads.
+                # The command line was:  stats test_sample.bam
+                # CHK, Checksum [2]Read Names   [3]Sequences    [4]Qualities
+                # CHK, CRC32 of reads which passed filtering followed by addition (32bit overflow)
+                CHK	45671ef4	e06d1a38	571d0a18
+                # Summary Numbers. Use `grep ^SN | cut -f 2-` to extract this part.
+                SN	raw total sequences:	2012	# excluding supplementary and secondary reads
+                SN	filtered sequences:	0
+                SN	sequences:	2012
+                SN	is sorted:	0
+                SN	1st fragments:	1006
+                SN	last fragments:	1006
+                SN	reads mapped:	53
+                SN	reads mapped and paired:	50	# paired-end technology bit set + both mates mapped
+                SN	reads unmapped:	1959
+                SN	reads properly paired:	50	# proper-pair bit set
+                SN	reads paired:	2012	# paired-end technology bit set
+                # First Fragment Qualities. Use `grep ^FFQ | cut -f 2-` to extract this part.
+                # Columns correspond to qualities and rows to cycles. First column is the cycle number.
+                FFQ	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	171	0	0	0	1	0	0	52	0	15	43	1	75	81	228	272	48	2	1	2	14	0
+                """
+            )
+        )
+    with open(f"{phix_dir}/{sample_accession}_short_read_phix_mapped_summary_stats.txt", "w") as f:
+        f.write(
+            dedent(
+                """\
+                # This file was produced by samtools stats (1.21+htslib-1.21) and can be plotted using plot-bamstats
+                # This file contains statistics for all reads.
+                # The command line was:  stats test_sample.bam
+                # CHK, Checksum [2]Read Names   [3]Sequences    [4]Qualities
+                # CHK, CRC32 of reads which passed filtering followed by addition (32bit overflow)
+                CHK	45671ef4	e06d1a38	571d0a18
+                # Summary Numbers. Use `grep ^SN | cut -f 2-` to extract this part.
+                SN	raw total sequences:	2012	# excluding supplementary and secondary reads
+                SN	filtered sequences:	0
+                SN	sequences:	2012
+                SN	is sorted:	0
+                SN	1st fragments:	1006
+                SN	last fragments:	1006
+                SN	reads mapped:	53
+                SN	reads mapped and paired:	50	# paired-end technology bit set + both mates mapped
+                SN	reads unmapped:	1959
+                SN	reads properly paired:	50	# proper-pair bit set
+                SN	reads paired:	2012	# paired-end technology bit set
+                # First Fragment Qualities. Use `grep ^FFQ | cut -f 2-` to extract this part.
+                # Columns correspond to qualities and rows to cycles. First column is the cycle number.
+                FFQ	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	171	0	0	0	1	0	0	52	0	15	43	1	75	81	228	272	48	2	1	2	14	0
+                """
+            )
+        )
+    with open(f"{phix_dir}/{sample_accession}_short_read_phix_unmapped_summary_stats.txt", "w") as f:
+        f.write(
+            dedent(
+                """\
+                # This file was produced by samtools stats (1.21+htslib-1.21) and can be plotted using plot-bamstats
+                # This file contains statistics for all reads.
+                # The command line was:  stats test_sample.bam
+                # CHK, Checksum [2]Read Names   [3]Sequences    [4]Qualities
+                # CHK, CRC32 of reads which passed filtering followed by addition (32bit overflow)
+                CHK	45671ef4	e06d1a38	571d0a18
+                # Summary Numbers. Use `grep ^SN | cut -f 2-` to extract this part.
+                SN	raw total sequences:	2012	# excluding supplementary and secondary reads
+                SN	filtered sequences:	0
+                SN	sequences:	2012
+                SN	is sorted:	0
+                SN	1st fragments:	1006
+                SN	last fragments:	1006
+                SN	reads mapped:	53
+                SN	reads mapped and paired:	50	# paired-end technology bit set + both mates mapped
+                SN	reads unmapped:	1959
+                SN	reads properly paired:	50	# proper-pair bit set
+                SN	reads paired:	2012	# paired-end technology bit set
+                # First Fragment Qualities. Use `grep ^FFQ | cut -f 2-` to extract this part.
+                # Columns correspond to qualities and rows to cycles. First column is the cycle number.
+                FFQ	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	171	0	0	0	1	0	0	52	0	15	43	1	75	81	228	272	48	2	1	2	14	0
+                """
+            )
+        )
 
 
 MockFileIsNotEmptyRule = FileRule(
@@ -205,7 +393,7 @@ def test_prefect_analyse_rawreads_flow(
     """
     mock_queryset_hash_for_rawreads.return_value = "abc123"
 
-    study_accession = "PRJEB51728"
+    study_accession = "ERP136383"
     all_results = ["ERR10889188", "ERR10889197", "ERR10889214", "ERR10889221"]
 
     # mock ENA response
@@ -218,7 +406,7 @@ def test_prefect_analyse_rawreads_flow(
         f"&format=json"
         f"&dataPortal=metagenome",
         json=[
-            {"study_accession":"PRJEB51728","secondary_study_accession":"ERP136383","study_title":"Infant stool metagenomic datasets"},
+            {"study_accession":study_accession,"secondary_study_accession":study_accession,"study_title":"Infant stool metagenomic datasets"},
         ],
         is_reusable=True, is_optional=True
     )
@@ -299,76 +487,107 @@ def test_prefect_analyse_rawreads_flow(
     # RUN MAIN FLOW
     analysis_rawreads_study(study_accession=study_accession)
 
-    # mock_start_cluster_job.assert_called()
-    # mock_check_cluster_job_all_completed.assert_called()
-    # mock_suspend_flow_run.assert_called()
+    mock_start_cluster_job.assert_called()
+    mock_check_cluster_job_all_completed.assert_called()
+    mock_suspend_flow_run.assert_called()
 
-    # samplesheet_table = Artifact.get("rawreads-v6-initial-sample-sheet")
-    # assert samplesheet_table.type == "table"
-    # table_data = json.loads(samplesheet_table.data)
-    # assert len(table_data) == 1
-    # assert table_data[0]["sample"] in [all_results]
+    # Check samplesheet
+    samplesheet_table = Artifact.get("rawreads-v6-initial-sample-sheet")
+    assert samplesheet_table.type == "table"
+    table_data = json.loads(samplesheet_table.data)
+    assert len(table_data) == len(all_results)
+    assert table_data[0]["sample"] in all_results
 
-    # study = analyses.models.Study.objects.get_or_create_for_ena_study(study_accession)
-    # # assert (
-    # #     study.analyses.filter(
-    # #         assembly__ena_accessions__contains=[all_results]
-    # #     ).count()
-    # #     == 1
-    # # )
+    # check biome and watchers were set correctly
+    study = analyses.models.Study.objects.get_or_create_for_ena_study(study_accession)
+    assert study.biome.biome_name == "Engineered"
+    assert admin_user == study.watchers.first()
 
-    # # check biome and watchers were set correctly
-    # assert study.biome.biome_name == "Engineered"
-    # assert admin_user == study.watchers.first()
+    # Check that the study has v6 analyses
+    study.refresh_from_db()
+    assert study.features.has_v6_analyses
 
-    # # Check that the study has v6 analyses
-    # study.refresh_from_db()
-    # assert study.features.has_v6_analyses
+    # Check all analyses were added to database
+    assert sum([
+        analyses.models.Analysis.objects.filter(run__ena_accessions__contains=[r]).count() 
+        for r in all_results
+    ]) == 4
 
-    # # Check taxonomies were imported
-    # analysis_which_should_have_taxonomies_imported: analyses.models.Analysis = (
-    #     analyses.models.Analysis.objects_and_annotations.get(
-    #         assembly__sample__ena_sample__accession__contains=[all_results]
-    #     )
-    # )
-    # assert (
-    #     analyses.models.Analysis.TAXONOMIES
-    #     in analysis_which_should_have_taxonomies_imported.annotations
-    # )
-    # assert (
-    #     analyses.models.Analysis.TaxonomySources.UNIREF.value
-    #     in analysis_which_should_have_taxonomies_imported.annotations[
-    #         analyses.models.Analysis.TAXONOMIES
-    #     ]
-    # )
-    # contig_taxa = analysis_which_should_have_taxonomies_imported.annotations[
-    #     analyses.models.Analysis.TAXONOMIES
-    # ][analyses.models.Analysis.TaxonomySources.UNIREF.value]
-    # assert len(contig_taxa) == 10
-    # assert (
-    #     contig_taxa[0]["organism"]
-    #     == "sk__Archaea;k__Thermoproteati;p__Nitrososphaerota;c__Nitrososphaeria;o__Nitrosopumilales;f__Nitrosopumilaceae;g__Nitrosopumilus;s__Candidatus Nitrosopumilus koreensis"
-    # )
+    # Check taxonomic and functional annotations
+    analysis_which_should_have_annotations_imported: analyses.models.Analysis = (
+        analyses.models.Analysis.objects_and_annotations.get(
+            run__ena_accessions__contains=[all_results[0]]
+        )
+    )
 
-    # # Check functions were imported
-    # go_slims = analysis_which_should_have_taxonomies_imported.annotations[
-    #     analyses.models.Analysis.GO_SLIMS
-    # ]
+    assert (
+       analyses.models.Analysis.TAXONOMIES
+       in analysis_which_should_have_annotations_imported.annotations
+    )
+    assert (
+        analyses.models.Analysis.TaxonomySources.SSU.value
+        in analysis_which_should_have_annotations_imported.annotations[
+            analyses.models.Analysis.TAXONOMIES
+        ]
+    )
+    assert (
+        analyses.models.Analysis.TaxonomySources.LSU.value
+        in analysis_which_should_have_annotations_imported.annotations[
+            analyses.models.Analysis.TAXONOMIES
+        ]
+    )
+    assert (
+        analyses.models.Analysis.TaxonomySources.MOTUS.value
+        in analysis_which_should_have_annotations_imported.annotations[
+            analyses.models.Analysis.TAXONOMIES
+        ]
+    )
+    test_annotation = analysis_which_should_have_annotations_imported.annotations[
+        analyses.models.Analysis.TAXONOMIES
+    ][analyses.models.Analysis.TaxonomySources.SSU.value]
+    assert len(test_annotation) == 2
+    assert (
+        test_annotation[0]["organism"]
+        == "sk__Bacteria;k__;p__Actinobacteria;c__Actinobacteria;o__Bifidobacteriales;f__Bifidobacteriaceae;g__Bifidobacterium;s__Bifidobacterium_breve"
+    )
+    test_annotation = analysis_which_should_have_annotations_imported.annotations[
+        analyses.models.Analysis.TAXONOMIES
+    ][analyses.models.Analysis.TaxonomySources.LSU.value]
+    assert len(test_annotation) == 2
+    assert (
+        test_annotation[1]["organism"]
+        == "sk__Bacteria;k__;p__Actinobacteria;c__Actinobacteria;o__Bifidobacteriales;f__Bifidobacteriaceae;g__Bifidobacterium;s__Bifidobacterium_longum"
+    )
+    test_annotation = analysis_which_should_have_annotations_imported.annotations[
+        analyses.models.Analysis.TAXONOMIES
+    ][analyses.models.Analysis.TaxonomySources.MOTUS.value]
+    assert len(test_annotation) == 3
+    assert (
+        test_annotation[0]["organism"]
+        == "k__Bacteria;p__Firmicutes;c__Bacilli;o__Lactobacillales;f__Lactobacillaceae;g__Lactobacillus;s__Lactobacillus gasseri"
+    )
 
-    # logging.warning(analysis_which_should_have_taxonomies_imported.annotations)
+    assert (
+       analyses.models.Analysis.FUNCTIONAL
+       in analysis_which_should_have_annotations_imported.annotations
+    )
+    assert (
+        analyses.models.Analysis.FunctionalSources.PFAM.value
+        in analysis_which_should_have_annotations_imported.annotations[
+            analyses.models.Analysis.FUNCTIONAL
+        ]
+    )
+    test_annotation = analysis_which_should_have_annotations_imported.annotations[
+        analyses.models.Analysis.FUNCTIONAL
+    ][analyses.models.Analysis.FunctionalSources.PFAM.value]
+    assert len(test_annotation) == 7
+    assert (
+        test_annotation[2]["Function"]
+        == "PF10417.14"
+    )
 
-    # assert len(go_slims) == 4
-    # assert go_slims[0] == "GO:0003824"
+    # Check files
+    workdir = Path(f"{EMG_CONFIG.slurm.default_workdir}/{study_accession}_v6")
+    assert workdir.is_dir()
+    assert study.external_results_dir == f"{study_accession[:-3]}/{study_accession}"
 
-    # # Check files
-    # workdir = Path(f"{EMG_CONFIG.slurm.default_workdir}/{study_accession}_v6")
-    # assert workdir.is_dir()
-
-    # assert study.external_results_dir == f"{study_accession[:-3]}/{study_accession}"
-
-    # Directory(
-    #     path=study.results_dir,
-    #     glob_rules=[
-    #         GlobHasFilesCountRule[4]
-    #     ],  # taxonomy + goslim for the samplesheet, same two for the "merge" = 4
-    # )

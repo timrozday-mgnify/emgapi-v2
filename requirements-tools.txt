@@ -1,2 +1,2 @@
 assembly-uploader==1.2.0
-git+https://github.com/timrozday-mgnify/mgnify-pipelines-toolkit.git@main#egg=mgnify-pipelines-toolkit
+git+https://github.com/timrozday-mgnify/mgnify-pipelines-toolkit.git@3553e0c#egg=mgnify-pipelines-toolkit
