@@ -8,8 +8,9 @@ from prefect.events import emit_event
 from prefect.input import RunInput
 from prefect.runtime import flow_run, deployment
 from pydantic import Field
+from pydantic_core import PydanticUndefined
+
 from workflows.views import encode_samplesheet_path
-from workflows.nextflow_utils.samplesheets import move_samplesheet_to_editable_location
 
 from emgapiv2.enum_utils import FutureStrEnum
 
@@ -102,23 +103,29 @@ def assemble_study(
     UserChoices = get_users_as_choices()
 
     class AssembleStudyInput(RunInput):
-        biome: BiomeChoices
-        assembler: AssemblerChoices
+        biome: BiomeChoices = Field(
+            default=(
+                getattr(BiomeChoices, str(mgnify_study.biome.path))
+                if mgnify_study.biome
+                else PydanticUndefined
+            )
+        )
+        assembler: AssemblerChoices = Field(
+            ..., description="Default picked by run data type, unless overridden here."
+        )
         watchers: Optional[List[UserChoices]] = Field(
             None,
             description="Admin users watching this study will get status notifications.",
         )
         webin_owner: Optional[str] = Field(
-            None,
+            default=(
+                mgnify_study.webin_submitter if mgnify_study.webin_submitter else None
+            ),
             description="Webin ID of study owner, if data is private. Can be left as None, if public.",
         )
-        allow_samplesheet_editing: bool = Field(
+        wait_for_samplesheet_editing: bool = Field(
             False,
             description="If True, the execution will be suspended after the samplesheets are created, to allow editing.",
-        )
-        suspend_timelimit: Optional[int] = Field(
-            60 * 60,  # 1 hour default
-            description="Time limit in seconds for the suspension to edit samplesheets. Default is 1 hour.",
         )
 
     assemble_study_input: AssembleStudyInput = suspend_flow_run(
@@ -130,24 +137,17 @@ def assemble_study(
                 This will assemble all {len(read_runs)} read-runs of study {ena_study.accession} \
                 using [MI-Assembler](https://www.github.com/ebi-metagenomics/mi-assembler).
 
-                Please pick which assembler tool to use (otherwise a default one will be picked depending on the data type).
-
                 **Biome tagger**
                 Please select a Biome for the entire study \
                 [{ena_study.accession}: {ena_study.title}](https://www.ebi.ac.uk/ena/browser/view/{ena_study.accession}).
 
-                The Biome is important metadata, and will also be used to guess how much memory is needed to assemble this study. \
-                These guesses are determined by the `ComputeResourceHeuristics`, \
-                which you can edit in the [admin panel]({EMG_CONFIG.service_urls.app_root}/{reverse_lazy("admin:index")}).
+                The Biome is also used to guess how much memory is needed to assemble this study. \
+                Guesses are determined by `ComputeResourceHeuristics`, \
+                (can be edited in the [admin panel]({EMG_CONFIG.service_urls.app_root}/{reverse_lazy("admin:index")}).
 
                 **Webin owner**
                 If the study is private, the webin account owner is needed so that assemblies can be brokered into \
                 the reads study they own.
-
-                **Samplesheet Editing**
-                You can choose to suspend the execution after the sampplesheets are created, which give you time to edit them \. \
-                If enabled, you will be provided with the links to edit the samplesheets, and the flow will resume \
-                automatically after the specified time limit or when manually resumed.
                 """
             ),
         )
@@ -178,46 +178,46 @@ def assemble_study(
     )
     # assumes latest version...
 
-    get_or_create_assemblies_for_runs(mgnify_study, read_runs)
-    samplesheets = make_samplesheets_for_runs_to_assemble(mgnify_study, assembler)
+    get_or_create_assemblies_for_runs(mgnify_study.accession, read_runs)
+    samplesheets = make_samplesheets_for_runs_to_assemble(
+        mgnify_study.accession, assembler
+    )
 
     # If allow_samplesheet_editing is True, suspend the flow to allow editing
-    if assemble_study_input.allow_samplesheet_editing and samplesheets:
-
-        # Move samplesheets to editable location and generate URLs
-        edit_urls = []
+    if assemble_study_input.wait_for_samplesheet_editing and samplesheets:
+        edit_urls = ""
         for samplesheet_path, _ in samplesheets:
-            # Move samplesheet to editable location
-            _, _ = move_samplesheet_to_editable_location(
-                samplesheet_path, timeout=assemble_study_input.suspend_timelimit
-            )
+            edit_urls += f"* [Edit samplesheet {samplesheet_path.name}]({EMG_CONFIG.service_urls.app_root}/workflows/edit-samplesheet/fetch/{encode_samplesheet_path(samplesheet_path)})\n"
 
-            # Generate URL for editing
-            encoded_path = encode_samplesheet_path(samplesheet_path)
-            edit_url = f"{EMG_CONFIG.service_urls.app_root}/workflows/edit-samplesheet/fetch/{encoded_path}"
-            edit_urls.append(f"[Edit samplesheet {samplesheet_path.name}]({edit_url})")
+        suspend_message = dedent(
+            f"""\
+            ## Samplesheets are ready for editing
 
-        # Suspend the flow with a message showing the URLs
-        edit_urls_text = "\n".join(edit_urls)
-        suspend_message = f"""
-        ## Samplesheets are ready for editing
+            The following samplesheets have been created and are ready for editing:
 
-        The following samplesheets have been created and are ready for editing:
+            {edit_urls}
 
-        {edit_urls_text}
-
-        Please edit the samplesheets as needed and then resume this flow.
-        The flow will automatically resume after {assemble_study_input.suspend_timelimit} seconds if not resumed manually.
-        """
-
-        suspend_flow_run(
-            timeout=assemble_study_input.suspend_timelimit, message=suspend_message
+            **Please edit the samplesheets as needed and then resume ("Submit") this flow.**
+            The flow will fail after {EMG_CONFIG.assembler.suspend_timeout_for_editing_samplesheets_secs / 3600} hours if not resumed.
+            """
         )
 
-        # After resuming, continue with the workflow
-        logger.info("Flow resumed after samplesheet editing")
+        class ResumeAfterSamplesheetEditingInput(RunInput):
+            okay: bool = Field(
+                True, description="Is a llama your favourite animal?"
+            )  # fake input to make prefect suspend work
+
+        suspend_flow_run(
+            timeout=EMG_CONFIG.assembler.suspend_timeout_for_editing_samplesheets_secs,
+            wait_for_input=ResumeAfterSamplesheetEditingInput.with_initial_data(
+                description=suspend_message
+            ),
+        )
+
+    logger.info("Flow resumed after samplesheet editing")
 
     for samplesheet_path, samplesheet_hash in samplesheets:
+        logger.info(f"Will run assembler for samplesheet {samplesheet_path.name}")
         run_assembler_for_samplesheet(
             mgnify_study,
             samplesheet_path,
