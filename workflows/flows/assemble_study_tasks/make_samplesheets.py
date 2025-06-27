@@ -87,8 +87,15 @@ def make_samplesheet(
                 renderer=EXPERIMENT_TYPES_TO_MIASSEMBLER_LIBRARY_STRATEGY.get,
             ),
             "library_layout": SamplesheetColumnSource(
-                lookup_string=f"run__metadata__{analyses.models.Run.CommonMetadataKeys.LIBRARY_LAYOUT}",
-                renderer=lambda layout: str(layout).lower(),
+                lookup_string="run__metadata",
+                renderer=lambda metadata: str(
+                    metadata.get(
+                        analyses.models.Run.CommonMetadataKeys.INFERRED_LIBRARY_LAYOUT,
+                        metadata.get(
+                            analyses.models.Run.CommonMetadataKeys.LIBRARY_LAYOUT
+                        ),
+                    )
+                ).lower(),
             ),
             "platform": SamplesheetColumnSource(
                 lookup_string=f"run__metadata__{analyses.models.Run.CommonMetadataKeys.INSTRUMENT_PLATFORM}",
