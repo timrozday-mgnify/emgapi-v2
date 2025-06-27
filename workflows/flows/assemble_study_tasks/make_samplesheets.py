@@ -6,6 +6,7 @@ from typing import List, Union
 
 from prefect import task
 from prefect.artifacts import create_table_artifact
+from prefect.cache_policies import DEFAULT
 from prefect.tasks import task_input_hash
 
 from activate_django_first import EMG_CONFIG
@@ -174,14 +175,12 @@ def make_samplesheet(
     return sample_sheet_tsv, ss_hash
 
 
-@task(
-    cache_key_fn=task_input_hash,
-)
+@task(cache_policy=DEFAULT, persist_result=True)
 def make_samplesheets_for_runs_to_assemble(
-    mgnify_study: analyses.models.Study,
+    mgnify_study_accession: str,
     assembler: analyses.models.Assembler,
     chunk_size: int = 10,
-) -> [(Path, str)]:
+) -> list[tuple[Path, str]]:
     """Generate samplesheets for assemblies in a study for processing by the specified assembler.
 
     The biome is used to determine the amount of memory to allocate and for the decontamination step.
@@ -196,6 +195,7 @@ def make_samplesheets_for_runs_to_assemble(
     :return: A list of tuples, each containing the file path to a samplesheet and its associated identifier
     :raises ValueError: If any assemblies within the study have a conflicting privacy state compared to the study itself
     """
+    mgnify_study = analyses.models.Study.objects.get(accession=mgnify_study_accession)
     if mgnify_study.assemblies_reads.exclude(
         is_private=mgnify_study.is_private
     ).exists():

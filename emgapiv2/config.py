@@ -67,6 +67,7 @@ class AssemblerConfig(BaseModel):
 
     assembly_uploader_mem_gb: int = 4
     assembly_uploader_time_limit_hrs: int = 2
+    suspend_timeout_for_editing_samplesheets_secs: int = 28800  # 8 hrs
 
 
 class AmpliconPipelineConfig(BaseModel):

@@ -40,6 +40,7 @@ def assembly_study_input_mocker(biome_choices, user_choices):
         assembler: AssemblerChoices
         webin_owner: Optional[str]
         watchers: List[user_choices]
+        wait_for_samplesheet_editing: bool
 
     return MockAssembleStudyInput
 
@@ -215,6 +216,7 @@ def test_prefect_assemble_study_flow(
                 assembler=AssemblerChoices.pipeline_default,
                 webin_owner=None,
                 watchers=[user_choices[admin_user.username]],
+                wait_for_samplesheet_editing=False,
             )
 
     mock_suspend_flow_run.side_effect = suspend_side_effect
@@ -490,6 +492,7 @@ def test_prefect_assemble_private_study_flow(
                 assembler=AssemblerChoices.pipeline_default,
                 webin_owner="Webin-1",
                 watchers=[user_choices[admin_user.username]],
+                wait_for_samplesheet_editing=False,
             )
 
     mock_suspend_flow_run.side_effect = suspend_side_effect
@@ -600,7 +603,7 @@ def test_assembler_changed_in_samplesheet(
     study.save()
 
     samplesheets = make_samplesheets_for_runs_to_assemble(
-        mgnify_study=study, assembler=mgnify_assemblies[0].assembler
+        mgnify_study_accession=study.accession, assembler=mgnify_assemblies[0].assembler
     )
     samplesheet: Path = samplesheets[0][
         0
