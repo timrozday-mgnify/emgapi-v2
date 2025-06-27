@@ -30,7 +30,12 @@ def import_completed_analysis(analysis: analyses.models.Analysis):
         t.SSU,
     ]:
         import_taxonomy(analysis, dir_for_analysis, source=source, allow_non_exist=True)
-    import_functional(analysis, dir_for_analysis, allow_non_exist=True)
+    t = analyses.models.Analysis.FunctionalSources
+    for source in [
+        t.PFAM,
+    ]:
+        import_functional(analysis, dir_for_analysis, source=source, allow_non_exist=True)
+
     copy_v6_pipeline_results(analysis.accession)
     task_mark_analysis_status(
         analysis,
@@ -56,8 +61,11 @@ def import_completed_analyses(
         if analysis.status.get(AnalysisStates.ANALYSIS_POST_SANITY_CHECK_FAILED):
             print(f"{analysis} failed post-analysis sanity check. Skipping.")
             continue
-        if analysis.annotations.get(analysis.PROFILES):
-            print(f"{analysis} already has taxonomic and functional annotations. Skipping.")
+        if analysis.annotations.get(analysis.TAXONOMIES):
+            print(f"{analysis} already has taxonomic annotations. Skipping.")
+            continue
+        if analysis.annotations.get(analysis.FUNCTIONAL):
+            print(f"{analysis} already has functional annotations. Skipping.")
             continue
 
         dir_for_analysis = rawreads_current_outdir / analysis.run.first_accession

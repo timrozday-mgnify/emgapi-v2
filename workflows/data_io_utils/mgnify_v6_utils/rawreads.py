@@ -24,18 +24,18 @@ from workflows.data_io_utils.file_rules.common_rules import (
     GlobHasFilesCountRule,
 )
 from workflows.data_io_utils.file_rules.mgnify_v6_result_rules import (
-    FileConformsToTaxonomyTSVSchemaRule,
+    FileConformsToRawReadsTaxonomyTSVSchemaRule,
     FileConformsToFunctionalTSVSchemaRule,
-    GlobOfQcFolderHasFastpAndMultiqc,
-    GlobOfTaxonomyFolderHasHtmlAndMseqRule,
-    GlobOfAsvFolderHasRegionFolders,
+    GlobOfQcFolderHasFastp,
+    GlobOfDecontamFolderHasSummaryStats,
+    GlobOfRawReadsTaxonomyFolderHasHtmlAndKronaTxtRule,
 )
 from workflows.data_io_utils.file_rules.nodes import Directory, File
 
 EMG_CONFIG = settings.EMG_CONFIG
 
 _TAXONOMY = analyses.models.Analysis.TAXONOMIES
-_FUNCTIONAL = analyses.models.Analysis.FUNCTIONAL
+_FUNCTIONAL = analyses.models.Analysis.FUNCTIONAL_ANNOTATION
 
 
 class RawReadsV6TaxonomyFolderSchema(BaseModel):
@@ -48,20 +48,24 @@ class RawReadsV6TaxonomyFolderSchema(BaseModel):
 
 class RawReadsV6FunctionFolderSchema(BaseModel):
     function_summary_folder_name: Path
-    expect_raw: bool = Field(False)
+    expect_tsv: bool = Field(True)
+    expect_raw: bool = Field(True)
 
 
 RESULT_SCHEMAS_FOR_TAXONOMY_SOURCES = {
     analyses.models.Analysis.TaxonomySources.MOTUS: RawReadsV6TaxonomyFolderSchema(
         taxonomy_summary_folder_name=Path("mOTUs"),
         expect_mseq = False,
+        expect_raw = True,
     ),
     analyses.models.Analysis.TaxonomySources.SSU: RawReadsV6TaxonomyFolderSchema(
         taxonomy_summary_folder_name=Path("SILVA-SSU"),
+        expect_mseq = True,
         expect_raw = False,
     ),
     analyses.models.Analysis.TaxonomySources.LSU: RawReadsV6TaxonomyFolderSchema(
         taxonomy_summary_folder_name=Path("SILVA-LSU"),
+        expect_mseq = True,
         expect_raw = False,
     ),
 }
@@ -86,27 +90,18 @@ def get_annotations_from_tax_table(tax_table: File) -> (List[dict], Optional[int
             tax_tsv, delimiter=CSVDelimiter.TAB, comment_char="#"
         )
         try:
-            tax_df = pd.read_csv(tax_tsv, sep=CSVDelimiter.TAB, usecols=[0, 1, 2])
+            tax_df = pd.read_csv(tax_tsv, sep=CSVDelimiter.TAB)
         except pd.errors.EmptyDataError:
             logging.error(
                 f"Found empty taxonomy TSV at {tax_table.path}. Probably unit testing, otherwise we should never be here"
             )
             return [], 0
 
-    for read_count_column_possible_name in ["SSU", "mOTUs", "LSU"]:
-        if read_count_column_possible_name in tax_df.columns:
-            tax_df.rename(
-                columns={read_count_column_possible_name: "count"}, inplace=True
-            )
-            break
-    else:
-        tax_df["count"] = 0
-
+    tax_df["organism"] = [';'.join(r[list(tax_df.columns)[1:]]).strip(";") for _,r in tax_df.iterrows()]
     tax_df["count"] = (
-        pd.to_numeric(tax_df["count"], errors="coerce").fillna(1).astype(int)
+        pd.to_numeric(tax_df["Read count"], errors="coerce").fillna(1).astype(int)
     )
 
-    tax_df = tax_df.rename(columns={"taxonomy": "organism"})
     tax_df: pd.DataFrame = tax_df[["organism", "count"]]
 
     return tax_df.to_dict(orient="records"), int(tax_df["count"].sum())
@@ -130,11 +125,11 @@ def import_taxonomy(
     dir_rules = [DirectoryExistsRule] if not allow_non_exist else []
     glob_rules = []
     if schema.expect_mseq and schema.expect_krona and not allow_non_exist:
-        glob_rules.append(GlobOfTaxonomyFolderHasHtmlAndMseqRule)
+        glob_rules.append(GlobOfRawReadsTaxonomyFolderHasHtmlAndKronaTxtRule)
 
     tax_dir = Directory(
         path=dir_for_analysis  # /hps/prod/...../abc123/SRR999/
-        / EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder  # taxonomy-summary/
+        / EMG_CONFIG.rawreads_pipeline.taxonomy_summary_folder  # taxonomy-summary/
         / schema.taxonomy_summary_folder_name,  # SILVA-SSU/
         rules=dir_rules,
         glob_rules=glob_rules,
@@ -151,7 +146,7 @@ def import_taxonomy(
             rules=[
                 FileExistsRule,
                 FileIsNotEmptyRule,
-                FileConformsToTaxonomyTSVSchemaRule,
+                FileConformsToRawReadsTaxonomyTSVSchemaRule,
             ],
         )
 
@@ -175,6 +170,7 @@ def import_taxonomy(
             / f"mapseq/{analysis.run.first_accession}_{schema.taxonomy_summary_folder_name}.mseq",
             rules=[
                 FileExistsRule,
+                FileIsNotEmptyRule,
             ],
         )
         tax_dir.files.append(mapseq)
@@ -185,6 +181,7 @@ def import_taxonomy(
             / f"raw/{analysis.run.first_accession}_{schema.taxonomy_summary_folder_name}.out",
             rules=[
                 FileExistsRule,
+                FileIsNotEmptyRule,
             ],
         )
         tax_dir.files.append(raw_out)
@@ -206,7 +203,7 @@ def import_taxonomy(
                 file_type=DownloadFileType.TSV,
                 alias=tax_dir.path.name,
                 download_type=DownloadType.TAXONOMIC_ANALYSIS,
-                download_group=f"{_TAXONOMY}.{schema.reference_type}.{schema.taxonomy_summary_folder_name}",
+                download_group=f"{_TAXONOMY}.closed_reference.{schema.taxonomy_summary_folder_name}",
                 parent_identifier=analysis.accession,
                 short_description=f"{schema.taxonomy_summary_folder_name} taxonomy table",
                 long_description="Table with read counts for each taxonomic assignment",
@@ -221,7 +218,7 @@ def import_taxonomy(
                     file_type=DownloadFileType.HTML,
                     alias=f"{Path(krona).stem}_{schema.taxonomy_summary_folder_name}{Path(krona).suffix}",
                     download_type=DownloadType.TAXONOMIC_ANALYSIS,
-                    download_group=f"{_TAXONOMY}.{schema.reference_type}.{schema.taxonomy_summary_folder_name}",
+                    download_group=f"{_TAXONOMY}.closed_reference.{schema.taxonomy_summary_folder_name}",
                     parent_identifier=analysis.accession,
                     short_description=f"{schema.taxonomy_summary_folder_name} Krona plot",
                     long_description=f"Krona plot webpage showing taxonomic assignments from {schema.taxonomy_summary_folder_name} annotation",
@@ -235,7 +232,7 @@ def import_taxonomy(
                 file_type=DownloadFileType.TSV,
                 alias=mapseq.path.name,
                 download_type=DownloadType.TAXONOMIC_ANALYSIS,
-                download_group=f"{_TAXONOMY}.{schema.reference_type}.{schema.taxonomy_summary_folder_name}",
+                download_group=f"{_TAXONOMY}.closed_reference.{schema.taxonomy_summary_folder_name}",
                 parent_identifier=analysis.accession,
                 short_description=f"{schema.taxonomy_summary_folder_name} MAPseq output",
                 long_description="MAPseq output table with taxonomic database hit details",
@@ -249,7 +246,7 @@ def import_taxonomy(
                 file_type=DownloadFileType.TSV,
                 alias=raw_out.path.name,
                 download_type=DownloadType.TAXONOMIC_ANALYSIS,
-                download_group=f"{_TAXONOMY}.{schema.reference_type}.{schema.taxonomy_summary_folder_name}",
+                download_group=f"{_TAXONOMY}.closed_reference.{schema.taxonomy_summary_folder_name}",
                 parent_identifier=analysis.accession,
                 short_description=f"{schema.taxonomy_summary_folder_name} raw mOTUs output",
                 long_description="mOTUs output table with taxonomic database hit details",
@@ -271,7 +268,7 @@ def get_annotations_from_func_table(func_table: File) -> (List[dict], Optional[i
             func_tsv, delimiter=CSVDelimiter.TAB, comment_char="#"
         )
         try:
-            func_df = pd.read_csv(func_tsv, sep=CSVDelimiter.TAB, usecols=[0, 1, 2, 3], columns=['function', 'count', 'coverage_depth', 'coverage_breadth'])
+            func_df = pd.read_csv(func_tsv, sep=CSVDelimiter.TAB)
         except pd.errors.EmptyDataError:
             logging.error(
                 f"Found empty functional profile TSV at {func_table.path}. Probably unit testing, otherwise we should never be here"
@@ -279,16 +276,16 @@ def get_annotations_from_func_table(func_table: File) -> (List[dict], Optional[i
             return [], 0
 
     func_df["count"] = (
-        pd.to_numeric(func_df["count"], errors="coerce").fillna(1).astype(int)
+        pd.to_numeric(func_df["Read count"], errors="coerce").fillna(1).astype(int)
     )
     func_df["coverage_depth"] = (
-        pd.to_numeric(func_df["coverage_depth"], errors="coerce").fillna(0).astype(float)
+        pd.to_numeric(func_df["Coverage depth"], errors="coerce").fillna(0).astype(float)
     )
     func_df["coverage_breadth"] = (
-        pd.to_numeric(func_df["coverage_breadth"], errors="coerce").fillna(0).astype(float)
+        pd.to_numeric(func_df["Coverage breadth"], errors="coerce").fillna(0).astype(float)
     )
 
-    func_df: pd.DataFrame = func_df[["function", "count"]]
+    func_df: pd.DataFrame = func_df[["Function", "count"]]
 
     return func_df.to_dict(orient="records"), int(func_df["count"].sum())
 
@@ -324,7 +321,7 @@ def import_functional(
     if schema.expect_tsv:
         func_table = File(
             path=func_dir.path
-            / f"{analysis.run.first_accession}_{schema.functional_profile_folder_name}.txt",
+            / f"{analysis.run.first_accession}_{schema.function_summary_folder_name}.txt",
             rules=[
                 FileExistsRule,
                 FileIsNotEmptyRule,
@@ -337,9 +334,10 @@ def import_functional(
     if schema.expect_raw:
         raw_out = File(
             path=func_dir.path
-            / f"raw/{analysis.run.first_accession}_{schema.functional_profile_folder_name}.out",
+            / f"raw/{analysis.run.first_accession}_{schema.function_summary_folder_name}.domtbl",
             rules=[
                 FileExistsRule,
+                FileIsNotEmptyRule,
             ],
         )
 
@@ -362,9 +360,9 @@ def import_functional(
                 file_type=DownloadFileType.TSV,
                 alias=func_dir.path.name,
                 download_type=DownloadType.FUNCTIONAL_ANALYSIS,
-                download_group=f"{_FUNCTIONAL}.{schema.reference_type}.{schema.functional_summary_folder_name}",
+                download_group=f"{_FUNCTIONAL}.{schema.function_summary_folder_name}",
                 parent_identifier=analysis.accession,
-                short_description=f"{schema.functional_summary_folder_name} functional profile table",
+                short_description=f"{schema.function_summary_folder_name} functional profile table",
                 long_description="Table with read counts for each functional assignment",
             )
         )
@@ -376,14 +374,30 @@ def import_functional(
                 file_type=DownloadFileType.TSV,
                 alias=raw_out.path.name,
                 download_type=DownloadType.FUNCTIONAL_ANALYSIS,
-                download_group=f"{_FUNCTIONAL}.{schema.reference_type}.{schema.functional_summary_folder_name}",
+                download_group=f"{_FUNCTIONAL}.{schema.function_summary_folder_name}",
                 parent_identifier=analysis.accession,
-                short_description=f"{schema.functional_summary_folder_name} raw HMMer output",
+                short_description=f"{schema.function_summary_folder_name} raw HMMer output",
                 long_description="HMMer output table with hit details",
             )
         )
 
     analysis.save()
+
+
+def get_summary_numbers_from_samtools_stats_output(stats_file: File) -> tuple[dict[str, int], Optional[int]]:
+    summary_numbers = {}
+    with stats_file.path.open('r') as f:
+        for l in f:
+            if l[:2]=='SN':
+                l_ = [v.strip() for v in l.split('\t')]
+                k, v = l_[1:3]
+                summary_numbers[k[:-1]] = int(v)
+
+    read_count = summary_numbers['raw total sequences'] \
+                 if 'raw total sequences' in summary_numbers \
+                 else None
+
+    return summary_numbers, read_count
 
 
 def import_qc(
@@ -394,43 +408,21 @@ def import_qc(
     if not allow_non_exist:
         qc_dir = Directory(
             path=dir_for_analysis  # /hps/prod/...../abc123/SRR999/
-            / EMG_CONFIG.amplicon_pipeline.qc_folder,  # qc/
+            / EMG_CONFIG.rawreads_pipeline.qc_folder,  # qc/
             rules=[DirectoryExistsRule],
-            glob_rules=[GlobOfQcFolderHasFastpAndMultiqc],
+            glob_rules=[GlobOfQcFolderHasFastp],
         )
     else:
         qc_dir = Directory(
             path=dir_for_analysis  # /hps/prod/...../abc123/SRR999/
-            / EMG_CONFIG.amplicon_pipeline.qc_folder  # qc/
+            / EMG_CONFIG.rawreads_pipeline.qc_folder  # qc/
         )
 
     if not qc_dir.path.is_dir():
         print(f"No qc dir at {qc_dir.path}. Nothing to import.")
-        return
-
-    multiqc = File(
-        path=qc_dir.path / f"{analysis.run.first_accession}_multiqc_report.html",
-        rules=[
-            FileExistsRule,
-        ],
-    )
-    qc_dir.files.append(multiqc)
-    analysis.add_download(
-        DownloadFile(
-            path=multiqc.path.relative_to(analysis.results_dir),
-            file_type=DownloadFileType.HTML,
-            alias=multiqc.path.name,
-            download_type=DownloadType.QUALITY_CONTROL,
-            download_group="quality_control",
-            parent_identifier=analysis.accession,
-            short_description="MultiQC quality control report",
-            long_description="MultiQC webpage showing quality control steps and metrics",
-        )
-    )
-    analysis.save()
 
     fastp = File(
-        path=qc_dir.path / f"{analysis.run.first_accession}.fastp.json",
+        path=qc_dir.path / "fastp" / f"{analysis.run.first_accession}_fastp.json",
         rules=(
             [
                 FileExistsRule,
@@ -442,7 +434,6 @@ def import_qc(
     )
     if not fastp.path.is_file():
         print(f"No fastp file for {analysis.run.first_accession}.")
-        return
 
     qc_dir.files.append(fastp)
 
@@ -450,10 +441,74 @@ def import_qc(
         fastp_content = json.load(fastp_reader)
     fastp_summary = fastp_content.get("summary")
 
-    if not fastp_summary:
-        print(f"No fastp summary for {analysis.run.first_accession}.")
+    if not allow_non_exist:
+        decontam_dir = Directory(
+            path=dir_for_analysis  # /hps/prod/...../abc123/SRR999/
+            / EMG_CONFIG.rawreads_pipeline.decontam_folder,  # qc/
+            rules=[DirectoryExistsRule],
+            glob_rules=[GlobOfDecontamFolderHasSummaryStats],
+        )
+    else:
+        decontam_dir = Directory(
+            path=dir_for_analysis  # /hps/prod/...../abc123/SRR999/
+            / EMG_CONFIG.rawreads_pipeline.decontam_folder  # qc/
+        )
+
+    if not decontam_dir.path.is_dir():
+        print(f"No decontamination dir for {analysis.run.first_accession} at {decontam_dir.path}. Nothing to import.")
+
+    possible_files = {}
+    for reads_set in ["all", "mapped", "unmapped"]:
+        for decontam_db in ["host", "phix"]:
+            for reads_type in ["short_read", "long_read"]:
+                if (not reads_type == "short_read") and (decontam_db == "phix"):
+                    continue
+                possible_files[(decontam_db, reads_type, reads_set)] = decontam_dir.path / decontam_db / f"{analysis.run.first_accession}_{reads_type}_{decontam_db}_{reads_set}_summary_stats.txt"
+
+    present_files = {}
+    for k,fp in possible_files.items():
+        if not fp.exists():
+            continue
+        present_files[k] = (
+            File(
+                path=fp,
+                rules=(
+                    [
+                        FileExistsRule,
+                        FileIsNotEmptyRule,
+                    ]
+                    if not allow_non_exist
+                    else []
+                )
+            )
+    )
+
+    if not allow_non_exist and len(present_files)<1:
+        print(f"No decontamination stats files for {analysis.run.first_accession} at {decontam_dir.path}. Nothing to import.")
+
+    decontam_summary = {}
+    for (decontam_db, reads_type, reads_set), fp in present_files.items():
+        _, read_count = get_summary_numbers_from_samtools_stats_output(fp)
+        if read_count:
+            decontam_summary[f"{reads_type}.{decontam_db}.{reads_set}"] = read_count
+
+    qc_summary = {}
+
+    if fastp_summary:
+        fastp_summary['fastp'] = fastp_summary
+    else:
+        print(f"No fastp QC summary for {analysis.run.first_accession}.")
+
+    if decontam_summary:
+        qc_summary['decontam'] = decontam_summary
+    else:
+        print(f"No decontam summary for {analysis.run.first_accession}.")
+
+    if not qc_summary:
+        print(f"No QC summary for {analysis.run.first_accession}.")
         return
 
     # TODO: a pydantic schema for this file would be nice... but will be very different for other pipelines
-    analysis.quality_control = fastp_summary
+    analysis.quality_control = qc_summary
     analysis.save()
+
