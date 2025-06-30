@@ -195,12 +195,12 @@ def assemble_study(
 
             The following samplesheets have been created and are ready for editing:
 
-            {edit_urls}
+            {{EDIT_URLS}}
 
             **Please edit the samplesheets as needed and then resume ("Submit") this flow.**
             The flow will fail after {EMG_CONFIG.assembler.suspend_timeout_for_editing_samplesheets_secs / 3600} hours if not resumed.
             """
-        )
+        ).format(EDIT_URLS=edit_urls)
 
         class ResumeAfterSamplesheetEditingInput(RunInput):
             okay: bool = Field(
