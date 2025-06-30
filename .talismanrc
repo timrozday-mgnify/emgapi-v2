@@ -147,5 +147,4 @@ allowed_patterns:
 - key1=val1
 - key2=val2
 - KnownMetadataKeys
-- pagination_key
 - primary_key
