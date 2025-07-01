@@ -257,23 +257,26 @@ class Run(TimeStampedModel, ENADerivedModel, WithExperimentTypeModel):
     def set_experiment_type_by_metadata(
         self, ena_library_strategy: str, ena_library_source: str
     ):
+        ALLOWED_WHOLE_GENOME_LIBRARY_STRATEGIES = ["wgs", "wga"]
+        ALLOWED_AMPLICON_LIBRARY_STRATEGIES = ["amplicon"]
+
         if ena_library_strategy.lower() == "rna-seq" and (
             ena_library_source.lower() == "metagenomic"
             or ena_library_source.lower() == "metatranscriptomic"
         ):
             self.experiment_type = Run.ExperimentTypes.METATRANSCRIPTOMIC
         elif (
-            ena_library_strategy.lower() == "wgs"
+            ena_library_strategy.lower() in ALLOWED_WHOLE_GENOME_LIBRARY_STRATEGIES
             and ena_library_source.lower() == "metatranscriptomic"
         ):
             self.experiment_type = Run.ExperimentTypes.METATRANSCRIPTOMIC
         elif (
-            ena_library_strategy.lower() == "wgs"
+            ena_library_strategy.lower() in ALLOWED_WHOLE_GENOME_LIBRARY_STRATEGIES
             and ena_library_source.lower() == "metagenomic"
         ):
             self.experiment_type = Run.ExperimentTypes.METAGENOMIC
         elif (
-            ena_library_strategy.lower() == "amplicon"
+            ena_library_strategy.lower() in ALLOWED_AMPLICON_LIBRARY_STRATEGIES
             and ena_library_source.lower() == "metagenomic"
         ):
             self.experiment_type = Run.ExperimentTypes.AMPLICON

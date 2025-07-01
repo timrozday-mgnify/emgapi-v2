@@ -71,7 +71,7 @@ def test_prefect_assemble_study_flow(
 ):
     ### ENA MOCKING ###
     accession = "SRP1"
-    number_of_runs = 5
+    number_of_runs = 7
     number_not_assembled_runs = 1
 
     httpx_mock.add_response(
@@ -206,6 +206,44 @@ def test_prefect_assemble_study_flow(
                 "lon": "0",
                 "location": "hinxton",
             },
+            {
+                "sample_accession": "SAMN06",
+                "sample_title": "Wookie hair 6 (PE labeled as WGA and METAGENOMIC)",
+                "secondary_sample_accession": "SRS6",
+                "run_accession": "SRR6",
+                "fastq_md5": "123;abc",
+                "fastq_ftp": "ftp.sra.example.org/vol/fastq/SRR6/SRR6_1.fastq.gz;ftp.sra.example.org/vol/fastq/SRR6/SRR6_2.fastq.gz",
+                "library_layout": "PAIRED",
+                "library_strategy": "WGA",
+                "library_source": "METAGENOMIC",
+                "scientific_name": "metagenome",
+                "host_tax_id": "7460",
+                "host_scientific_name": "Apis mellifera",
+                "instrument_platform": "ILLUMINA",
+                "instrument_model": "Illumina MiSeq",
+                "lat": "52",
+                "lon": "0",
+                "location": "hinxton",
+            },
+            {
+                "sample_accession": "SAMN07",
+                "sample_title": "Wookie hair 7 (PE labeled as WGA and METATRANSCRIPTOMIC)",
+                "secondary_sample_accession": "SRS7",
+                "run_accession": "SRR7",
+                "fastq_md5": "123;abc",
+                "fastq_ftp": "ftp.sra.example.org/vol/fastq/SRR7/SRR7_1.fastq.gz;ftp.sra.example.org/vol/fastq/SRR7/SRR7_2.fastq.gz",
+                "library_layout": "PAIRED",
+                "library_strategy": "WGA",
+                "library_source": "METATRANSCRIPTOMIC",
+                "scientific_name": "metagenome",
+                "host_tax_id": "7460",
+                "host_scientific_name": "Apis mellifera",
+                "instrument_platform": "ILLUMINA",
+                "instrument_model": "Illumina MiSeq",
+                "lat": "52",
+                "lon": "0",
+                "location": "hinxton",
+            },
         ],
     )
 
@@ -232,7 +270,9 @@ def test_prefect_assemble_study_flow(
         file.write("SRR1,metaspades,3.15.5\n")
         file.write("SRR3,megahit,1.2.9\n")
         file.write("SRR4,flye,2.9.5\n")
-        file.write("SRR5,spades,3.15.5")
+        file.write("SRR5,spades,3.15.5\n")
+        file.write("SRR6,metaspades,3.15.5\n")
+        file.write("SRR7,metaspades,3.15.5")
 
     with open(f"{assembly_folder}/qc_failed_runs.csv", "w") as file:
         file.write("SRR2,filter_ratio_threshold_exceeded")
@@ -252,6 +292,14 @@ def test_prefect_assemble_study_flow(
     )
     os.makedirs(
         f"{assembly_folder}/PRJNA1/PRJNA1/SRR5/SRR5/assembly/spades/3.15.5/coverage/",
+        exist_ok=True,
+    )
+    os.makedirs(
+        f"{assembly_folder}/PRJNA1/PRJNA1/SRR6/SRR6/assembly/metaspades/3.15.5/coverage/",
+        exist_ok=True,
+    )
+    os.makedirs(
+        f"{assembly_folder}/PRJNA1/PRJNA1/SRR7/SRR7/assembly/metaspades/3.15.5/coverage/",
         exist_ok=True,
     )
     # create fake coverage files
@@ -275,6 +323,16 @@ def test_prefect_assemble_study_flow(
         "w",
     ) as file:
         json.dump({"coverage": 0.049, "coverage_depth": 276.694}, file)
+    with open(
+        f"{assembly_folder}/PRJNA1/PRJNA1/SRR6/SRR6/assembly/metaspades/3.15.5/coverage/SRR6_coverage.json",
+        "w",
+    ) as file:
+        json.dump({"coverage": 0.04760503915318373, "coverage_depth": 273.694}, file)
+    with open(
+        f"{assembly_folder}/PRJNA1/PRJNA1/SRR7/SRR7/assembly/metaspades/3.15.5/coverage/SRR7_coverage.json",
+        "w",
+    ) as file:
+        json.dump({"coverage": 0.04760503915318373, "coverage_depth": 273.694}, file)
 
     ### RUN WORKFLOW ###
     assemble_study(accession, upload=False)
