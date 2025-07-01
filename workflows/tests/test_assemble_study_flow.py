@@ -270,9 +270,9 @@ def test_prefect_assemble_study_flow(
         file.write("SRR1,metaspades,3.15.5\n")
         file.write("SRR3,megahit,1.2.9\n")
         file.write("SRR4,flye,2.9.5\n")
-        file.write("SRR5,spades,3.15.5")
+        file.write("SRR5,spades,3.15.5\n")
         file.write("SRR6,metaspades,3.15.5\n")
-        file.write("SRR7,metaspades,3.15.5\n")
+        file.write("SRR7,metaspades,3.15.5")
 
     with open(f"{assembly_folder}/qc_failed_runs.csv", "w") as file:
         file.write("SRR2,filter_ratio_threshold_exceeded")
