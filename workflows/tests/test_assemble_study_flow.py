@@ -209,8 +209,8 @@ def test_prefect_assemble_study_flow(
             {
                 "sample_accession": "SAMN06",
                 "sample_title": "Wookie hair 6 (PE labeled as WGA and METAGENOMIC)",
-                "secondary_sample_accession": "SRS1",
-                "run_accession": "SRR1",
+                "secondary_sample_accession": "SRS6",
+                "run_accession": "SRR6",
                 "fastq_md5": "123;abc",
                 "fastq_ftp": "ftp.sra.example.org/vol/fastq/SRR6/SRR6_1.fastq.gz;ftp.sra.example.org/vol/fastq/SRR6/SRR6_2.fastq.gz",
                 "library_layout": "PAIRED",
@@ -228,8 +228,8 @@ def test_prefect_assemble_study_flow(
             {
                 "sample_accession": "SAMN07",
                 "sample_title": "Wookie hair 7 (PE labeled as WGA and METATRANSCRIPTOMIC)",
-                "secondary_sample_accession": "SRS1",
-                "run_accession": "SRR1",
+                "secondary_sample_accession": "SRS7",
+                "run_accession": "SRR7",
                 "fastq_md5": "123;abc",
                 "fastq_ftp": "ftp.sra.example.org/vol/fastq/SRR7/SRR7_1.fastq.gz;ftp.sra.example.org/vol/fastq/SRR7/SRR1_2.fastq.gz",
                 "library_layout": "PAIRED",
