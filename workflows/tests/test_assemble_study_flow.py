@@ -71,7 +71,7 @@ def test_prefect_assemble_study_flow(
 ):
     ### ENA MOCKING ###
     accession = "SRP1"
-    number_of_runs = 5
+    number_of_runs = 7
     number_not_assembled_runs = 1
 
     httpx_mock.add_response(
@@ -271,6 +271,9 @@ def test_prefect_assemble_study_flow(
         file.write("SRR3,megahit,1.2.9\n")
         file.write("SRR4,flye,2.9.5\n")
         file.write("SRR5,spades,3.15.5")
+        file.write("SRR6,metaspades,3.15.5\n")
+        file.write("SRR7,metaspades,3.15.5\n")
+
 
     with open(f"{assembly_folder}/qc_failed_runs.csv", "w") as file:
         file.write("SRR2,filter_ratio_threshold_exceeded")
@@ -290,6 +293,14 @@ def test_prefect_assemble_study_flow(
     )
     os.makedirs(
         f"{assembly_folder}/PRJNA1/PRJNA1/SRR5/SRR5/assembly/spades/3.15.5/coverage/",
+        exist_ok=True,
+    )
+    os.makedirs(
+        f"{assembly_folder}/PRJNA1/PRJNA1/SRR6/SRR6/assembly/metaspades/3.15.5/coverage/",
+        exist_ok=True,
+    )
+    os.makedirs(
+        f"{assembly_folder}/PRJNA1/PRJNA1/SRR7/SRR7/assembly/metaspades/3.15.5/coverage/",
         exist_ok=True,
     )
     # create fake coverage files
@@ -313,6 +324,16 @@ def test_prefect_assemble_study_flow(
         "w",
     ) as file:
         json.dump({"coverage": 0.049, "coverage_depth": 276.694}, file)
+    with open(
+        f"{assembly_folder}/PRJNA1/PRJNA1/SRR6/SRR6/assembly/metaspades/3.15.5/coverage/SRR6_coverage.json",
+        "w",
+    ) as file:
+        json.dump({"coverage": 0.04760503915318373, "coverage_depth": 273.694}, file)
+    with open(
+        f"{assembly_folder}/PRJNA1/PRJNA1/SRR7/SRR7/assembly/metaspades/3.15.5/coverage/SRR7_coverage.json",
+        "w",
+    ) as file:
+        json.dump({"coverage": 0.04760503915318373, "coverage_depth": 273.694}, file)
 
     ### RUN WORKFLOW ###
     assemble_study(accession, upload=False)
