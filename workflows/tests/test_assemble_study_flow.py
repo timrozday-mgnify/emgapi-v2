@@ -231,7 +231,7 @@ def test_prefect_assemble_study_flow(
                 "secondary_sample_accession": "SRS7",
                 "run_accession": "SRR7",
                 "fastq_md5": "123;abc",
-                "fastq_ftp": "ftp.sra.example.org/vol/fastq/SRR7/SRR7_1.fastq.gz;ftp.sra.example.org/vol/fastq/SRR7/SRR1_2.fastq.gz",
+                "fastq_ftp": "ftp.sra.example.org/vol/fastq/SRR7/SRR7_1.fastq.gz;ftp.sra.example.org/vol/fastq/SRR7/SRR7_2.fastq.gz",
                 "library_layout": "PAIRED",
                 "library_strategy": "WGA",
                 "library_source": "METATRANSCRIPTOMIC",
