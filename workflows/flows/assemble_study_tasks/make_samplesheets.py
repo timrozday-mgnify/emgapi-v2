@@ -107,29 +107,42 @@ def make_samplesheet(
                 }.get(platform, str(platform).lower()),
             ),
             "assembler": SamplesheetColumnSource(
-                lookup_string=[
-                    f"run__metadata__{analyses.models.Run.CommonMetadataKeys.LIBRARY_LAYOUT}",
-                    f"run__metadata__{analyses.models.Run.CommonMetadataKeys.INSTRUMENT_PLATFORM}",
-                ],
                 # PACBIO_SMRT and OXFORD_NANOPORE - flye
                 # SE platform ION_TORRENT         - spades
                 # other SE                        - megahit
                 # all the rest (mostly illumina)  - metaspades
-                renderer=lambda layout, platform: (
+                lookup_string="run__metadata",
+                renderer=lambda metadata: (
                     analyses.models.Assembler.FLYE
-                    if platform
+                    if metadata.get(
+                        analyses.models.Run.CommonMetadataKeys.INSTRUMENT_PLATFORM
+                    )
                     in {
                         analyses.models.Run.InstrumentPlatformKeys.PACBIO_SMRT,
                         analyses.models.Run.InstrumentPlatformKeys.OXFORD_NANOPORE,
                     }
                     else (
                         analyses.models.Assembler.SPADES
-                        if layout == SINGLE_END_LIBRARY_LAYOUT
-                        and platform
+                        if metadata.get(
+                            analyses.models.Run.CommonMetadataKeys.INFERRED_LIBRARY_LAYOUT,
+                            metadata.get(
+                                analyses.models.Run.CommonMetadataKeys.LIBRARY_LAYOUT
+                            ),
+                        )
+                        == SINGLE_END_LIBRARY_LAYOUT
+                        and metadata.get(
+                            analyses.models.Run.CommonMetadataKeys.INSTRUMENT_PLATFORM
+                        )
                         == analyses.models.Run.InstrumentPlatformKeys.ION_TORRENT
                         else (
                             analyses.models.Assembler.MEGAHIT
-                            if layout == SINGLE_END_LIBRARY_LAYOUT
+                            if metadata.get(
+                                analyses.models.Run.CommonMetadataKeys.INFERRED_LIBRARY_LAYOUT,
+                                metadata.get(
+                                    analyses.models.Run.CommonMetadataKeys.LIBRARY_LAYOUT
+                                ),
+                            )
+                            == SINGLE_END_LIBRARY_LAYOUT
                             else assembler.name.lower()
                         )
                     )
