@@ -112,6 +112,8 @@ class RawReadsPipelineConfig(BaseModel):
     decontam_folder: str = "decontam-stats"
     taxonomy_summary_folder: str = "taxonomy-summary"
     function_summary_folder: str = "function-summary"
+    taxonomy_analysis_sources: set = {"SILVA-SSU", "SILVA-LSU", "mOTUs"}
+    function_analysis_sources: set = {"Pfam-A"}
 
     rawreads_nextflow_master_job_memory_gb: int = 1
     rawreads_pipeline_time_limit_days: int = 5

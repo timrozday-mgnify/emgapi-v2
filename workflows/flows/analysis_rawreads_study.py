@@ -30,7 +30,7 @@ from workflows.ena_utils.ena_api_requests import (
 )
 from workflows.flows.analyse_study_tasks.shared.study_summary import (
     merge_study_summaries,
-    add_study_summaries_to_downloads,
+    add_rawreads_study_summaries_to_downloads,
 )
 from workflows.flows.assemble_study import get_biomes_as_choices
 from workflows.prefect_utils.analyses_models_helpers import (
@@ -168,7 +168,7 @@ def analysis_rawreads_study(study_accession: str):
         cleanup_partials=not EMG_CONFIG.rawreads_pipeline.keep_study_summary_partials,
         analysis_type="rawreads",
     )
-    add_study_summaries_to_downloads(mgnify_study.accession)
+    add_rawreads_study_summaries_to_downloads(mgnify_study.accession)
     copy_v6_study_summaries(mgnify_study.accession)
 
     mgnify_study.refresh_from_db()

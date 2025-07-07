@@ -269,3 +269,77 @@ def add_study_summaries_to_downloads(mgnify_study_accession: str):
     logger.info(
         f"Study download aliases are now {[d.alias for d in study.downloads_as_objects]}"
     )
+
+
+@task
+def add_rawreads_study_summaries_to_downloads(mgnify_study_accession: str):
+    logger = get_run_logger()
+    study = Study.objects.get(accession=mgnify_study_accession)
+    if not study.results_dir:
+        logger.warning(
+            f"Study {study} has no results_dir, so cannot add study summaries to downloads"
+        )
+        return
+
+    for summary_file in Path(study.results_dir).glob(
+        f"{study.first_accession}*{STUDY_SUMMARY_TSV}"
+    ):
+        analysis_source = summary_file.stem.rstrip(STUDY_SUMMARY_TSV).split("_")[1:]
+        if len(analysis_source)==1:
+            analysis_source = analysis_source[0]
+            analysis_subsource = None 
+        elif len(analysis_source)==2:
+            analysis_source = analysis_source[0]
+            analysis_subsource = analysis_source[1]
+        else:
+            logger.warning(
+                f"Study {study} summary file {summary_file} has an unexpeced number of sections in its name ({len(analysis_source)}, {analysis_source})"
+            )
+            continue
+        if analysis_source in EMG_CONFIG.rawreads_pipeline.taxonomy_analysis_sources:
+            analysis_type = 'taxonomy'
+        elif EMG_CONFIG.rawreads_pipeline.function_analysis_sources:
+            analysis_type = 'function'
+        else:
+            analysis_type = None
+            logger.warning(
+                f"Study {study} summary file {summary_file} is not from a recognised source ({analysis_source})"
+            )
+            continue
+
+        try:
+            if analysis_type == 'taxonomy':
+                study.add_download(
+                    DownloadFile(
+                        path=summary_file.relative_to(study.results_dir),
+                        download_type=DownloadType.TAXONOMIC_ANALYSIS,
+                        download_group=f"study_summary.{analysis_source}.{analysis_subsource}",
+                        file_type=DownloadFileType.TSV,
+                        short_description=f"Summary of {analysis_source} taxonomies.",
+                        long_description=f"Summary of {analysis_source} taxonomic assignments, across all runs in the study.",
+                        alias=summary_file.name,
+                    )
+                )
+            if analysis_type == 'function' and analysis_subsource is not None:
+                study.add_download(
+                    DownloadFile(
+                        path=summary_file.relative_to(study.results_dir),
+                        download_type=DownloadType.FUNCTIONAL_ANALYSIS,
+                        download_group=f"study_summary.{analysis_source}.{analysis_subsource}",
+                        file_type=DownloadFileType.TSV,
+                        short_description=f"Summary of {analysis_source} function {analysis_subsource}.",
+                        long_description=f"Summary of {analysis_source} functional assignment {analysis_subsource}, across all runs in the study.",
+                        alias=summary_file.name,
+                    )
+                )
+        except FileExistsError:
+            logger.warning(
+                f"File {summary_file} already exists in downloads list, skipping"
+            )
+        logger.info(f"Added {summary_file} to downloads of {study}")
+    study.refresh_from_db()
+    logger.info(
+        f"Study download aliases are now {[d.alias for d in study.downloads_as_objects]}."
+    )
+
+

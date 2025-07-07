@@ -580,10 +580,20 @@ def test_prefect_analyse_rawreads_flow(
     test_annotation = analysis_which_should_have_annotations_imported.annotations[
         analyses.models.Analysis.FUNCTIONAL
     ][analyses.models.Analysis.FunctionalSources.PFAM.value]
-    assert len(test_annotation) == 7
+    assert len(test_annotation) == 3
+    logger = logging.getLogger('test_logger')
+    logger.info(test_annotation)
     assert (
-        test_annotation[2]["Function"]
+        test_annotation['count'][2]["Function"]
         == "PF10417.14"
+    )
+    assert (
+        test_annotation['coverage_depth'][1]["coverage_depth"]
+        == 3.835820895522388
+    )
+    assert (
+        test_annotation['coverage_breadth'][3]["coverage_breadth"]
+        == 0.807909604519774
     )
 
     # Check files
