@@ -4,6 +4,7 @@ name = "emgapi-v2"
 requires-python = ">= 3.11"
 
 [tool.pytest.ini_options]
+tmp_path_retention_policy = "all"
 DJANGO_SETTINGS_MODULE = "emgapiv2.settings_test"
 python_files = ["tests.py", "test_*.py", "*_tests.py"]
 markers = [
@@ -33,6 +34,7 @@ client.max_retries = 60 # 1 hour elapsed from first to last try, since delay inc
 client.retry_extra_codes = [404]  # for times when some traffic management between worker and prefect server breaks
 api.request_timeout = 120 # 2 mins
 server.api.keepalive_timeout = 60 # seconds
+
 
 #TODO, when ruff supports custom section-ordering
 #[tool.ruff.isort]

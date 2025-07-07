@@ -167,7 +167,7 @@ def import_taxonomy(
     if schema.expect_mseq:
         mapseq = File(
             path=tax_dir.path
-            / f"mapseq/{analysis.run.first_accession}_{schema.taxonomy_summary_folder_name}.mseq",
+            / "mapseq" / f"{analysis.run.first_accession}_{schema.taxonomy_summary_folder_name}.mseq",
             rules=[
                 FileExistsRule,
                 FileIsNotEmptyRule,
@@ -178,7 +178,7 @@ def import_taxonomy(
     if schema.expect_raw:
         raw_out = File(
             path=tax_dir.path
-            / f"raw/{analysis.run.first_accession}_{schema.taxonomy_summary_folder_name}.out",
+            / "raw" / f"{analysis.run.first_accession}_{schema.taxonomy_summary_folder_name}.out",
             rules=[
                 FileExistsRule,
                 FileIsNotEmptyRule,
@@ -285,9 +285,15 @@ def get_annotations_from_func_table(func_table: File) -> (List[dict], Optional[i
         pd.to_numeric(func_df["Coverage breadth"], errors="coerce").fillna(0).astype(float)
     )
 
-    func_df: pd.DataFrame = func_df[["Function", "count"]]
+    count_df: pd.DataFrame = func_df[["Function", "count"]]
+    depth_df: pd.DataFrame = func_df[["Function", "coverage_depth"]]
+    breadth_df: pd.DataFrame = func_df[["Function", "coverage_breadth"]]
 
-    return func_df.to_dict(orient="records"), int(func_df["count"].sum())
+    return \
+        count_df.to_dict(orient="records"), \
+        depth_df.to_dict(orient="records"), \
+        breadth_df.to_dict(orient="records"), \
+        int(count_df["count"].sum())
 
 
 def import_functional(
@@ -334,7 +340,7 @@ def import_functional(
     if schema.expect_raw:
         raw_out = File(
             path=func_dir.path
-            / f"raw/{analysis.run.first_accession}_{schema.function_summary_folder_name}.domtbl",
+            / "raw" / f"{analysis.run.first_accession}_{schema.function_summary_folder_name}.domtbl",
             rules=[
                 FileExistsRule,
                 FileIsNotEmptyRule,
@@ -345,9 +351,14 @@ def import_functional(
 
     # DOWNLOAD FILE IMPORTS
     if schema.expect_tsv:
-        functions_to_import, total_read_count = get_annotations_from_func_table(
+        functions_count_to_import, functions_depth_to_import, functions_breadth_to_import, total_read_count = get_annotations_from_func_table(
             func_table
         )
+        functions_to_import = {
+            'count': functions_count_to_import,
+            'coverage_depth': functions_depth_to_import,
+            'coverage_breadth': functions_breadth_to_import,
+        }
         analysis_functions = analysis.annotations.get(analysis.FUNCTIONAL, {})
         if not analysis_functions:
             analysis_functions = {}
