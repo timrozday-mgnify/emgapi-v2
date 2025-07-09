@@ -23,7 +23,7 @@ from workflows.prefect_utils.slurm_flow import (
     run_cluster_job,
 )
 from workflows.prefect_utils.slurm_policies import (
-    ResubmitWithCleanedNextflowIfFailedPolicy,
+    ResubmitIfFailedPolicy,
 )
 
 # TODO: move to a constants file
@@ -243,7 +243,7 @@ def run_assembler_for_samplesheet(
             memory=f"{EMG_CONFIG.assembler.assembly_nextflow_master_job_memory_gb}G",
             environment="ALL,TOWER_ACCESS_TOKEN,TOWER_WORKSPACE_ID",
             input_files_to_hash=[samplesheet_csv],
-            resubmit_policy=ResubmitWithCleanedNextflowIfFailedPolicy,
+            resubmit_policy=ResubmitIfFailedPolicy,
             working_dir=miassembler_outdir,
         )
     except ClusterJobFailedException:
