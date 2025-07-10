@@ -359,11 +359,11 @@ def import_functional(
             'coverage_depth': functions_depth_to_import,
             'coverage_breadth': functions_breadth_to_import,
         }
-        analysis_functions = analysis.annotations.get(analysis.FUNCTIONAL, {})
+        analysis_functions = analysis.annotations.get(analysis.FUNCTIONAL_ANNOTATION, {})
         if not analysis_functions:
             analysis_functions = {}
         analysis_functions[source] = functions_to_import
-        analysis.annotations[analysis.FUNCTIONAL] = analysis_functions
+        analysis.annotations[analysis.FUNCTIONAL_ANNOTATION] = analysis_functions
 
         analysis.add_download(
             DownloadFile(

@@ -14,37 +14,31 @@ from workflows.flows.analyse_study_tasks.sanity_check_rawreads_results import (
 from workflows.prefect_utils.analyses_models_helpers import task_mark_analysis_status
 
 
-@task(
-    cache_key_fn=task_input_hash,
-)
+@task()
 def set_post_analysis_states(current_outdir: Path, rawreads_analyses: List):
     # The pipeline produces top level end of execution reports, which contain
     # the list of the runs that were completed, and those that were not.
     # For more information: https://github.com/EBI-Metagenomics/amplicon-pipeline?tab=readme-ov-file#top-level-reports
 
-    # qc_failed_runs.csv: runID,reason(seqfu_fail/sfxhd_fail/libstrat_fail/no_reads)
+    def parse_pipeline_report(fp: Path):
+        runs = {}
+        if fp.is_file():
+            with fp.open(mode="r") as file_handle:
+                for row in csv.reader(file_handle, delimiter=","):
+                    run_accession, fail_reason = row
+                    runs[run_accession] = fail_reason
+        return runs
+
     qc_failed_csv = Path(
         f"{current_outdir}/{EMG_CONFIG.rawreads_pipeline.failed_runs_csv}"
     )
-    qc_failed_runs = {}  # Stores {run_accession, qc_fail_reason}
-
-    if qc_failed_csv.is_file():
-        with qc_failed_csv.open(mode="r") as file_handle:
-            for row in csv.reader(file_handle, delimiter=","):
-                run_accession, fail_reason = row
-                qc_failed_runs[run_accession] = fail_reason
+    qc_failed_runs = parse_pipeline_report(qc_failed_csv)  # Stores {run_accession, qc_fail_reason}
 
     # qc_passed_runs.csv: runID, info(all_results/no_asvs)
     qc_completed_csv = Path(
         f"{current_outdir}/{EMG_CONFIG.rawreads_pipeline.completed_runs_csv}"
     )
-    qc_completed_runs = {}  # Stores {run_accession, qc_fail_reason}
-
-    if qc_completed_csv.is_file():
-        with qc_completed_csv.open(mode="r") as file_handle:
-            for row in csv.reader(file_handle, delimiter=","):
-                run_accession, info = row
-                qc_completed_runs[run_accession] = info
+    qc_completed_runs = parse_pipeline_report(qc_completed_csv)  # Stores {run_accession, qc_info}
 
     for analysis in rawreads_analyses:
         if analysis.run.first_accession in qc_failed_runs:
@@ -59,6 +53,8 @@ def set_post_analysis_states(current_outdir: Path, rawreads_analyses: List):
                 status=AnalysisStates.ANALYSIS_COMPLETED,
                 reason=qc_completed_runs[analysis.run.first_accession],
                 unset_statuses=[
+                    AnalysisStates.ANALYSIS_POST_SANITY_CHECK_FAILED,
+                    AnalysisStates.ANALYSIS_QC_FAILED,
                     AnalysisStates.ANALYSIS_FAILED,
                     AnalysisStates.ANALYSIS_BLOCKED,
                 ],

@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List
 
-from prefect import flow, task
+from prefect import flow, task, get_run_logger
 
 import analyses.models
 from workflows.data_io_utils.mgnify_v6_utils.rawreads import (
@@ -43,29 +43,30 @@ def import_completed_analysis(analysis: analyses.models.Analysis):
         unset_statuses=[
             analysis.AnalysisStates.ANALYSIS_QC_FAILED,
             analysis.AnalysisStates.ANALYSIS_POST_SANITY_CHECK_FAILED,
-            analysis.AnalysisStates.ANALYSIS_QC_FAILED,
             analysis.AnalysisStates.ANALYSIS_BLOCKED,
         ],
     )
 
 
-@flow(log_prints=True)
+@flow
 def import_completed_analyses(
     rawreads_current_outdir: Path, rawreads_analyses: List[analyses.models.Analysis]
 ):
+    logger = get_run_logger()
+
     for analysis in rawreads_analyses:
         analysis.refresh_from_db()
         if not analysis.status.get(AnalysisStates.ANALYSIS_COMPLETED):
-            print(f"{analysis} is not completed successfully. Skipping.")
+            logger.warning(f"{analysis} is not completed successfully. Skipping.")
             continue
         if analysis.status.get(AnalysisStates.ANALYSIS_POST_SANITY_CHECK_FAILED):
-            print(f"{analysis} failed post-analysis sanity check. Skipping.")
+            logger.warning(f"{analysis} failed post-analysis sanity check. Skipping.")
             continue
         if analysis.annotations.get(analysis.TAXONOMIES):
-            print(f"{analysis} already has taxonomic annotations. Skipping.")
+            logger.warning(f"{analysis} already has taxonomic annotations. Skipping.")
             continue
-        if analysis.annotations.get(analysis.FUNCTIONAL):
-            print(f"{analysis} already has functional annotations. Skipping.")
+        if analysis.annotations.get(analysis.FUNCTIONAL_ANNOTATION):
+            logger.warning(f"{analysis} already has functional annotations. Skipping.")
             continue
 
         dir_for_analysis = rawreads_current_outdir / analysis.run.first_accession
@@ -77,7 +78,7 @@ def import_completed_analyses(
             import_completed_analysis(analysis)
         except Exception as e:
             # TODO: there shouldn't really be cases where sanity passes but import fails... but currently there are.
-            print(f"{analysis} failed import! {e}")
+            logger.warning(f"{analysis} failed import! {e}")
             analysis.mark_status(
                 analysis.AnalysisStates.ANALYSIS_POST_SANITY_CHECK_FAILED,
                 reason=f"Failed during import: {e}",

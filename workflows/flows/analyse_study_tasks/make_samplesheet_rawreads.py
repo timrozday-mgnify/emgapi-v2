@@ -47,12 +47,10 @@ def make_samplesheet_rawreads(
     sample_sheet_csv = queryset_to_samplesheet(
         queryset=runs,
         filename=Path(EMG_CONFIG.slurm.default_workdir)
-        / Path(
-            f"{mgnify_study.ena_study.accession}_samplesheet_rawreads-v6_{ss_hash}.csv"
-        ),
+            / Path(f"{mgnify_study.ena_study.accession}_samplesheet_rawreads-v6_{ss_hash}.csv"),
         column_map={
             "study": SamplesheetColumnSource(
-                lookup_string="ena_accessions",
+                lookup_string="study__ena_accessions",
                 renderer=lambda accessions: accessions[0],
             ),
             "sample": SamplesheetColumnSource(
