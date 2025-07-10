@@ -6,12 +6,15 @@ from pydantic import AnyHttpUrl, BaseModel, Field
 from pydantic.networks import MongoDsn, MySQLDsn
 from pydantic_settings import BaseSettings
 
+from workflows.ena_utils.abstract import ENAPortalDataPortal
+
 
 class SlurmConfig(BaseModel):
     default_job_status_checks_limit: int = 10
     default_workdir: str = "/nfs/production/dev-slurm-work-dir"
     pipelines_root_dir: str = "/app/workflows/pipelines"
     ftp_results_dir: str = "/nfs/ftp/public/databases/metagenomics/mgnify_results"
+    private_results_dir: str = "/nfs/public/services/private-data"
     user: str = "root"
 
     incomplete_job_limit: int = 100
@@ -57,14 +60,16 @@ class AssemblerConfig(BaseModel):
     assembler_default: str = "metaspades"
     assembler_version_default: str = "3.15.5"
     miassemebler_git_revision: str = (
-        "main"  # branch or commit of ebi-metagenomics/miassembler
+        "v3.0.1"  # branch or commit of ebi-metagenomics/miassembler
     )
-    miassembler_nf_profile: str = "codon_slurm"
+    miassembler_config_file: str = "/nfs/production/nextflow-configs/codon.conf"
+    miassembler_nf_profile: str = "codon"
     assembly_pipeline_time_limit_days: int = 5
     assembly_nextflow_master_job_memory_gb: int = 8
 
     assembly_uploader_mem_gb: int = 4
     assembly_uploader_time_limit_hrs: int = 2
+    suspend_timeout_for_editing_samplesheets_secs: int = 28800  # 8 hrs
 
 
 class AmpliconPipelineConfig(BaseModel):
@@ -138,14 +143,25 @@ class WebinConfig(BaseModel):
     dcc_password: str = None
     submitting_center_name: str = "EMG"
     webin_cli_executor: str = "/usr/bin/webin-cli/webin-cli.jar"
+    aspera_ascp_executor: str = None
     broker_prefix: str = "mg-"
     broker_password: str = None
     webin_cli_retries: int = 6
     webin_cli_retry_delay_seconds: int = 60
+    auth_endpoint: AnyHttpUrl = "https://www.ebi.ac.uk/ena/submit/webin/auth"
+    jwt_secret_key: str = None
+    jwt_expiration_minutes: int = (
+        1440  # TODO: shorten once https://github.com/eadwinCode/django-ninja-jwt/issues/33 is fixed
+    )
+    jwt_refresh_expiration_hours: int = 24
 
 
 class ENAConfig(BaseModel):
     portal_search_api: AnyHttpUrl = "https://www.ebi.ac.uk/ena/portal/api/search"
+    portal_search_api_default_data_portals: list[ENAPortalDataPortal] = [
+        ENAPortalDataPortal.METAGENOME,
+        ENAPortalDataPortal.ENA,
+    ]
     portal_search_api_max_retries: int = 4
     portal_search_api_retry_delay_seconds: int = 15
     browser_view_url_prefix: AnyHttpUrl = "https://www.ebi.ac.uk/ena/browser/view"
@@ -173,10 +189,7 @@ class ServiceURLsConfig(BaseModel):
     transfer_services_url_root: str = (
         "http://localhost:8080/pub/databases/metagenomics/mgnify_results/"
     )
-
-
-class SlackConfig(BaseModel):
-    slack_webhook_prefect_block_name: str = "slack-webhook"
+    private_data_url_root: str = "http://localhost:8081/private-data/"
 
 
 class MaskReplacement(BaseModel):
@@ -208,7 +221,6 @@ class EMGConfig(BaseSettings):
     environment: str = "development"
     legacy_service: LegacyServiceConfig = LegacyServiceConfig()
     service_urls: ServiceURLsConfig = ServiceURLsConfig()
-    slack: SlackConfig = SlackConfig()
     slurm: SlurmConfig = SlurmConfig()
     webin: WebinConfig = WebinConfig()
     log_masking: LogMaskingConfig = LogMaskingConfig()

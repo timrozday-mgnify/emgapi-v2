@@ -17,6 +17,26 @@ EMG_CONFIG = settings.EMG_CONFIG
 logger = logging.getLogger(__name__)
 
 
+# TODO: consider replacing this with a dataclass with a default renderer
+# e.g. instead of using
+#
+# ```python
+# class SamplesheetColumnSource(BaseModel):
+#     lookup_string: str | list[str] = Field(default="id")
+#     renderer: Callable[[Any], str] = Field(lambda x: x)
+#     const: Any | None = Field(None)
+# ```
+#
+# because it is a bit more readable to do
+#
+# ```python
+#             "assembly_memory": SamplesheetColumnSource(
+#                 const=memory
+#             ),
+#             "human_reference": SamplesheetColumnSource(
+#                 const=""
+#             ),
+# ```
 @dataclass
 class SamplesheetColumnSource:
     lookup_string: str | list[str]

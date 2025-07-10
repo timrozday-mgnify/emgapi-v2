@@ -122,6 +122,39 @@ def test_get_study_from_ena_use_secondary_as_primary(httpx_mock, prefect_harness
     assert len(created_study.additional_accessions) == 1
 
 
+@pytest.mark.httpx_mock
+@pytest.mark.django_db(transaction=True)
+def test_get_study_only_available_in_ena_portal(httpx_mock, prefect_harness):
+    """
+    Required study is in ena portal, but not in metagenome portal
+    """
+    sec_study_accession = "SRP0009034"
+    httpx_mock.add_response(
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22secondary_study_accession={sec_study_accession}%22&limit=10&format=json&fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}&dataPortal=metagenome",
+        json=[],
+    )
+    httpx_mock.add_response(
+        url=f"{EMG_CONFIG.ena.portal_search_api}?result=study&query=%22secondary_study_accession={sec_study_accession}%22&limit=10&format=json&fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}&dataPortal=ena",
+        json=[
+            {
+                "study_title": "I wanted to be normal, but they put me in ena portal",
+                "study_accession": "PRJNA109315",
+                "secondary_study_accession": f"{sec_study_accession}",
+            },
+        ],
+    )
+    request = ENAAPIRequest(
+        result=ENAPortalResultType.STUDY,
+        limit=10,
+        query=ENAStudyQuery(secondary_study_accession=sec_study_accession),
+        fields=[
+            ENAStudyFields[f.upper()] for f in EMG_CONFIG.ena.study_metadata_fields
+        ],
+        data_portals=[ENAPortalDataPortal.METAGENOME, ENAPortalDataPortal.ENA],
+    ).get()
+    assert "I wanted to be normal" in request[0]["study_title"]
+
+
 @pytest.mark.httpx_mock(should_mock=should_not_mock_httpx_requests_to_prefect_server)
 @pytest.mark.django_db(transaction=True)
 def test_get_study_from_ena_no_secondary_accession(httpx_mock, prefect_harness):
@@ -338,6 +371,82 @@ def test_get_study_readruns_from_ena(
                 "lon": "0",
                 "location": "hinxton",
             },
+            {
+                "run_accession": "RUN7",
+                "sample_accession": "SAMPLE7",
+                "sample_title": "sample title",
+                "secondary_sample_accession": "SAMP7",
+                "fastq_md5": "md5kjdndk",
+                "fastq_ftp": "fq_2.fastq.gz",
+                "library_layout": "PAIRED",
+                "library_strategy": "AMPLICON",
+                "library_source": "METAGENOMIC",
+                "scientific_name": "metagenome",
+                "host_tax_id": "7460",
+                "host_scientific_name": "Apis mellifera",
+                "instrument_platform": "ILLUMINA",
+                "instrument_model": "Illumina MiSeq",
+                "lat": "52",
+                "lon": "0",
+                "location": "hinxton",
+            },
+            {
+                "run_accession": "RUN8",
+                "sample_accession": "SAMPLE8",
+                "sample_title": "sample title",
+                "secondary_sample_accession": "SAMP8",
+                "fastq_md5": "md5kjdndk",
+                "fastq_ftp": "fq_2.fastq.gz",
+                "library_layout": "SINGLE",
+                "library_strategy": "AMPLICON",
+                "library_source": "METAGENOMIC",
+                "scientific_name": "metagenome",
+                "host_tax_id": "7460",
+                "host_scientific_name": "Apis mellifera",
+                "instrument_platform": "ILLUMINA",
+                "instrument_model": "Illumina MiSeq",
+                "lat": "52",
+                "lon": "0",
+                "location": "hinxton",
+            },
+            {
+                "run_accession": "RUN9",
+                "sample_accession": "SAMPLE9",
+                "sample_title": "sample title",
+                "secondary_sample_accession": "SAMP9",
+                "fastq_md5": "md5kjdndk",
+                "fastq_ftp": "",
+                "library_layout": "PAIRED",
+                "library_strategy": "AMPLICON",
+                "library_source": "METAGENOMIC",
+                "scientific_name": "metagenome",
+                "host_tax_id": "7460",
+                "host_scientific_name": "Apis mellifera",
+                "instrument_platform": "ILLUMINA",
+                "instrument_model": "Illumina MiSeq",
+                "lat": "52",
+                "lon": "0",
+                "location": "hinxton",
+            },
+            {
+                "run_accession": "RUN10",
+                "sample_accession": "SAMPLE10",
+                "sample_title": "sample title",
+                "secondary_sample_accession": "SAMP10",
+                "fastq_md5": "md5kjdndk",
+                "fastq_ftp": "fq.fastq.gz;fq_2.fastq.gz;fq_1.fastq.gz",
+                "library_layout": "PAIRED",
+                "library_strategy": "AMPLICON",
+                "library_source": "METAGENOMIC",
+                "scientific_name": "metagenome",
+                "host_tax_id": "7460",
+                "host_scientific_name": "Apis mellifera",
+                "instrument_platform": "ILLUMINA",
+                "instrument_model": "Illumina MiSeq",
+                "lat": "52",
+                "lon": "0",
+                "location": "hinxton",
+            },
         ],
     )
     get_study_readruns_from_ena(study_accession, limit=10)
@@ -359,12 +468,12 @@ def test_get_study_readruns_from_ena(
     # incorrect library_layout single
     assert (
         analyses.models.Run.objects.filter(ena_accessions__contains=["RUN4"]).count()
-        == 0
+        == 1
     )
     # incorrect library_layout paired
     assert (
         analyses.models.Run.objects.filter(ena_accessions__contains=["RUN5"]).count()
-        == 0
+        == 1
     )
     # should return only 2 fq files in correct order
     assert (
@@ -378,6 +487,32 @@ def test_get_study_readruns_from_ena(
         and "_2" in run.metadata["fastq_ftps"][1]
     )
     assert run.metadata["host_tax_id"] == "7460"
+    # incorrect: only "_2" and PAIRED
+    assert (
+        analyses.models.Run.objects.filter(ena_accessions__contains=["RUN7"]).count()
+        == 0
+    )
+    # incorrect: only "_2" and SINGLE
+    assert (
+        analyses.models.Run.objects.filter(ena_accessions__contains=["RUN8"]).count()
+        == 0
+    )
+    # no fastqs found
+    assert (
+        analyses.models.Run.objects.filter(ena_accessions__contains=["RUN9"]).count()
+        == 0
+    )
+    # should return only 2 fq files in correct order [alphabetical order shouldn't affect runs anymore]
+    assert (
+        analyses.models.Run.objects.filter(ena_accessions__contains=["RUN10"]).count()
+        == 1
+    )
+    run = analyses.models.Run.objects.get(ena_accessions__contains=["RUN10"])
+    assert (
+        len(run.metadata["fastq_ftps"]) == 2
+        and "_1" in run.metadata["fastq_ftps"][0]
+        and "_2" in run.metadata["fastq_ftps"][1]
+    )
 
     httpx_mock.add_response(
         url=f"{EMG_CONFIG.ena.portal_search_api}?result=read_run&query=%22%28study_accession%3D{study_accession}+OR+secondary_study_accession%3D{study_accession}%29%22"
@@ -646,7 +781,7 @@ def test_ena_api_query_maker(httpx_mock):
             ENAStudyFields.SECONDARY_STUDY_ACCESSION,
         ],
         limit=10,
-        data_portal=ENAPortalDataPortal.METAGENOME,
+        data_portals=[ENAPortalDataPortal.METAGENOME],
     )
 
     assert request.model_dump(by_alias=True) == {

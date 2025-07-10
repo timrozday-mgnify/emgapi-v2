@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 from typing import ClassVar, Union
 
+from aenum import extend_enum
 from django.contrib.postgres.indexes import GinIndex
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import models
@@ -35,6 +36,9 @@ from workflows.ena_utils.sample import ENASampleFields
 
 
 # Some models associated with MGnify Analyses (MGYS, MGYA etc).
+
+
+logger = logging.getLogger(__name__)
 
 
 class Biome(TreeModel):
@@ -73,17 +77,19 @@ class Biome(TreeModel):
 
 class StudyManager(ENADerivedManager):
     def get_or_create_for_ena_study(self, ena_study_accession):
-        logging.info(f"Will get/create MGnify study for {ena_study_accession}")
+        logger.info(f"Will get/create MGnify study for {ena_study_accession}")
         try:
             ena_study = ena.models.Study.objects.filter(
                 Q(accession=ena_study_accession)
                 | Q(additional_accessions__icontains=ena_study_accession)
             ).first()
-            logging.debug(f"Got {ena_study}")
+            logger.debug(f"Got {ena_study}")
         except (MultipleObjectsReturned, ObjectDoesNotExist):
-            logging.warning(
-                f"Problem getting ENA study {ena_study_accession} from ENA models DB"
+            logger.error(
+                f"Problem getting ENA study {ena_study_accession} from ENA models DB. "
+                f"The ENA Study needs to have been fetched from ENA APIs first."
             )
+            raise
         study, _ = Study.objects.get_or_create(
             ena_study=ena_study,
             title=ena_study.title,
@@ -208,8 +214,11 @@ class PublicRunManager(PrivacyFilterManagerMixin, models.Manager): ...
 
 class Run(TimeStampedModel, ENADerivedModel, WithExperimentTypeModel):
     CommonMetadataKeys = ENAReadRunFields
-    CommonMetadataKeys.FASTQ_FTPS = (
-        "fastq_ftps"  # plural convention mismatch to ENA; TODO
+    extend_enum(
+        CommonMetadataKeys, "FASTQ_FTPS", "fastq_ftps"
+    ),  # plural convention mismatch to ENA; TODO
+    extend_enum(
+        CommonMetadataKeys, "INFERRED_LIBRARY_LAYOUT", "inferred_library_layout"
     )
 
     class InstrumentPlatformKeys:
@@ -248,23 +257,26 @@ class Run(TimeStampedModel, ENADerivedModel, WithExperimentTypeModel):
     def set_experiment_type_by_metadata(
         self, ena_library_strategy: str, ena_library_source: str
     ):
+        ALLOWED_WHOLE_GENOME_LIBRARY_STRATEGIES = ["wgs", "wga"]
+        ALLOWED_AMPLICON_LIBRARY_STRATEGIES = ["amplicon"]
+
         if ena_library_strategy.lower() == "rna-seq" and (
             ena_library_source.lower() == "metagenomic"
             or ena_library_source.lower() == "metatranscriptomic"
         ):
             self.experiment_type = Run.ExperimentTypes.METATRANSCRIPTOMIC
         elif (
-            ena_library_strategy.lower() == "wgs"
+            ena_library_strategy.lower() in ALLOWED_WHOLE_GENOME_LIBRARY_STRATEGIES
             and ena_library_source.lower() == "metatranscriptomic"
         ):
             self.experiment_type = Run.ExperimentTypes.METATRANSCRIPTOMIC
         elif (
-            ena_library_strategy.lower() == "wgs"
+            ena_library_strategy.lower() in ALLOWED_WHOLE_GENOME_LIBRARY_STRATEGIES
             and ena_library_source.lower() == "metagenomic"
         ):
             self.experiment_type = Run.ExperimentTypes.METAGENOMIC
         elif (
-            ena_library_strategy.lower() == "amplicon"
+            ena_library_strategy.lower() in ALLOWED_AMPLICON_LIBRARY_STRATEGIES
             and ena_library_source.lower() == "metagenomic"
         ):
             self.experiment_type = Run.ExperimentTypes.AMPLICON
@@ -353,6 +365,7 @@ class Assembly(TimeStampedModel, ENADerivedModel):
         COVERAGE = "coverage"
         COVERAGE_DEPTH = "coverage_depth"
         N_CONTIGS = "n_contigs"
+        CONTAMINANT_REFERENCE = "contaminant_reference"
 
     metadata = JSONField(default=dict, db_index=True, blank=True)
 
@@ -763,7 +776,7 @@ def on_study_saved_update_analyses_suppression_states(
         is_suppressed=instance.is_suppressed
     )
     for analysis in analyses_to_update_suppression_of:
-        logging.info(
+        logger.info(
             f"Setting is_suppressed to {instance.is_suppressed} on {analysis.accession} via {instance.accession}"
         )
         analysis.is_suppressed = instance.is_suppressed
