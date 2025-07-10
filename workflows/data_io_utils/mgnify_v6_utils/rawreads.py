@@ -27,8 +27,9 @@ from workflows.data_io_utils.file_rules.mgnify_v6_result_rules import (
     FileConformsToRawReadsTaxonomyTSVSchemaRule,
     FileConformsToFunctionalTSVSchemaRule,
     GlobOfQcFolderHasFastp,
+    GlobOfMultiqcFolderHasMultiqc,
     GlobOfDecontamFolderHasSummaryStats,
-    GlobOfRawReadsTaxonomyFolderHasHtmlAndKronaTxtRule,
+    GlobOfTaxonomyFolderHasHtmlAndKronaTxtRule,
 )
 from workflows.data_io_utils.file_rules.nodes import Directory, File
 
@@ -99,7 +100,7 @@ def get_annotations_from_tax_table(tax_table: File) -> (List[dict], Optional[int
 
     tax_df["organism"] = [';'.join(r[list(tax_df.columns)[1:]]).strip(";") for _,r in tax_df.iterrows()]
     tax_df["count"] = (
-        pd.to_numeric(tax_df["Read count"], errors="coerce").fillna(1).astype(int)
+        pd.to_numeric(tax_df["Count"], errors="coerce").fillna(1).astype(int)
     )
 
     tax_df: pd.DataFrame = tax_df[["organism", "count"]]
@@ -125,7 +126,7 @@ def import_taxonomy(
     dir_rules = [DirectoryExistsRule] if not allow_non_exist else []
     glob_rules = []
     if schema.expect_mseq and schema.expect_krona and not allow_non_exist:
-        glob_rules.append(GlobOfRawReadsTaxonomyFolderHasHtmlAndKronaTxtRule)
+        glob_rules.append(GlobOfTaxonomyFolderHasHtmlAndKronaTxtRule)
 
     tax_dir = Directory(
         path=dir_for_analysis  # /hps/prod/...../abc123/SRR999/
@@ -275,25 +276,25 @@ def get_annotations_from_func_table(func_table: File) -> (List[dict], Optional[i
             )
             return [], 0
 
-    func_df["count"] = (
-        pd.to_numeric(func_df["Read count"], errors="coerce").fillna(1).astype(int)
+    func_df["read_count"] = (
+        pd.to_numeric(func_df["read_count"], errors="coerce").fillna(1).astype(int)
     )
     func_df["coverage_depth"] = (
-        pd.to_numeric(func_df["Coverage depth"], errors="coerce").fillna(0).astype(float)
+        pd.to_numeric(func_df["coverage_depth"], errors="coerce").fillna(0).astype(float)
     )
     func_df["coverage_breadth"] = (
-        pd.to_numeric(func_df["Coverage breadth"], errors="coerce").fillna(0).astype(float)
+        pd.to_numeric(func_df["coverage_breadth"], errors="coerce").fillna(0).astype(float)
     )
 
-    count_df: pd.DataFrame = func_df[["Function", "count"]]
-    depth_df: pd.DataFrame = func_df[["Function", "coverage_depth"]]
-    breadth_df: pd.DataFrame = func_df[["Function", "coverage_breadth"]]
+    count_df: pd.DataFrame = func_df[["function", "read_count"]]
+    depth_df: pd.DataFrame = func_df[["function", "coverage_depth"]]
+    breadth_df: pd.DataFrame = func_df[["function", "coverage_breadth"]]
 
     return \
         count_df.to_dict(orient="records"), \
         depth_df.to_dict(orient="records"), \
         breadth_df.to_dict(orient="records"), \
-        int(count_df["count"].sum())
+        int(count_df["read_count"].sum())
 
 
 def import_functional(
@@ -355,7 +356,7 @@ def import_functional(
             func_table
         )
         functions_to_import = {
-            'count': functions_count_to_import,
+            'read_count': functions_count_to_import,
             'coverage_depth': functions_depth_to_import,
             'coverage_breadth': functions_breadth_to_import,
         }
@@ -447,6 +448,18 @@ def import_qc(
         print(f"No fastp file for {analysis.run.first_accession}.")
 
     qc_dir.files.append(fastp)
+    analysis.add_download(
+        DownloadFile(
+            path=fastp.path.relative_to(analysis.results_dir),
+            file_type=DownloadFileType.JSON,
+            alias=fastp.path.name,
+            download_type=DownloadType.QUALITY_CONTROL,
+            download_group="quality_control",
+            parent_identifier=analysis.accession,
+            short_description="FastP report",
+            long_description="FastP output showing quality control metrics",
+        )
+    )
 
     with fastp.path.open("r") as fastp_reader:
         fastp_content = json.load(fastp_reader)
@@ -502,6 +515,42 @@ def import_qc(
         _, read_count = get_summary_numbers_from_samtools_stats_output(fp)
         if read_count:
             decontam_summary[f"{reads_type}.{decontam_db}.{reads_set}"] = read_count
+
+    if not allow_non_exist:
+        multiqc_dir = Directory(
+            path=dir_for_analysis  # /hps/prod/...../abc123/SRR999/
+            / EMG_CONFIG.rawreads_pipeline.multiqc_folder,  # multiqc/
+            rules=[DirectoryExistsRule],
+            glob_rules=[GlobOfMultiqcFolderHasMultiqc],
+        )
+    else:
+        multiqc_dir = Directory(
+            path=dir_for_analysis  # /hps/prod/...../abc123/SRR999/
+            / EMG_CONFIG.rawreads_pipeline.multiqc_folder  # multiqc/
+        )
+
+    if not multiqc_dir.path.is_dir():
+        print(f"No multiqc dir at {multiqc_dir.path}. Nothing to import.")
+
+    multiqc = File(
+        path=multiqc_dir.path / f"{analysis.run.first_accession}_multiqc_report.html",
+        rules=[
+            FileExistsRule,
+        ],
+    )
+    multiqc_dir.files.append(multiqc)
+    analysis.add_download(
+        DownloadFile(
+            path=multiqc.path.relative_to(analysis.results_dir),
+            file_type=DownloadFileType.HTML,
+            alias=multiqc.path.name,
+            download_type=DownloadType.QUALITY_CONTROL,
+            download_group="quality_control",
+            parent_identifier=analysis.accession,
+            short_description="MultiQC report",
+            long_description="MultiQC webpage showing quality control and decontamination steps and metrics",
+        )
+    )
 
     qc_summary = {}
 
