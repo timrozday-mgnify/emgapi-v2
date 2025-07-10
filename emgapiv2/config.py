@@ -102,7 +102,7 @@ class RawReadsPipelineConfig(BaseModel):
     rawreads_pipeline_git_revision: str = (
         "master"  # branch or commit of ebi-metagenomics/raw-reads-analysis-pipeline
     )
-    rawreads_pipeline_nf_profile: str = "singularity"
+    rawreads_pipeline_nf_profile: str = "codon"
     samplesheet_chunk_size: int = 50
     # results stats
     completed_runs_csv: str = "qc_passed_runs.csv"
@@ -110,6 +110,8 @@ class RawReadsPipelineConfig(BaseModel):
     # results folders
     qc_folder: str = "qc-stats"
     decontam_folder: str = "decontam-stats"
+    multiqc_folder: str = "multiqc"
+    study_multiqc_folder: str = "multiqc"
     taxonomy_summary_folder: str = "taxonomy-summary"
     function_summary_folder: str = "function-summary"
     taxonomy_analysis_sources: set = {"SILVA-SSU", "SILVA-LSU", "mOTUs"}

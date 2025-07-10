@@ -94,7 +94,7 @@ def analysis_rawreads_study(study_accession: str):
 
     analyse_study_input: AnalyseStudyInput = suspend_flow_run(
         wait_for_input=AnalyseStudyInput.with_initial_data(
-            description=_(
+            description=(
                 f"""\
                 **Raw-Reads V6**
                 This will analyse all {len(read_runs)} read-runs of study {ena_study.accession} \
@@ -108,7 +108,7 @@ def analysis_rawreads_study(study_accession: str):
                 Please select a Biome for the entire study \
                 [{ena_study.accession}: {ena_study.title}](https://www.ebi.ac.uk/ena/browser/view/{ena_study.accession}).
                 """
-            ),
+            )
         )
     )
 

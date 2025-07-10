@@ -26,7 +26,7 @@ FileConformsToTaxonomyTSVSchemaRule = generate_csv_schema_file_rule(
 
 
 class RawReadsTaxonomyTSVRow(BaseModel):
-    read_count: Union[float, int] = Field(alias="Read count")
+    read_count: Union[float, int] = Field(alias="Count")
     sk_taxonomy: Optional[str] = Field(default=None, alias="Superkingdom")
     k_taxonomy: Optional[str] = Field(default=None, alias="Kingdom")
     p_taxonomy: Optional[str] = Field(default=None, alias="Phylum")
@@ -63,13 +63,7 @@ GlobOfTaxonomyFolderHasHtmlAndMseqRule = GlobRule(
 
 GlobOfTaxonomyFolderHasHtmlAndKronaTxtRule = GlobRule(
     rule_name="Folder should contain html and krona txt files",
-    glob_patten="*",
-    test=lambda files: sum(f.suffix in [".html", ".txt"] for f in files) == 2,
-)
-
-GlobOfRawReadsTaxonomyFolderHasHtmlAndKronaTxtRule = GlobRule(
-    rule_name="Folder should contain html and krona txt files",
-    glob_patten="*/*",
+    glob_patten="**",
     test=lambda files: sum(f.suffix in [".html", ".txt"] for f in files) == 2,
 )
 
@@ -81,6 +75,16 @@ GlobOfQcFolderHasFastpAndMultiqc = GlobRule(
         for f in files
     )
     == 2,
+)
+
+GlobOfMultiqcFolderHasMultiqc = GlobRule(
+    rule_name="Folder should contain multiQC report file",
+    glob_patten="*",
+    test=lambda files: sum(
+        f.name.endswith("multiqc_report.html")
+        for f in files
+    )
+    == 1,
 )
 
 GlobOfQcFolderHasFastp = GlobRule(

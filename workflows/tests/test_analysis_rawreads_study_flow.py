@@ -51,7 +51,7 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
         f.write(
             dedent(
                 """\
-                # Function	Read count	Coverage depth	Coverage breadth
+                # function	read_count	coverage_depth	coverage_breadth
                 PF02826.25	43	9.162921348314606	0.9606741573033708
                 PF00389.36	14	3.8358208955223883	0.6567164179104478
                 PF10417.14	5	3.292682926829268	0.7317073170731707
@@ -67,7 +67,7 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
         pass
 
 
-    # Create function-summary directory and subdirectories
+    # Create taxonomy-summary directory and subdirectories
     tax_dir = f"{results_dir}/{sample_accession}/taxonomy-summary"
     logger.info(f"Creating dummy taxonomy results at {tax_dir}")
     
@@ -78,7 +78,7 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
         f.write(
             dedent(
                 """\
-                # Read count	Kingdom	Phylum	Class	Order	Family	Genus	Species
+                # Count	Kingdom	Phylum	Class	Order	Family	Genus	Species
                 1.0	k__Bacteria	p__Firmicutes	c__Bacilli	o__Lactobacillales	f__Lactobacillaceae	g__Lactobacillus	s__Lactobacillus gasseri
                 2.0	k__Bacteria	p__Actinobacteria	c__Actinobacteria	o__Bifidobacteriales	f__Bifidobacteriaceae	g__Bifidobacterium	s__Bifidobacterium longum [Bifidobacterium longum CAG:69/Bifidobacterium longum]
                 1.0	k__Bacteria	p__Bacteroidetes	c__Bacteroidia	o__Bacteroidales	f__Bacteroidaceae	g__Bacteroides	s__Bacteroides thetaiotaomicron
@@ -99,7 +99,7 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
         f.write(
             dedent(
                 """\
-                # Read count	Superkingdom	Kingdom	Phylum	Class	Order	Family	Genus	Species
+                # Count	Superkingdom	Kingdom	Phylum	Class	Order	Family	Genus	Species
                 1	sk__Bacteria	k__	p__Actinobacteria	c__Actinobacteria	o__Bifidobacteriales	f__Bifidobacteriaceae	g__Bifidobacterium	s__Bifidobacterium_breve
                 3	sk__Bacteria	k__	p__Actinobacteria	c__Actinobacteria	o__Bifidobacteriales	f__Bifidobacteriaceae	g__Bifidobacterium	s__Bifidobacterium_longum
                 """
@@ -119,7 +119,7 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
         f.write(
             dedent(
                 """\
-                # Read count	Superkingdom	Kingdom	Phylum	Class	Order	Family	Genus	Species
+                # Count	Superkingdom	Kingdom	Phylum	Class	Order	Family	Genus	Species
                 4	sk__Bacteria	k__	p__Actinobacteria	c__Actinobacteria	o__Bifidobacteriales	f__Bifidobacteriaceae	g__Bifidobacterium	s__Bifidobacterium_breve
                 18	sk__Bacteria	k__	p__Actinobacteria	c__Actinobacteria	o__Bifidobacteriales	f__Bifidobacteriaceae	g__Bifidobacterium	s__Bifidobacterium_longum
                 """
@@ -357,6 +357,54 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
             )
         )
 
+    multiqc_dir = f"{results_dir}/{sample_accession}/multiqc"
+    logger.info(f"Creating dummy sample multiqc results at {multiqc_dir}")
+    os.makedirs(multiqc_dir, exist_ok=True)
+    with open(f"{multiqc_dir}/{sample_accession}_multiqc_report.html", "wt") as f:
+        f.write(
+            dedent(
+                """\
+                <html>
+                <body>
+                <h1>MultiQC report</h1>
+                Looks good to me!
+                </body>
+                </html>
+                """
+            )
+        )
+
+def generate_fake_rawreads_pipeline_summary_results(results_dir):
+    """
+    Generate fake raw-reads pipeline results for testing.
+
+    Based on the directory structure provided in the issue description.
+
+    :param results_dir: Directory to create the fake results in
+    """
+
+    logger = logging.getLogger('generate_dummy_summary_data_debug')
+
+    os.makedirs(results_dir, exist_ok=True)
+
+    # Create multiqc directory and subdirectories
+    study_multiqc_dir = f"{results_dir}/multiqc"
+    logger.info(f"Creating dummy study multiqc results at {study_multiqc_dir}")
+    os.makedirs(study_multiqc_dir, exist_ok=True)
+    with open(f"{study_multiqc_dir}/multiqc_report.html", "wt") as f:
+        f.write(
+            dedent(
+                """\
+                <html>
+                <body>
+                <h1>MultiQC report</h1>
+                Looks good to me!
+                </body>
+                </html>
+                """
+            )
+        )
+
 
 MockFileIsNotEmptyRule = FileRule(
     rule_name="File should not be empty (unit test mock)",
@@ -446,6 +494,13 @@ def test_prefect_analyse_rawreads_flow(
     )
 
     # create fake results
+    summary_folder = Path(
+        f"{EMG_CONFIG.slurm.default_workdir}/{study_accession}_v6"
+    )
+    summary_folder.mkdir(exist_ok=True, parents=True)
+    generate_fake_rawreads_pipeline_summary_results(summary_folder)
+
+
     rawreads_folder = Path(
         f"{EMG_CONFIG.slurm.default_workdir}/{study_accession}_rawreads_v6/abc123"
     )
@@ -584,7 +639,7 @@ def test_prefect_analyse_rawreads_flow(
     logger = logging.getLogger('test_logger')
     logger.info(test_annotation)
     assert (
-        test_annotation['count'][2]["Function"]
+        test_annotation['read_count'][2]["function"]
         == "PF10417.14"
     )
     assert (

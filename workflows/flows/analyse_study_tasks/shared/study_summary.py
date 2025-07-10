@@ -27,6 +27,9 @@ from workflows.data_io_utils.file_rules.common_rules import (
     FileExistsRule,
     FileIsNotEmptyRule,
 )
+from workflows.data_io_utils.file_rules.mgnify_v6_result_rules import (
+    GlobOfMultiqcFolderHasMultiqc,
+)
 from workflows.data_io_utils.file_rules.nodes import Directory, File
 from workflows.ena_utils.ena_accession_matching import (
     INSDC_PROJECT_ACCESSION_GLOB,
@@ -281,6 +284,32 @@ def add_rawreads_study_summaries_to_downloads(mgnify_study_accession: str):
         )
         return
 
+    logger.warning(f"Looking from study multiQC in {Path(study.results_dir) / EMG_CONFIG.rawreads_pipeline.study_multiqc_folder}.")
+    study_multiqc_dir = Directory(
+        path=Path(study.results_dir)
+        / EMG_CONFIG.rawreads_pipeline.study_multiqc_folder,  # multiqc/
+        rules=[DirectoryExistsRule],
+        glob_rules=[GlobOfMultiqcFolderHasMultiqc],
+    )
+    study_multiqc_file = File(
+        path=study_multiqc_dir.path / f"multiqc_report.html",
+        rules=[
+            FileExistsRule,
+        ],
+    )
+    study.add_download(
+        DownloadFile(
+            path=study_multiqc_file.path.relative_to(study.results_dir),
+            file_type=DownloadFileType.HTML,
+            download_type=DownloadType.QUALITY_CONTROL,
+            download_group=f"study_summary.multiqc",
+            short_description="Study MultiQC report",
+            long_description="MultiQC webpage showing quality control steps and metrics for the whole study.",
+            alias=study_multiqc_file.path.name,
+        )
+    )
+    study.save()
+
     for summary_file in Path(study.results_dir).glob(
         f"{study.first_accession}*{STUDY_SUMMARY_TSV}"
     ):
@@ -310,6 +339,7 @@ def add_rawreads_study_summaries_to_downloads(mgnify_study_accession: str):
                         alias=summary_file.name,
                     )
                 )
+                study.save()
             elif (analysis_source in EMG_CONFIG.rawreads_pipeline.function_analysis_sources) and (analysis_layer is not None):
                 study.add_download(
                     DownloadFile(
@@ -322,6 +352,7 @@ def add_rawreads_study_summaries_to_downloads(mgnify_study_accession: str):
                         alias=summary_file.name,
                     )
                 )
+                study.save()
             else:
                 logger.warning(
                     f"Study {study} summary file {summary_file} is not from a recognised source ({analysis_source})"
