@@ -287,51 +287,46 @@ def add_rawreads_study_summaries_to_downloads(mgnify_study_accession: str):
         analysis_source = summary_file.stem.rstrip(STUDY_SUMMARY_TSV).split("_")[1:]
         if len(analysis_source)==1:
             analysis_source = analysis_source[0]
-            analysis_subsource = None 
+            analysis_layer = None 
         elif len(analysis_source)==2:
             analysis_source = analysis_source[0]
-            analysis_subsource = analysis_source[1]
+            analysis_layer = analysis_source[1]
         else:
             logger.warning(
                 f"Study {study} summary file {summary_file} has an unexpeced number of sections in its name ({len(analysis_source)}, {analysis_source})"
             )
             continue
-        if analysis_source in EMG_CONFIG.rawreads_pipeline.taxonomy_analysis_sources:
-            analysis_type = 'taxonomy'
-        elif EMG_CONFIG.rawreads_pipeline.function_analysis_sources:
-            analysis_type = 'function'
-        else:
-            analysis_type = None
-            logger.warning(
-                f"Study {study} summary file {summary_file} is not from a recognised source ({analysis_source})"
-            )
-            continue
 
         try:
-            if analysis_type == 'taxonomy':
+            if analysis_source in EMG_CONFIG.rawreads_pipeline.taxonomy_analysis_sources:
                 study.add_download(
                     DownloadFile(
                         path=summary_file.relative_to(study.results_dir),
                         download_type=DownloadType.TAXONOMIC_ANALYSIS,
-                        download_group=f"study_summary.{analysis_source}.{analysis_subsource}",
+                        download_group=f"study_summary.{analysis_source}.{analysis_layer}",
                         file_type=DownloadFileType.TSV,
                         short_description=f"Summary of {analysis_source} taxonomies.",
                         long_description=f"Summary of {analysis_source} taxonomic assignments, across all runs in the study.",
                         alias=summary_file.name,
                     )
                 )
-            if analysis_type == 'function' and analysis_subsource is not None:
+            elif (analysis_source in EMG_CONFIG.rawreads_pipeline.function_analysis_sources) and (analysis_layer is not None):
                 study.add_download(
                     DownloadFile(
                         path=summary_file.relative_to(study.results_dir),
                         download_type=DownloadType.FUNCTIONAL_ANALYSIS,
-                        download_group=f"study_summary.{analysis_source}.{analysis_subsource}",
+                        download_group=f"study_summary.{analysis_source}.{analysis_layer}",
                         file_type=DownloadFileType.TSV,
-                        short_description=f"Summary of {analysis_source} function {analysis_subsource}.",
-                        long_description=f"Summary of {analysis_source} functional assignment {analysis_subsource}, across all runs in the study.",
+                        short_description=f"Summary of {analysis_source} function {analysis_layer}.",
+                        long_description=f"Summary of {analysis_source} functional assignment {analysis_layer}, across all runs in the study.",
                         alias=summary_file.name,
                     )
                 )
+            else:
+                logger.warning(
+                    f"Study {study} summary file {summary_file} is not from a recognised source ({analysis_source})"
+                )
+                continue
         except FileExistsError:
             logger.warning(
                 f"File {summary_file} already exists in downloads list, skipping"

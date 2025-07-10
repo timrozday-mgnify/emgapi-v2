@@ -603,7 +603,6 @@ class Analysis(
     RHEA_REACTIONS = "rhea_reactions"
 
     TAXONOMIES = "taxonomies"
-    FUNCTIONAL = "functional"
     CLOSED_REFERENCE = "closed_reference"
     ASV = "asv"
     FUNCTIONAL_ANNOTATION = "functional_annotation"
@@ -641,7 +640,7 @@ class Analysis(
     class FunctionalSources(FutureStrEnum):
         PFAM: str = "pfam"
 
-    FUNCTIONAL_PFAM = f"{FUNCTIONAL}__{FunctionalSources.PFAM.value}"
+    FUNCTIONAL_PFAM = f"{FUNCTIONAL_ANNOTATION}__{FunctionalSources.PFAM.value}"
 
     @staticmethod
     def default_annotations():

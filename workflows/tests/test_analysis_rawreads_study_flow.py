@@ -568,17 +568,17 @@ def test_prefect_analyse_rawreads_flow(
     )
 
     assert (
-       analyses.models.Analysis.FUNCTIONAL
+       analyses.models.Analysis.FUNCTIONAL_ANNOTATION
        in analysis_which_should_have_annotations_imported.annotations
     )
     assert (
         analyses.models.Analysis.FunctionalSources.PFAM.value
         in analysis_which_should_have_annotations_imported.annotations[
-            analyses.models.Analysis.FUNCTIONAL
+            analyses.models.Analysis.FUNCTIONAL_ANNOTATION
         ]
     )
     test_annotation = analysis_which_should_have_annotations_imported.annotations[
-        analyses.models.Analysis.FUNCTIONAL
+        analyses.models.Analysis.FUNCTIONAL_ANNOTATION
     ][analyses.models.Analysis.FunctionalSources.PFAM.value]
     assert len(test_annotation) == 3
     logger = logging.getLogger('test_logger')

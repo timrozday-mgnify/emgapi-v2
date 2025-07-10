@@ -43,10 +43,10 @@ FileConformsToRawReadsTaxonomyTSVSchemaRule = generate_csv_schema_file_rule(
 
 
 class FunctionalTSVRow(BaseModel):
-    function: str = Field(..., alias="Function")
-    read_count: Union[float, int] = Field(..., alias="Read count")
-    coverage_depth: float = Field(..., alias="Coverage depth")
-    coverage_breadth: float = Field(..., alias="Coverage breadth")
+    function: str
+    read_count: Union[float, int]
+    coverage_depth: float
+    coverage_breadth: float
 
     model_config = ConfigDict(extra="allow")
 
