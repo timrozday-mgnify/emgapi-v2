@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Literal
+from typing import Union, Tuple, Literal
 
 import click
 from mgnify_pipelines_toolkit.analysis.amplicon import (
@@ -37,9 +37,20 @@ from workflows.ena_utils.ena_accession_matching import (
 )
 from workflows.prefect_utils.dir_context import chdir
 
+STUDY_MULTIQC_REPORT = "_report.html"
 STUDY_SUMMARY = "study_summary"
 STUDY_SUMMARY_TSV = STUDY_SUMMARY + ".tsv"
 
+STUDY_SUMMARY_GENERATORS = {
+    'amplicon': amplicon_study_summary_generator,
+    'rawreads': rawreads_study_summary_generator,
+    'assembly': assembly_study_summary_generator,
+}
+PIPELINE_CONFIGS = {
+    'amplicon': EMG_CONFIG.amplicon_pipeline,
+    'rawreads': EMG_CONFIG.rawreads_pipeline,
+    'assembly': EMG_CONFIG.assembly_analysis_pipeline,
+}
 
 @flow
 def generate_study_summary_for_pipeline_run(
@@ -88,45 +99,29 @@ def generate_study_summary_for_pipeline_run(
         rules=[DirectoryExistsRule],
     )
 
+    summary_generator_kwargs = {}
+    if (analysis_type in STUDY_SUMMARY_GENERATORS) and (analysis_type in PIPELINE_CONFIGS):
+        study_summary_generator = STUDY_SUMMARY_GENERATORS[analysis_type]
+        pipeline_config = PIPELINE_CONFIGS[analysis_type]
+        if 'allow_non_insdc_run_names' in pipeline_config:
+            summary_generator_kwargs['non_insdc'] = pipeline_config.allow_non_insdc_run_names
+    else:
+        raise ValueError(
+            f"analysis_type must be 'amplicon', 'rawreads' or 'assembly', got {analysis_type}"
+        )
+
     logger.info(
         f"Study results_dir, where summaries will be made, is {study.results_dir}"
     )
+
     with chdir(study.results_dir):
-        if analysis_type == "amplicon":
-            with click.Context(
-                amplicon_study_summary_generator.summarise_analyses
-            ) as ctx:
-                ctx.invoke(
-                    amplicon_study_summary_generator.summarise_analyses,
-                    runs=results_dir.files[0].path,
-                    analyses_dir=results_dir.path,
-                    non_insdc=EMG_CONFIG.amplicon_pipeline.allow_non_insdc_run_names,
-                    output_prefix=pipeline_outdir.name,  # e.g. a hash of the samplesheet
-                )
-        elif analysis_type == "rawreads":
-            with click.Context(
-                rawreads_study_summary_generator.summarise_analyses
-            ) as ctx:
-                ctx.invoke(
-                    rawreads_study_summary_generator.summarise_analyses,
-                    runs=results_dir.files[0].path,
-                    analyses_dir=results_dir.path,
-                    non_insdc=EMG_CONFIG.rawreads_pipeline.allow_non_insdc_run_names,
-                    output_prefix=pipeline_outdir.name,  # e.g. a hash of the samplesheet
-                )
-        elif analysis_type == "assembly":
-            with click.Context(
-                assembly_study_summary_generator.summarise_analyses
-            ) as ctx:
-                ctx.invoke(
-                    assembly_study_summary_generator.summarise_analyses,
-                    assemblies=results_dir.files[0].path,
-                    study_dir=results_dir.path,
-                    output_prefix=pipeline_outdir.name,  # e.g. a hash of the samplesheet
-                )
-        else:
-            raise ValueError(
-                f"analysis_type must be 'amplicon', 'rawreads' or 'assembly', got {analysis_type}"
+        with click.Context(study_summary_generator.summarise_analyses) as ctx:
+            ctx.invoke(
+                study_summary_generator.summarise_analyses,
+                runs=results_dir.files[0].path,
+                analyses_dir=results_dir.path,
+                output_prefix=pipeline_outdir.name,  # e.g. a hash of the samplesheet
+                **summary_generator_kwargs
             )
 
     generated_files = list(
@@ -273,6 +268,52 @@ def add_study_summaries_to_downloads(mgnify_study_accession: str):
         f"Study download aliases are now {[d.alias for d in study.downloads_as_objects]}"
     )
 
+def _get_analysis_source(summary_file: Path) -> Tuple[Union[str, None], Union[str, None]]:
+    if summary_file.stem.endswith(STUDY_MULTIQC_REPORT):
+        analysis_source = summary_file.stem.rstrip(STUDY_MULTIQC_REPORT).split("_")
+    elif summary_file.stem.endswith(STUDY_SUMMARY_TSV):
+        analysis_source = summary_file.stem.rstrip(STUDY_SUMMARY_TSV).split("_")[1:]
+    else:
+        analysis_source = []
+
+    if len(analysis_source)==1:
+        return analysis_source[0], None
+    elif len(analysis_source)==2:
+        return analysis_source[0], analysis_source[1]
+    else:
+        return None, None
+
+def _get_download_file(analysis_source: str, analysis_layer: Union[str, None], summary_file: Path, study: Study) -> Union[DownloadFile, None]:
+    if analysis_source in EMG_CONFIG.rawreads_pipeline.taxonomy_analysis_sources:
+        return DownloadFile(
+            path=summary_file.relative_to(study.results_dir),
+            download_type=DownloadType.TAXONOMIC_ANALYSIS,
+            download_group=f"study_summary.{analysis_source}.{analysis_layer}",
+            file_type=DownloadFileType.TSV,
+            short_description=f"Summary of {analysis_source} taxonomies.",
+            long_description=f"Summary of {analysis_source} taxonomic assignments, across all runs in the study.",
+            alias=summary_file.name,
+        )
+    if (analysis_source in EMG_CONFIG.rawreads_pipeline.function_analysis_sources) and (analysis_layer is not None):
+        return DownloadFile(
+            path=summary_file.relative_to(study.results_dir),
+            download_type=DownloadType.FUNCTIONAL_ANALYSIS,
+            download_group=f"study_summary.{analysis_source}.{analysis_layer}",
+            file_type=DownloadFileType.TSV,
+            short_description=f"Summary of {analysis_source} function {analysis_layer}.",
+            long_description=f"Summary of {analysis_source} functional assignment {analysis_layer}, across all runs in the study.",
+            alias=summary_file.name,
+        )
+    if analysis_source in {'multiqc'}:
+        return DownloadFile(
+            path=summary_file.relative_to(study.results_dir),
+            file_type=DownloadFileType.HTML,
+            download_type=DownloadType.QUALITY_CONTROL,
+            download_group=f"study_summary.multiqc",
+            short_description="Study MultiQC report",
+            long_description="MultiQC webpage showing quality control steps and metrics for the whole study.",
+            alias=summary_file.name,
+        )
 
 @task
 def add_rawreads_study_summaries_to_downloads(mgnify_study_accession: str):
@@ -284,85 +325,33 @@ def add_rawreads_study_summaries_to_downloads(mgnify_study_accession: str):
         )
         return
 
-    logger.warning(f"Looking from study multiQC in {Path(study.results_dir) / EMG_CONFIG.rawreads_pipeline.study_multiqc_folder}.")
-    study_multiqc_dir = Directory(
-        path=Path(study.results_dir)
-        / EMG_CONFIG.rawreads_pipeline.study_multiqc_folder,  # multiqc/
-        rules=[DirectoryExistsRule],
-        glob_rules=[GlobOfMultiqcFolderHasMultiqc],
-    )
-    study_multiqc_file = File(
-        path=study_multiqc_dir.path / f"multiqc_report.html",
-        rules=[
-            FileExistsRule,
-        ],
-    )
-    study.add_download(
-        DownloadFile(
-            path=study_multiqc_file.path.relative_to(study.results_dir),
-            file_type=DownloadFileType.HTML,
-            download_type=DownloadType.QUALITY_CONTROL,
-            download_group=f"study_summary.multiqc",
-            short_description="Study MultiQC report",
-            long_description="MultiQC webpage showing quality control steps and metrics for the whole study.",
-            alias=study_multiqc_file.path.name,
-        )
-    )
-    study.save()
+    logger.warning(f"Looking for study multiQC in {Path(study.results_dir) / EMG_CONFIG.rawreads_pipeline.study_multiqc_folder}.")
 
-    for summary_file in Path(study.results_dir).glob(
-        f"{study.first_accession}*{STUDY_SUMMARY_TSV}"
-    ):
-        analysis_source = summary_file.stem.rstrip(STUDY_SUMMARY_TSV).split("_")[1:]
-        if len(analysis_source)==1:
-            analysis_source = analysis_source[0]
-            analysis_layer = None 
-        elif len(analysis_source)==2:
-            analysis_source = analysis_source[0]
-            analysis_layer = analysis_source[1]
-        else:
+    study_summary_files = list(Path(study.results_dir).glob(f"{study.first_accession}*{STUDY_SUMMARY_TSV}")) + \
+        list(Path(study.results_dir).glob(f"{EMG_CONFIG.rawreads_pipeline.study_multiqc_folder}/*{STUDY_MULTIQC_REPORT}"))
+
+    for summary_file in study_summary_files:
+        analysis_source, analysis_layer = _get_analysis_source(summary_file)
+        if analysis_source is None:
             logger.warning(
-                f"Study {study} summary file {summary_file} has an unexpeced number of sections in its name ({len(analysis_source)}, {analysis_source})"
+                f"Study {study} summary file {summary_file} has an unexpeced number of sections in its name"
             )
             continue
 
+        download_file = _get_download_file(analysis_source, analysis_layer, summary_file, study)
+        if download_file is None:
+            logger.warning(
+                f"Study {study} summary file {summary_file} is not from a recognised source ({analysis_source})"
+            )
+            continue
         try:
-            if analysis_source in EMG_CONFIG.rawreads_pipeline.taxonomy_analysis_sources:
-                study.add_download(
-                    DownloadFile(
-                        path=summary_file.relative_to(study.results_dir),
-                        download_type=DownloadType.TAXONOMIC_ANALYSIS,
-                        download_group=f"study_summary.{analysis_source}.{analysis_layer}",
-                        file_type=DownloadFileType.TSV,
-                        short_description=f"Summary of {analysis_source} taxonomies.",
-                        long_description=f"Summary of {analysis_source} taxonomic assignments, across all runs in the study.",
-                        alias=summary_file.name,
-                    )
-                )
-                study.save()
-            elif (analysis_source in EMG_CONFIG.rawreads_pipeline.function_analysis_sources) and (analysis_layer is not None):
-                study.add_download(
-                    DownloadFile(
-                        path=summary_file.relative_to(study.results_dir),
-                        download_type=DownloadType.FUNCTIONAL_ANALYSIS,
-                        download_group=f"study_summary.{analysis_source}.{analysis_layer}",
-                        file_type=DownloadFileType.TSV,
-                        short_description=f"Summary of {analysis_source} function {analysis_layer}.",
-                        long_description=f"Summary of {analysis_source} functional assignment {analysis_layer}, across all runs in the study.",
-                        alias=summary_file.name,
-                    )
-                )
-                study.save()
-            else:
-                logger.warning(
-                    f"Study {study} summary file {summary_file} is not from a recognised source ({analysis_source})"
-                )
-                continue
+            study.add_download(download_file)
         except FileExistsError:
             logger.warning(
                 f"File {summary_file} already exists in downloads list, skipping"
             )
         logger.info(f"Added {summary_file} to downloads of {study}")
+    study.save()
     study.refresh_from_db()
     logger.info(
         f"Study download aliases are now {[d.alias for d in study.downloads_as_objects]}."
