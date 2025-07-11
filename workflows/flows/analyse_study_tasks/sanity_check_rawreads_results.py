@@ -10,11 +10,14 @@ import analyses.models
 from workflows.flows.analyse_study_tasks.analysis_states import AnalysisStates
 from workflows.prefect_utils.analyses_models_helpers import mark_analysis_status
 
+
 def validate_funcational_summary_folder(current_outdir, run_id, logger):
     functional_summary_folder = Path(
         f"{current_outdir}/{EMG_CONFIG.rawreads_pipeline.function_summary_folder}"
     )
-    logger.info(f"Looking for {run_id} Functional summary folder in {functional_summary_folder}")
+    logger.info(
+        f"Looking for {run_id} Functional summary folder in {functional_summary_folder}"
+    )
 
     if not functional_summary_folder.exists():
         return f"No {EMG_CONFIG.rawreads_pipeline.function_summary_folder} folder"
@@ -23,9 +26,7 @@ def validate_funcational_summary_folder(current_outdir, run_id, logger):
         if db.name in func_dbs:
             raw = Path(f"{db}/raw/{run_id}_{db.name}.domtbl")
             txt = Path(f"{db}/{run_id}_{db.name}.txt")
-            if not (
-                raw.exists() and txt.exists()
-            ):
+            if not (raw.exists() and txt.exists()):
                 return f"missing file in {db}"
         else:
             return f"unknown {db} in {EMG_CONFIG.rawreads_pipeline.function_summary_folder}"
@@ -35,7 +36,9 @@ def validate_taxonomic_summary_folder(current_outdir, run_id, logger):
     taxonomy_summary_folder = Path(
         f"{current_outdir}/{EMG_CONFIG.rawreads_pipeline.taxonomy_summary_folder}"
     )
-    logger.info(f"Looking for {run_id} Taxonomy summary folder in {taxonomy_summary_folder}")
+    logger.info(
+        f"Looking for {run_id} Taxonomy summary folder in {taxonomy_summary_folder}"
+    )
 
     if not taxonomy_summary_folder.exists():
         return f"No {EMG_CONFIG.rawreads_pipeline.taxonomy_summary_folder} folder"
@@ -48,31 +51,31 @@ def validate_taxonomic_summary_folder(current_outdir, run_id, logger):
             else:
                 raw = Path(f"{db}/raw/{run_id}_{db.name}.out")
             txt = Path(f"{db}/{run_id}_{db.name}.txt")
-            if not (
-                html.exists() and raw.exists() and txt.exists()
-            ):
+            if not (html.exists() and raw.exists() and txt.exists()):
                 return f"missing file in {db}"
         else:
             return f"unknown {db} in {EMG_CONFIG.rawreads_pipeline.taxonomy_summary_folder}"
 
+
 def validate_qc_folder(current_outdir, run_id, logger):
-    qc_folder = Path(
-        f"{current_outdir}/{EMG_CONFIG.rawreads_pipeline.qc_folder}"
-    )
+    qc_folder = Path(f"{current_outdir}/{EMG_CONFIG.rawreads_pipeline.qc_folder}")
     logger.info(f"Looking for {run_id} QC folder in {qc_folder}")
 
     if not qc_folder.exists():
         return f"No {EMG_CONFIG.rawreads_pipeline.qc_folder} folder"
 
     if not Path(f"{qc_folder}/fastp/{run_id}_fastp.json").exists():
-        return f"No required fastp.json in {EMG_CONFIG.rawreads_pipeline.qc_folder} folder"
+        return (
+            f"No required fastp.json in {EMG_CONFIG.rawreads_pipeline.qc_folder} folder"
+        )
+
 
 def validate_decontam_folder(current_outdir, run_id, logger):
     decontam_folder = Path(
         f"{current_outdir}/{EMG_CONFIG.rawreads_pipeline.decontam_folder}"
     )
     logger.info(f"Looking for {run_id} Decontam folder in {decontam_folder}")
-    
+
     if not decontam_folder.exists():
         return f"No {EMG_CONFIG.rawreads_pipeline.decontam_folder} folder"
 
@@ -81,21 +84,26 @@ def validate_decontam_folder(current_outdir, run_id, logger):
 
     if host_folder.exists():
         fps = [str(fp.name) for fp in host_folder.iterdir()]
-        if not all([
-            any([re.match(r'.*_all_summary_stats.txt$', fp) for fp in fps]),
-            any([re.match(r'.*_mapped_summary_stats.txt$', fp) for fp in fps]),
-            any([re.match(r'.*_unmapped_summary_stats.txt$', fp) for fp in fps]),
-        ]):
+        if not all(
+            [
+                any([re.match(r".*_all_summary_stats.txt$", fp) for fp in fps]),
+                any([re.match(r".*_mapped_summary_stats.txt$", fp) for fp in fps]),
+                any([re.match(r".*_unmapped_summary_stats.txt$", fp) for fp in fps]),
+            ]
+        ):
             return f"Unexpected files in {EMG_CONFIG.rawreads_pipeline.decontam_folder} host folder"
 
     if phix_folder.exists():
         fps = [str(fp.name) for fp in phix_folder.iterdir()]
-        if not all([
-            any([re.match(r'.*_all_summary_stats.txt$', fp) for fp in fps]),
-            any([re.match(r'.*_mapped_summary_stats.txt$', fp) for fp in fps]),
-            any([re.match(r'.*_unmapped_summary_stats.txt$', fp) for fp in fps]),
-        ]):
+        if not all(
+            [
+                any([re.match(r".*_all_summary_stats.txt$", fp) for fp in fps]),
+                any([re.match(r".*_mapped_summary_stats.txt$", fp) for fp in fps]),
+                any([re.match(r".*_unmapped_summary_stats.txt$", fp) for fp in fps]),
+            ]
+        ):
             return f"Unexpected files in {EMG_CONFIG.rawreads_pipeline.decontam_folder} phix folder"
+
 
 @task(
     cache_key_fn=task_input_hash,
@@ -166,4 +174,3 @@ def sanity_check_rawreads_results(
             )
 
     logger.info(f"Post sanity check for {run_id} completed")
-

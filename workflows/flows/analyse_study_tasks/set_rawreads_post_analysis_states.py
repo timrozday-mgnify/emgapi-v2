@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import List
 
 from prefect import task
-from prefect.tasks import task_input_hash
 
 from activate_django_first import EMG_CONFIG
 from workflows.flows.analyse_study_tasks.analysis_states import AnalysisStates
@@ -32,13 +31,17 @@ def set_post_analysis_states(current_outdir: Path, rawreads_analyses: List):
     qc_failed_csv = Path(
         f"{current_outdir}/{EMG_CONFIG.rawreads_pipeline.failed_runs_csv}"
     )
-    qc_failed_runs = parse_pipeline_report(qc_failed_csv)  # Stores {run_accession, qc_fail_reason}
+    qc_failed_runs = parse_pipeline_report(
+        qc_failed_csv
+    )  # Stores {run_accession, qc_fail_reason}
 
     # qc_passed_runs.csv: runID, info(all_results/no_asvs)
     qc_completed_csv = Path(
         f"{current_outdir}/{EMG_CONFIG.rawreads_pipeline.completed_runs_csv}"
     )
-    qc_completed_runs = parse_pipeline_report(qc_completed_csv)  # Stores {run_accession, qc_info}
+    qc_completed_runs = parse_pipeline_report(
+        qc_completed_csv
+    )  # Stores {run_accession, qc_info}
 
     for analysis in rawreads_analyses:
         if analysis.run.first_accession in qc_failed_runs:

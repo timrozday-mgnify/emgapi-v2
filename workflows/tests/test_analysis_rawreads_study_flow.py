@@ -1,11 +1,9 @@
-import gzip
 from textwrap import dedent
 import json
 import logging
 import os
 from enum import Enum
 from pathlib import Path
-from textwrap import dedent
 from typing import List, Optional
 from unittest.mock import patch
 
@@ -16,8 +14,6 @@ from pydantic import BaseModel
 
 import analyses.models
 from workflows.data_io_utils.file_rules.base_rules import FileRule
-from workflows.data_io_utils.file_rules.common_rules import GlobHasFilesCountRule
-from workflows.data_io_utils.file_rules.nodes import Directory
 from workflows.ena_utils.ena_api_requests import ENALibraryStrategyPolicy
 from workflows.flows.analysis_rawreads_study import analysis_rawreads_study
 from workflows.prefect_utils.analyses_models_helpers import get_users_as_choices
@@ -38,7 +34,7 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
     :param sample_accession: Sample accession to use in file names
     """
 
-    logger = logging.getLogger('generate_dummy_data_debug')
+    logger = logging.getLogger("generate_dummy_data_debug")
     # Create the main directory
     os.makedirs(results_dir, exist_ok=True)
 
@@ -66,11 +62,10 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
     with open(f"{pfam_dir}/raw/{sample_accession}_Pfam-A.domtbl", "w"):
         pass
 
-
     # Create taxonomy-summary directory and subdirectories
     tax_dir = f"{results_dir}/{sample_accession}/taxonomy-summary"
     logger.info(f"Creating dummy taxonomy results at {tax_dir}")
-    
+
     # mOTUs
     motus_dir = f"{tax_dir}/mOTUs"
     os.makedirs(motus_dir, exist_ok=True)
@@ -132,7 +127,6 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
     with open(f"{silvalsu_dir}/krona/{sample_accession}_SILVA-LSU.html", "w"):
         pass
 
-
     # Create qc directory and subdirectories
     qc_dir = f"{results_dir}/{sample_accession}/qc-stats"
     logger.info(f"Creating dummy QC results at {qc_dir}")
@@ -185,7 +179,9 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
 
     host_dir = f"{decontam_dir}/host"
     os.makedirs(host_dir, exist_ok=True)
-    with open(f"{host_dir}/{sample_accession}_short_read_host_all_summary_stats.txt", "w") as f:
+    with open(
+        f"{host_dir}/{sample_accession}_short_read_host_all_summary_stats.txt", "w"
+    ) as f:
         f.write(
             dedent(
                 """\
@@ -213,7 +209,9 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
                 """
             )
         )
-    with open(f"{host_dir}/{sample_accession}_short_read_host_mapped_summary_stats.txt", "w") as f:
+    with open(
+        f"{host_dir}/{sample_accession}_short_read_host_mapped_summary_stats.txt", "w"
+    ) as f:
         f.write(
             dedent(
                 """\
@@ -241,7 +239,9 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
                 """
             )
         )
-    with open(f"{host_dir}/{sample_accession}_short_read_host_unmapped_summary_stats.txt", "w") as f:
+    with open(
+        f"{host_dir}/{sample_accession}_short_read_host_unmapped_summary_stats.txt", "w"
+    ) as f:
         f.write(
             dedent(
                 """\
@@ -272,7 +272,9 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
 
     phix_dir = f"{decontam_dir}/phix"
     os.makedirs(phix_dir, exist_ok=True)
-    with open(f"{phix_dir}/{sample_accession}_short_read_phix_all_summary_stats.txt", "w") as f:
+    with open(
+        f"{phix_dir}/{sample_accession}_short_read_phix_all_summary_stats.txt", "w"
+    ) as f:
         f.write(
             dedent(
                 """\
@@ -300,7 +302,9 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
                 """
             )
         )
-    with open(f"{phix_dir}/{sample_accession}_short_read_phix_mapped_summary_stats.txt", "w") as f:
+    with open(
+        f"{phix_dir}/{sample_accession}_short_read_phix_mapped_summary_stats.txt", "w"
+    ) as f:
         f.write(
             dedent(
                 """\
@@ -328,7 +332,9 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
                 """
             )
         )
-    with open(f"{phix_dir}/{sample_accession}_short_read_phix_unmapped_summary_stats.txt", "w") as f:
+    with open(
+        f"{phix_dir}/{sample_accession}_short_read_phix_unmapped_summary_stats.txt", "w"
+    ) as f:
         f.write(
             dedent(
                 """\
@@ -374,6 +380,7 @@ def generate_fake_rawreads_pipeline_results(results_dir, sample_accession):
             )
         )
 
+
 def generate_fake_rawreads_pipeline_summary_results(results_dir):
     """
     Generate fake raw-reads pipeline results for testing.
@@ -383,7 +390,7 @@ def generate_fake_rawreads_pipeline_summary_results(results_dir):
     :param results_dir: Directory to create the fake results in
     """
 
-    logger = logging.getLogger('generate_dummy_summary_data_debug')
+    logger = logging.getLogger("generate_dummy_summary_data_debug")
 
     os.makedirs(results_dir, exist_ok=True)
 
@@ -454,9 +461,14 @@ def test_prefect_analyse_rawreads_flow(
         f"&format=json"
         f"&dataPortal=metagenome",
         json=[
-            {"study_accession":study_accession,"secondary_study_accession":study_accession,"study_title":"Infant stool metagenomic datasets"},
+            {
+                "study_accession": study_accession,
+                "secondary_study_accession": study_accession,
+                "study_title": "Infant stool metagenomic datasets",
+            },
         ],
-        is_reusable=True, is_optional=True
+        is_reusable=True,
+        is_optional=True,
     )
     httpx_mock.add_response(
         url=f"{EMG_CONFIG.ena.portal_search_api}?"
@@ -466,10 +478,9 @@ def test_prefect_analyse_rawreads_flow(
         f"&limit="
         f"&format=json"
         f"&dataPortal=metagenome",
-        json=[
-            {"study_accession": study_accession}
-        ],
-        is_reusable=True, is_optional=True
+        json=[{"study_accession": study_accession}],
+        is_reusable=True,
+        is_optional=True,
     )
 
     httpx_mock.add_response(
@@ -481,25 +492,91 @@ def test_prefect_analyse_rawreads_flow(
         f"&fields=run_accession%2Csample_accession%2Csample_title%2Csecondary_sample_accession%2Cfastq_md5%2Cfastq_ftp%2Clibrary_layout%2Clibrary_strategy%2Clibrary_source%2Cscientific_name%2Chost_tax_id%2Chost_scientific_name%2Cinstrument_platform%2Cinstrument_model%2Clocation%2Clat%2Clon"
         f"&dataPortal=metagenome",
         json=[
-            {"run_accession":"ERR10889188","sample_accession":"SAMEA112437737","sample_title":"stool","secondary_sample_accession":"ERS14548047","fastq_md5":"67613b1159c7d80eb3e3ca2479650ad5;6e6c5b0db3919b904a5e283827321fb9;41dc11f68009af8bc1e955a2c8d95d05","fastq_ftp":"ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/088/ERR10889188/ERR10889188.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/088/ERR10889188/ERR10889188_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/088/ERR10889188/ERR10889188_2.fastq.gz","library_layout":"PAIRED","library_strategy":"WGS","library_source":"METAGENOMIC","scientific_name":"human gut metagenome","host_tax_id":"","host_scientific_name":"","instrument_platform":"ILLUMINA","instrument_model":"Illumina HiSeq 2500","location":"19.754234 S 30.156915 E","lat":"-19.754234","lon":"30.156915"}
-            ,
-            {"run_accession":"ERR10889197","sample_accession":"SAMEA112437712","sample_title":"stool","secondary_sample_accession":"ERS14548022","fastq_md5":"323cd88dc2b3ccd17b47d8581a2be280;265ec70078cbdf9e92acd0ebf45aed8d;9402981ef0e93ea329bda73eb779d65c","fastq_ftp":"ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/097/ERR10889197/ERR10889197.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/097/ERR10889197/ERR10889197_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/097/ERR10889197/ERR10889197_2.fastq.gz","library_layout":"PAIRED","library_strategy":"WGS","library_source":"METAGENOMIC","scientific_name":"human gut metagenome","host_tax_id":"","host_scientific_name":"","instrument_platform":"ILLUMINA","instrument_model":"Illumina HiSeq 2500","location":"19.754234 S 30.156915 E","lat":"-19.754234","lon":"30.156915"}
-            ,
-            {"run_accession":"ERR10889214","sample_accession":"SAMEA112437729","sample_title":"stool","secondary_sample_accession":"ERS14548039","fastq_md5":"4dd2c869a5870984af3147cd8c34cca2;edc7298b1598848a71583718ff54ba8d;2aeeea4a32fae3318baff8bc7b3bc70c","fastq_ftp":"ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/014/ERR10889214/ERR10889214.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/014/ERR10889214/ERR10889214_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/014/ERR10889214/ERR10889214_2.fastq.gz","library_layout":"PAIRED","library_strategy":"WGS","library_source":"METAGENOMIC","scientific_name":"human gut metagenome","host_tax_id":"","host_scientific_name":"","instrument_platform":"ILLUMINA","instrument_model":"Illumina HiSeq 2500","location":"19.754234 S 30.156915 E","lat":"-19.754234","lon":"30.156915"}
-            ,
-            {"run_accession":"ERR10889221","sample_accession":"SAMEA112437721","sample_title":"stool","secondary_sample_accession":"ERS14548031","fastq_md5":"700d1ace4b6142dd32935039fb457618;3afa250c864c960324d424c523673f5f;a585727360a76bb22a948c30c5c41dd1","fastq_ftp":"ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/021/ERR10889221/ERR10889221.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/021/ERR10889221/ERR10889221_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/021/ERR10889221/ERR10889221_2.fastq.gz","library_layout":"PAIRED","library_strategy":"WGS","library_source":"METAGENOMIC","scientific_name":"human gut metagenome","host_tax_id":"","host_scientific_name":"","instrument_platform":"ILLUMINA","instrument_model":"Illumina HiSeq 2500","location":"19.754234 S 30.156915 E","lat":"-19.754234","lon":"30.156915"}
-            ,
+            {
+                "run_accession": "ERR10889188",
+                "sample_accession": "SAMEA112437737",
+                "sample_title": "stool",
+                "secondary_sample_accession": "ERS14548047",
+                "fastq_md5": "67613b1159c7d80eb3e3ca2479650ad5;6e6c5b0db3919b904a5e283827321fb9;41dc11f68009af8bc1e955a2c8d95d05",
+                "fastq_ftp": "ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/088/ERR10889188/ERR10889188.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/088/ERR10889188/ERR10889188_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/088/ERR10889188/ERR10889188_2.fastq.gz",
+                "library_layout": "PAIRED",
+                "library_strategy": "WGS",
+                "library_source": "METAGENOMIC",
+                "scientific_name": "human gut metagenome",
+                "host_tax_id": "",
+                "host_scientific_name": "",
+                "instrument_platform": "ILLUMINA",
+                "instrument_model": "Illumina HiSeq 2500",
+                "location": "19.754234 S 30.156915 E",
+                "lat": "-19.754234",
+                "lon": "30.156915",
+            },
+            {
+                "run_accession": "ERR10889197",
+                "sample_accession": "SAMEA112437712",
+                "sample_title": "stool",
+                "secondary_sample_accession": "ERS14548022",
+                "fastq_md5": "323cd88dc2b3ccd17b47d8581a2be280;265ec70078cbdf9e92acd0ebf45aed8d;9402981ef0e93ea329bda73eb779d65c",
+                "fastq_ftp": "ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/097/ERR10889197/ERR10889197.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/097/ERR10889197/ERR10889197_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/097/ERR10889197/ERR10889197_2.fastq.gz",
+                "library_layout": "PAIRED",
+                "library_strategy": "WGS",
+                "library_source": "METAGENOMIC",
+                "scientific_name": "human gut metagenome",
+                "host_tax_id": "",
+                "host_scientific_name": "",
+                "instrument_platform": "ILLUMINA",
+                "instrument_model": "Illumina HiSeq 2500",
+                "location": "19.754234 S 30.156915 E",
+                "lat": "-19.754234",
+                "lon": "30.156915",
+            },
+            {
+                "run_accession": "ERR10889214",
+                "sample_accession": "SAMEA112437729",
+                "sample_title": "stool",
+                "secondary_sample_accession": "ERS14548039",
+                "fastq_md5": "4dd2c869a5870984af3147cd8c34cca2;edc7298b1598848a71583718ff54ba8d;2aeeea4a32fae3318baff8bc7b3bc70c",
+                "fastq_ftp": "ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/014/ERR10889214/ERR10889214.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/014/ERR10889214/ERR10889214_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/014/ERR10889214/ERR10889214_2.fastq.gz",
+                "library_layout": "PAIRED",
+                "library_strategy": "WGS",
+                "library_source": "METAGENOMIC",
+                "scientific_name": "human gut metagenome",
+                "host_tax_id": "",
+                "host_scientific_name": "",
+                "instrument_platform": "ILLUMINA",
+                "instrument_model": "Illumina HiSeq 2500",
+                "location": "19.754234 S 30.156915 E",
+                "lat": "-19.754234",
+                "lon": "30.156915",
+            },
+            {
+                "run_accession": "ERR10889221",
+                "sample_accession": "SAMEA112437721",
+                "sample_title": "stool",
+                "secondary_sample_accession": "ERS14548031",
+                "fastq_md5": "700d1ace4b6142dd32935039fb457618;3afa250c864c960324d424c523673f5f;a585727360a76bb22a948c30c5c41dd1",
+                "fastq_ftp": "ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/021/ERR10889221/ERR10889221.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/021/ERR10889221/ERR10889221_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR108/021/ERR10889221/ERR10889221_2.fastq.gz",
+                "library_layout": "PAIRED",
+                "library_strategy": "WGS",
+                "library_source": "METAGENOMIC",
+                "scientific_name": "human gut metagenome",
+                "host_tax_id": "",
+                "host_scientific_name": "",
+                "instrument_platform": "ILLUMINA",
+                "instrument_model": "Illumina HiSeq 2500",
+                "location": "19.754234 S 30.156915 E",
+                "lat": "-19.754234",
+                "lon": "30.156915",
+            },
         ],
-        is_reusable=True, is_optional=True
+        is_reusable=True,
+        is_optional=True,
     )
 
     # create fake results
-    summary_folder = Path(
-        f"{EMG_CONFIG.slurm.default_workdir}/{study_accession}_v6"
-    )
+    summary_folder = Path(f"{EMG_CONFIG.slurm.default_workdir}/{study_accession}_v6")
     summary_folder.mkdir(exist_ok=True, parents=True)
     generate_fake_rawreads_pipeline_summary_results(summary_folder)
-
 
     rawreads_folder = Path(
         f"{EMG_CONFIG.slurm.default_workdir}/{study_accession}_rawreads_v6/abc123"
@@ -516,9 +593,7 @@ def test_prefect_analyse_rawreads_flow(
 
     # Generate fake pipeline results for the successful assembly
     for r in all_results:
-        generate_fake_rawreads_pipeline_results(
-            rawreads_folder, r
-        )
+        generate_fake_rawreads_pipeline_results(rawreads_folder, r)
 
     # Pretend that a human resumed the flow with the biome picker
     BiomeChoices = Enum("BiomeChoices", {"root.engineered": "Root:Engineered"})
@@ -563,10 +638,17 @@ def test_prefect_analyse_rawreads_flow(
     assert study.features.has_v6_analyses
 
     # Check all analyses were added to database
-    assert sum([
-        analyses.models.Analysis.objects.filter(run__ena_accessions__contains=[r]).count() 
-        for r in all_results
-    ]) == 4
+    assert (
+        sum(
+            [
+                analyses.models.Analysis.objects.filter(
+                    run__ena_accessions__contains=[r]
+                ).count()
+                for r in all_results
+            ]
+        )
+        == 4
+    )
 
     # Check taxonomic and functional annotations
     analysis_which_should_have_annotations_imported: analyses.models.Analysis = (
@@ -576,8 +658,8 @@ def test_prefect_analyse_rawreads_flow(
     )
 
     assert (
-       analyses.models.Analysis.TAXONOMIES
-       in analysis_which_should_have_annotations_imported.annotations
+        analyses.models.Analysis.TAXONOMIES
+        in analysis_which_should_have_annotations_imported.annotations
     )
     assert (
         analyses.models.Analysis.TaxonomySources.SSU.value
@@ -623,8 +705,8 @@ def test_prefect_analyse_rawreads_flow(
     )
 
     assert (
-       analyses.models.Analysis.FUNCTIONAL_ANNOTATION
-       in analysis_which_should_have_annotations_imported.annotations
+        analyses.models.Analysis.FUNCTIONAL_ANNOTATION
+        in analysis_which_should_have_annotations_imported.annotations
     )
     assert (
         analyses.models.Analysis.FunctionalSources.PFAM.value
@@ -636,23 +718,15 @@ def test_prefect_analyse_rawreads_flow(
         analyses.models.Analysis.FUNCTIONAL_ANNOTATION
     ][analyses.models.Analysis.FunctionalSources.PFAM.value]
     assert len(test_annotation) == 3
-    logger = logging.getLogger('test_logger')
+    logger = logging.getLogger("test_logger")
     logger.info(test_annotation)
+    assert test_annotation["read_count"][2]["function"] == "PF10417.14"
+    assert test_annotation["coverage_depth"][1]["coverage_depth"] == 3.835820895522388
     assert (
-        test_annotation['read_count'][2]["function"]
-        == "PF10417.14"
-    )
-    assert (
-        test_annotation['coverage_depth'][1]["coverage_depth"]
-        == 3.835820895522388
-    )
-    assert (
-        test_annotation['coverage_breadth'][3]["coverage_breadth"]
-        == 0.807909604519774
+        test_annotation["coverage_breadth"][3]["coverage_breadth"] == 0.807909604519774
     )
 
     # Check files
     workdir = Path(f"{EMG_CONFIG.slurm.default_workdir}/{study_accession}_v6")
     assert workdir.is_dir()
     assert study.external_results_dir == f"{study_accession[:-3]}/{study_accession}"
-

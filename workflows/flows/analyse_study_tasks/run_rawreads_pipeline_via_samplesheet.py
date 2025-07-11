@@ -22,9 +22,6 @@ from workflows.flows.analyse_study_tasks.analysis_states import (
 from workflows.flows.analyse_study_tasks.set_rawreads_post_analysis_states import (
     set_post_analysis_states,
 )
-from workflows.flows.analyse_study_tasks.shared.markergene_study_summary import (
-    generate_markergene_summary_for_pipeline_run,
-)
 from workflows.flows.analyse_study_tasks.shared.study_summary import (
     generate_study_summary_for_pipeline_run,
 )

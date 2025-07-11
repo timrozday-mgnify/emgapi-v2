@@ -47,7 +47,9 @@ def make_samplesheet_rawreads(
     sample_sheet_csv = queryset_to_samplesheet(
         queryset=runs,
         filename=Path(EMG_CONFIG.slurm.default_workdir)
-            / Path(f"{mgnify_study.ena_study.accession}_samplesheet_rawreads-v6_{ss_hash}.csv"),
+        / Path(
+            f"{mgnify_study.ena_study.accession}_samplesheet_rawreads-v6_{ss_hash}.csv"
+        ),
         column_map={
             "study": SamplesheetColumnSource(
                 lookup_string="study__ena_accessions",
@@ -69,7 +71,9 @@ def make_samplesheet_rawreads(
             ),
             "library_layout": SamplesheetColumnSource(
                 pass_whole_object=True,
-                renderer=lambda run: run.metadata_preferring_inferred.get(analyses.models.Run.CommonMetadataKeys.LIBRARY_LAYOUT)
+                renderer=lambda run: run.metadata_preferring_inferred.get(
+                    analyses.models.Run.CommonMetadataKeys.LIBRARY_LAYOUT
+                ),
             ),
             "library_strategy": SamplesheetColumnSource(
                 lookup_string=f"{analyses.models.Run.metadata.field.name}__library_strategy",

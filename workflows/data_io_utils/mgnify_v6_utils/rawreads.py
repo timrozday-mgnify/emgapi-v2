@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import List, Optional
 
 import pandas as pd
 from django.conf import settings
@@ -21,7 +21,6 @@ from workflows.data_io_utils.file_rules.common_rules import (
     DirectoryExistsRule,
     FileExistsRule,
     FileIsNotEmptyRule,
-    GlobHasFilesCountRule,
 )
 from workflows.data_io_utils.file_rules.mgnify_v6_result_rules import (
     FileConformsToRawReadsTaxonomyTSVSchemaRule,
@@ -56,18 +55,18 @@ class RawReadsV6FunctionFolderSchema(BaseModel):
 RESULT_SCHEMAS_FOR_TAXONOMY_SOURCES = {
     analyses.models.Analysis.TaxonomySources.MOTUS: RawReadsV6TaxonomyFolderSchema(
         taxonomy_summary_folder_name=Path("mOTUs"),
-        expect_mseq = False,
-        expect_raw = True,
+        expect_mseq=False,
+        expect_raw=True,
     ),
     analyses.models.Analysis.TaxonomySources.SSU: RawReadsV6TaxonomyFolderSchema(
         taxonomy_summary_folder_name=Path("SILVA-SSU"),
-        expect_mseq = True,
-        expect_raw = False,
+        expect_mseq=True,
+        expect_raw=False,
     ),
     analyses.models.Analysis.TaxonomySources.LSU: RawReadsV6TaxonomyFolderSchema(
         taxonomy_summary_folder_name=Path("SILVA-LSU"),
-        expect_mseq = True,
-        expect_raw = False,
+        expect_mseq=True,
+        expect_raw=False,
     ),
 }
 
@@ -98,7 +97,9 @@ def get_annotations_from_tax_table(tax_table: File) -> (List[dict], Optional[int
             )
             return [], 0
 
-    tax_df["organism"] = [';'.join(r[list(tax_df.columns)[1:]]).strip(";") for _,r in tax_df.iterrows()]
+    tax_df["organism"] = [
+        ";".join(r[list(tax_df.columns)[1:]]).strip(";") for _, r in tax_df.iterrows()
+    ]
     tax_df["count"] = (
         pd.to_numeric(tax_df["Count"], errors="coerce").fillna(1).astype(int)
     )
@@ -154,7 +155,11 @@ def import_taxonomy(
         tax_dir.files.append(tax_table)
 
     if schema.expect_krona:
-        krona_files = list(tax_dir.path.glob(f"krona/{analysis.run.first_accession}_{schema.taxonomy_summary_folder_name}.html"))
+        krona_files = list(
+            tax_dir.path.glob(
+                f"krona/{analysis.run.first_accession}_{schema.taxonomy_summary_folder_name}.html"
+            )
+        )
         for krona_file in krona_files:
             krona = File(
                 path=Path(krona_file),
@@ -168,7 +173,8 @@ def import_taxonomy(
     if schema.expect_mseq:
         mapseq = File(
             path=tax_dir.path
-            / "mapseq" / f"{analysis.run.first_accession}_{schema.taxonomy_summary_folder_name}.mseq",
+            / "mapseq"
+            / f"{analysis.run.first_accession}_{schema.taxonomy_summary_folder_name}.mseq",
             rules=[
                 FileExistsRule,
                 FileIsNotEmptyRule,
@@ -179,7 +185,8 @@ def import_taxonomy(
     if schema.expect_raw:
         raw_out = File(
             path=tax_dir.path
-            / "raw" / f"{analysis.run.first_accession}_{schema.taxonomy_summary_folder_name}.out",
+            / "raw"
+            / f"{analysis.run.first_accession}_{schema.taxonomy_summary_folder_name}.out",
             rules=[
                 FileExistsRule,
                 FileIsNotEmptyRule,
@@ -280,21 +287,26 @@ def get_annotations_from_func_table(func_table: File) -> (List[dict], Optional[i
         pd.to_numeric(func_df["read_count"], errors="coerce").fillna(1).astype(int)
     )
     func_df["coverage_depth"] = (
-        pd.to_numeric(func_df["coverage_depth"], errors="coerce").fillna(0).astype(float)
+        pd.to_numeric(func_df["coverage_depth"], errors="coerce")
+        .fillna(0)
+        .astype(float)
     )
     func_df["coverage_breadth"] = (
-        pd.to_numeric(func_df["coverage_breadth"], errors="coerce").fillna(0).astype(float)
+        pd.to_numeric(func_df["coverage_breadth"], errors="coerce")
+        .fillna(0)
+        .astype(float)
     )
 
     count_df: pd.DataFrame = func_df[["function", "read_count"]]
     depth_df: pd.DataFrame = func_df[["function", "coverage_depth"]]
     breadth_df: pd.DataFrame = func_df[["function", "coverage_breadth"]]
 
-    return \
-        count_df.to_dict(orient="records"), \
-        depth_df.to_dict(orient="records"), \
-        breadth_df.to_dict(orient="records"), \
-        int(count_df["read_count"].sum())
+    return (
+        count_df.to_dict(orient="records"),
+        depth_df.to_dict(orient="records"),
+        breadth_df.to_dict(orient="records"),
+        int(count_df["read_count"].sum()),
+    )
 
 
 def import_functional(
@@ -341,7 +353,8 @@ def import_functional(
     if schema.expect_raw:
         raw_out = File(
             path=func_dir.path
-            / "raw" / f"{analysis.run.first_accession}_{schema.function_summary_folder_name}.domtbl",
+            / "raw"
+            / f"{analysis.run.first_accession}_{schema.function_summary_folder_name}.domtbl",
             rules=[
                 FileExistsRule,
                 FileIsNotEmptyRule,
@@ -352,15 +365,20 @@ def import_functional(
 
     # DOWNLOAD FILE IMPORTS
     if schema.expect_tsv:
-        functions_count_to_import, functions_depth_to_import, functions_breadth_to_import, total_read_count = get_annotations_from_func_table(
-            func_table
-        )
+        (
+            functions_count_to_import,
+            functions_depth_to_import,
+            functions_breadth_to_import,
+            total_read_count,
+        ) = get_annotations_from_func_table(func_table)
         functions_to_import = {
-            'read_count': functions_count_to_import,
-            'coverage_depth': functions_depth_to_import,
-            'coverage_breadth': functions_breadth_to_import,
+            "read_count": functions_count_to_import,
+            "coverage_depth": functions_depth_to_import,
+            "coverage_breadth": functions_breadth_to_import,
         }
-        analysis_functions = analysis.annotations.get(analysis.FUNCTIONAL_ANNOTATION, {})
+        analysis_functions = analysis.annotations.get(
+            analysis.FUNCTIONAL_ANNOTATION, {}
+        )
         if not analysis_functions:
             analysis_functions = {}
         analysis_functions[source] = functions_to_import
@@ -396,18 +414,22 @@ def import_functional(
     analysis.save()
 
 
-def get_summary_numbers_from_samtools_stats_output(stats_file: File) -> tuple[dict[str, int], Optional[int]]:
+def get_summary_numbers_from_samtools_stats_output(
+    stats_file: File,
+) -> tuple[dict[str, int], Optional[int]]:
     summary_numbers = {}
-    with stats_file.path.open('r') as f:
-        for l in f:
-            if l[:2]=='SN':
-                l_ = [v.strip() for v in l.split('\t')]
+    with stats_file.path.open("r") as f:
+        for line in f:
+            if line[:2] == "SN":
+                l_ = [v.strip() for v in line.split("\t")]
                 k, v = l_[1:3]
                 summary_numbers[k[:-1]] = int(v)
 
-    read_count = summary_numbers['raw total sequences'] \
-                 if 'raw total sequences' in summary_numbers \
-                 else None
+    read_count = (
+        summary_numbers["raw total sequences"]
+        if "raw total sequences" in summary_numbers
+        else None
+    )
 
     return summary_numbers, read_count
 
@@ -479,7 +501,9 @@ def import_qc(
         )
 
     if not decontam_dir.path.is_dir():
-        print(f"No decontamination dir for {analysis.run.first_accession} at {decontam_dir.path}. Nothing to import.")
+        print(
+            f"No decontamination dir for {analysis.run.first_accession} at {decontam_dir.path}. Nothing to import."
+        )
 
     possible_files = {}
     for reads_set in ["all", "mapped", "unmapped"]:
@@ -487,28 +511,32 @@ def import_qc(
             for reads_type in ["short_read", "long_read"]:
                 if (not reads_type == "short_read") and (decontam_db == "phix"):
                     continue
-                possible_files[(decontam_db, reads_type, reads_set)] = decontam_dir.path / decontam_db / f"{analysis.run.first_accession}_{reads_type}_{decontam_db}_{reads_set}_summary_stats.txt"
+                possible_files[(decontam_db, reads_type, reads_set)] = (
+                    decontam_dir.path
+                    / decontam_db
+                    / f"{analysis.run.first_accession}_{reads_type}_{decontam_db}_{reads_set}_summary_stats.txt"
+                )
 
     present_files = {}
-    for k,fp in possible_files.items():
+    for k, fp in possible_files.items():
         if not fp.exists():
             continue
-        present_files[k] = (
-            File(
-                path=fp,
-                rules=(
-                    [
-                        FileExistsRule,
-                        FileIsNotEmptyRule,
-                    ]
-                    if not allow_non_exist
-                    else []
-                )
-            )
-    )
+        present_files[k] = File(
+            path=fp,
+            rules=(
+                [
+                    FileExistsRule,
+                    FileIsNotEmptyRule,
+                ]
+                if not allow_non_exist
+                else []
+            ),
+        )
 
-    if not allow_non_exist and len(present_files)<1:
-        print(f"No decontamination stats files for {analysis.run.first_accession} at {decontam_dir.path}. Nothing to import.")
+    if not allow_non_exist and len(present_files) < 1:
+        print(
+            f"No decontamination stats files for {analysis.run.first_accession} at {decontam_dir.path}. Nothing to import."
+        )
 
     decontam_summary = {}
     for (decontam_db, reads_type, reads_set), fp in present_files.items():
@@ -555,12 +583,12 @@ def import_qc(
     qc_summary = {}
 
     if fastp_summary:
-        fastp_summary['fastp'] = fastp_summary
+        fastp_summary["fastp"] = fastp_summary
     else:
         print(f"No fastp QC summary for {analysis.run.first_accession}.")
 
     if decontam_summary:
-        qc_summary['decontam'] = decontam_summary
+        qc_summary["decontam"] = decontam_summary
     else:
         print(f"No decontam summary for {analysis.run.first_accession}.")
 
@@ -571,4 +599,3 @@ def import_qc(
     # TODO: a pydantic schema for this file would be nice... but will be very different for other pipelines
     analysis.quality_control = qc_summary
     analysis.save()
-
