@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Union, Tuple, Literal
+from typing import Union, Tuple, Literal, List
 
 import click
 from mgnify_pipelines_toolkit.analysis.amplicon import (
@@ -58,7 +58,7 @@ def generate_study_summary_for_pipeline_run(
     pipeline_outdir: Path | str,
     analysis_type: Literal["amplicon", "assembly", "rawreads"] = "amplicon",
     completed_runs_filename: str = EMG_CONFIG.amplicon_pipeline.completed_runs_csv,
-) -> [Path]:
+) -> Union[List[Path], None]:
     """
     Generate a study summary file for an analysis pipeline execution,
     e.g. a run of the V6 Amplicon pipeline on a samplesheet of runs.
@@ -99,16 +99,23 @@ def generate_study_summary_for_pipeline_run(
         rules=[DirectoryExistsRule],
     )
 
-    summary_generator_kwargs = {}
-    if (analysis_type in STUDY_SUMMARY_GENERATORS) and (analysis_type in PIPELINE_CONFIGS):
-        study_summary_generator = STUDY_SUMMARY_GENERATORS[analysis_type]
-        pipeline_config = PIPELINE_CONFIGS[analysis_type]
-        if 'allow_non_insdc_run_names' in pipeline_config:
-            summary_generator_kwargs['non_insdc'] = pipeline_config.allow_non_insdc_run_names
-    else:
+    if not (analysis_type in STUDY_SUMMARY_GENERATORS) and (analysis_type in PIPELINE_CONFIGS):
         raise ValueError(
             f"analysis_type must be 'amplicon', 'rawreads' or 'assembly', got {analysis_type}"
         )
+
+    study_summary_generator = STUDY_SUMMARY_GENERATORS[analysis_type]
+    pipeline_config = PIPELINE_CONFIGS[analysis_type]
+
+    summary_generator_kwargs = {}
+    if 'allow_non_insdc_run_names' in pipeline_config:
+        summary_generator_kwargs['non_insdc'] = pipeline_config.allow_non_insdc_run_names
+    if analysis_type in {'rawreads', 'amplicon'}:
+        summary_generator_kwargs['runs'] = results_dir.files[0].path
+        summary_generator_kwargs['analyses_dir'] = results_dir.path
+    if analysis_type in {'assembly'}:
+        summary_generator_kwargs['assemblies'] = results_dir.files[0].path
+        summary_generator_kwargs['study_dir'] = results_dir.path
 
     logger.info(
         f"Study results_dir, where summaries will be made, is {study.results_dir}"
@@ -118,8 +125,6 @@ def generate_study_summary_for_pipeline_run(
         with click.Context(study_summary_generator.summarise_analyses) as ctx:
             ctx.invoke(
                 study_summary_generator.summarise_analyses,
-                runs=results_dir.files[0].path,
-                analyses_dir=results_dir.path,
                 output_prefix=pipeline_outdir.name,  # e.g. a hash of the samplesheet
                 **summary_generator_kwargs
             )
@@ -137,7 +142,7 @@ def merge_study_summaries(
     analysis_type: Literal["amplicon", "rawreads", "assembly"] = "amplicon",
     cleanup_partials: bool = False,
     bludgeon: bool = True,
-) -> [Path]:
+) -> Union[List[Path], None]:
     """
     Merge multiple study summary files for a study, where each part was made by e.g. a single samplesheet.
     The files will be found in the study's results_dir.
