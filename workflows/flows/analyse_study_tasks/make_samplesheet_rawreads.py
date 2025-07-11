@@ -68,7 +68,8 @@ def make_samplesheet_rawreads(
                 ),
             ),
             "library_layout": SamplesheetColumnSource(
-                lookup_string=f"{analyses.models.Run.metadata.field.name}__library_layout",
+                pass_whole_object=True,
+                renderer=lambda run: run.metadata_preferring_inferred.get(analyses.models.Run.CommonMetadataKeys.LIBRARY_LAYOUT)
             ),
             "library_strategy": SamplesheetColumnSource(
                 lookup_string=f"{analyses.models.Run.metadata.field.name}__library_strategy",
