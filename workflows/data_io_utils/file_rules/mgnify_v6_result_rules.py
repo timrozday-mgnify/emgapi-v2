@@ -80,31 +80,19 @@ GlobOfQcFolderHasFastpAndMultiqc = GlobRule(
 GlobOfMultiqcFolderHasMultiqc = GlobRule(
     rule_name="Folder should contain multiQC report file",
     glob_patten="*",
-    test=lambda files: sum(
-        f.name.endswith("multiqc_report.html")
-        for f in files
-    )
-    == 1,
+    test=lambda files: sum(f.name.endswith("multiqc_report.html") for f in files) == 1,
 )
 
 GlobOfQcFolderHasFastp = GlobRule(
     rule_name="Folder should contain fastp file",
     glob_patten="*/*",
-    test=lambda files: sum(
-        f.name.endswith("fastp.json")
-        for f in files
-    )
-    == 1,
+    test=lambda files: sum(f.name.endswith("fastp.json") for f in files) == 1,
 )
 
 GlobOfDecontamFolderHasSummaryStats = GlobRule(
     rule_name="Folder should contain at least one summary stats file",
     glob_patten="*/*",
-    test=lambda files: sum(
-        f.name.endswith("summary_stats.txt")
-        for f in files
-    )
-    > 0,
+    test=lambda files: sum(f.name.endswith("summary_stats.txt") for f in files) > 0,
 )
 
 GlobOfAsvFolderHasRegionFolders = GlobRule(

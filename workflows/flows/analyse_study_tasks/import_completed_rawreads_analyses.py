@@ -34,7 +34,9 @@ def import_completed_analysis(analysis: analyses.models.Analysis):
     for source in [
         t.PFAM,
     ]:
-        import_functional(analysis, dir_for_analysis, source=source, allow_non_exist=True)
+        import_functional(
+            analysis, dir_for_analysis, source=source, allow_non_exist=True
+        )
 
     copy_v6_pipeline_results(analysis.accession)
     mark_analysis_status(
