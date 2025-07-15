@@ -1,6 +1,5 @@
 import json
 import os
-import shutil
 from pathlib import Path
 from textwrap import dedent
 from typing import List, Optional
@@ -8,7 +7,6 @@ from unittest.mock import patch
 
 import pytest
 from django.conf import settings
-from django.db.models import Q
 from prefect.artifacts import Artifact
 from pydantic import BaseModel
 
@@ -29,6 +27,7 @@ from workflows.prefect_utils.testing_utils import (
 )
 
 EMG_CONFIG = settings.EMG_CONFIG
+
 
 def generate_fake_pipeline_all_results(amplicon_run_folder, run):
     # QC

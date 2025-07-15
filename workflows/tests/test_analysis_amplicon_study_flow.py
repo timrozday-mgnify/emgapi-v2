@@ -22,13 +22,13 @@ from workflows.flows.analyse_study_tasks.shared.study_summary import (
     STUDY_SUMMARY_TSV,
 )
 from workflows.flows.analysis_amplicon_study import analysis_amplicon_study
-from workflows.prefect_utils.pyslurm_patch import JobSubmitDescription
 from workflows.prefect_utils.testing_utils import (
     should_not_mock_httpx_requests_to_prefect_server,
     run_flow_and_capture_logs,
 )
 
 EMG_CONFIG = settings.EMG_CONFIG
+
 
 def generate_fake_pipeline_all_results(amplicon_run_folder, run):
     # QC
@@ -899,4 +899,3 @@ def test_prefect_analyse_amplicon_flow(
     study.refresh_from_db()
     assert len(study.downloads_as_objects) == 6
     assert study.features.has_v6_analyses
-
