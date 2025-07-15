@@ -97,9 +97,7 @@ def generate_study_summary_for_pipeline_run(
         rules=[DirectoryExistsRule],
     )
 
-    if analysis_type not in STUDY_SUMMARY_GENERATORS and (
-        analysis_type in PIPELINE_CONFIGS
-    ):
+    if (analysis_type not in STUDY_SUMMARY_GENERATORS) and (analysis_type not in PIPELINE_CONFIGS):
         raise ValueError(
             f"analysis_type must be 'amplicon', 'rawreads' or 'assembly', got {analysis_type}"
         )
@@ -108,15 +106,13 @@ def generate_study_summary_for_pipeline_run(
     pipeline_config = PIPELINE_CONFIGS[analysis_type]
 
     summary_generator_kwargs = {}
-    if "allow_non_insdc_run_names" in pipeline_config:
+    if "allow_non_insdc_run_names" in pipeline_config.__dict__:
         summary_generator_kwargs["non_insdc"] = (
             pipeline_config.allow_non_insdc_run_names
         )
     if analysis_type in {"rawreads", "amplicon"}:
         summary_generator_kwargs["runs"] = results_dir.files[0].path
         summary_generator_kwargs["analyses_dir"] = results_dir.path
-    if analysis_type in {"amplicon"}:
-        summary_generator_kwargs["non_insdc"] = True
     if analysis_type in {"assembly"}:
         summary_generator_kwargs["assemblies"] = results_dir.files[0].path
         summary_generator_kwargs["study_dir"] = results_dir.path

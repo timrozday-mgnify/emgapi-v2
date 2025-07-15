@@ -525,6 +525,9 @@ def test_prefect_analyse_amplicon_flow(
     Create analysis for amplicon runs and launch it with samplesheet.
     One run has all results, one run failed
     """
+
+    EMG_CONFIG.amplicon_pipeline.allow_non_insdc_run_names = True
+
     mock_queryset_hash_for_amplicon.return_value = "abc123"
 
     study_accession = "PRJNA398089"
