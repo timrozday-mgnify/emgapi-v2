@@ -26,6 +26,7 @@ from workflows.prefect_utils.testing_utils import (
     should_not_mock_httpx_requests_to_prefect_server,
     run_flow_and_capture_logs,
 )
+from prefect_utils.pyslurm_patch import JobSubmitDescription
 
 EMG_CONFIG = settings.EMG_CONFIG
 
