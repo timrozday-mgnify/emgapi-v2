@@ -97,7 +97,9 @@ def generate_study_summary_for_pipeline_run(
         rules=[DirectoryExistsRule],
     )
 
-    if (analysis_type not in STUDY_SUMMARY_GENERATORS) and (analysis_type not in PIPELINE_CONFIGS):
+    if (analysis_type not in STUDY_SUMMARY_GENERATORS) and (
+        analysis_type not in PIPELINE_CONFIGS
+    ):
         raise ValueError(
             f"analysis_type must be 'amplicon', 'rawreads' or 'assembly', got {analysis_type}"
         )

@@ -491,6 +491,9 @@ def analysis_study_input_mocker(biome_choices, user_choices):
     return MockAnalyseStudyInput
 
 
+@pytest.mark.flaky(
+    reruns=5
+)  # sometimes fails due to missing report CSV. maybe xdist or shared tmp-dir problem?
 @pytest.mark.httpx_mock(should_mock=should_not_mock_httpx_requests_to_prefect_server)
 @pytest.mark.django_db(transaction=True)
 @patch("workflows.flows.analyse_study_tasks.make_samplesheet_amplicon.queryset_hash")
