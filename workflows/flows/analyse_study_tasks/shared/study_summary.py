@@ -56,7 +56,6 @@ def generate_study_summary_for_pipeline_run(
     pipeline_outdir: Path | str,
     analysis_type: Literal["amplicon", "assembly", "rawreads"] = "amplicon",
     completed_runs_filename: str = EMG_CONFIG.amplicon_pipeline.completed_runs_csv,
-    allow_noninsdc: bool = False,
 ) -> Union[List[Path], None]:
     """
     Generate a study summary file for an analysis pipeline execution,
@@ -116,7 +115,8 @@ def generate_study_summary_for_pipeline_run(
     if analysis_type in {"rawreads", "amplicon"}:
         summary_generator_kwargs["runs"] = results_dir.files[0].path
         summary_generator_kwargs["analyses_dir"] = results_dir.path
-        summary_generator_kwargs["non_insdc"] = allow_noninsdc
+    if analysis_type in {"amplicon"}:
+        summary_generator_kwargs["non_insdc"] = True
     if analysis_type in {"assembly"}:
         summary_generator_kwargs["assemblies"] = results_dir.files[0].path
         summary_generator_kwargs["study_dir"] = results_dir.path
