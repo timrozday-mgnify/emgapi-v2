@@ -115,6 +115,8 @@ def generate_study_summary_for_pipeline_run(
     if analysis_type in {"rawreads", "amplicon"}:
         summary_generator_kwargs["runs"] = results_dir.files[0].path
         summary_generator_kwargs["analyses_dir"] = results_dir.path
+    if analysis_type in {"amplicon"}:
+        summary_generator_kwargs["non_insdc"] = True
     if analysis_type in {"assembly"}:
         summary_generator_kwargs["assemblies"] = results_dir.files[0].path
         summary_generator_kwargs["study_dir"] = results_dir.path
@@ -191,31 +193,20 @@ def merge_study_summaries(
         path=Path(study.results_dir),
         rules=[DirectoryExistsRule],
     )
+
+    study_summary_generator = STUDY_SUMMARY_GENERATORS[analysis_type]
+    extra_merge_kwargs = {}
+    if analysis_type in {"rawreads", "amplicon"}:
+        extra_merge_kwargs['analyses_dir'] = study_dir.path
+    if analysis_type in {"assembly"}:
+        extra_merge_kwargs['study_dir'] = study_dir.path
+
     with chdir(study.results_dir):
-        if analysis_type == "amplicon":
-            with click.Context(amplicon_study_summary_generator.merge_summaries) as ctx:
-                ctx.invoke(
-                    amplicon_study_summary_generator.merge_summaries,
-                    analyses_dir=study_dir.path,
-                    output_prefix=study.first_accession,
-                )
-        elif analysis_type == "rawreads":
-            with click.Context(rawreads_study_summary_generator.merge_summaries) as ctx:
-                ctx.invoke(
-                    rawreads_study_summary_generator.merge_summaries,
-                    analyses_dir=study_dir.path,
-                    output_prefix=study.first_accession,
-                )
-        elif analysis_type == "assembly":
-            with click.Context(assembly_study_summary_generator.merge_summaries) as ctx:
-                ctx.invoke(
-                    assembly_study_summary_generator.merge_summaries,
-                    study_dir=study_dir.path,
-                    output_prefix=study.first_accession,
-                )
-        else:
-            raise ValueError(
-                f"analysis_type must be 'amplicon', 'rawreads' or 'assembly', got {analysis_type}"
+        with click.Context(study_summary_generator.merge_summaries) as ctx:
+            ctx.invoke(
+                study_summary_generator.merge_summaries,
+                output_prefix=study.first_accession,
+                **extra_merge_kwargs
             )
 
     generated_files = list(

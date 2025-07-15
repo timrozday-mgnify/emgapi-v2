@@ -492,9 +492,6 @@ def analysis_study_input_mocker(biome_choices, user_choices):
     return MockAnalyseStudyInput
 
 
-@pytest.mark.flaky(
-    reruns=2
-)  # sometimes fails due to missing report CSV. maybe xdist or shared tmp-dir problem?
 @pytest.mark.httpx_mock(should_mock=should_not_mock_httpx_requests_to_prefect_server)
 @pytest.mark.django_db(transaction=True)
 @patch("workflows.flows.analyse_study_tasks.make_samplesheet_amplicon.queryset_hash")
@@ -505,14 +502,13 @@ def analysis_study_input_mocker(biome_choices, user_choices):
 @pytest.mark.parametrize(
     "mock_suspend_flow_run", ["workflows.flows.analysis_amplicon_study"], indirect=True
 )
-def test_prefect_analyse_amplicon_flow(
+def test_prefect_analyse_amplicon_flow_private_data(
     mock_queryset_hash_for_amplicon,
     prefect_harness,
     httpx_mock,
     mock_cluster_can_accept_jobs_yes,
     mock_start_cluster_job,
     mock_check_cluster_job_all_completed,
-    raw_read_ena_study,
     mock_suspend_flow_run,
     admin_user,
     top_level_biomes,
@@ -525,20 +521,61 @@ def test_prefect_analyse_amplicon_flow(
     Create analysis for amplicon runs and launch it with samplesheet.
     One run has all results, one run failed
     """
-    mock_queryset_hash_for_amplicon.return_value = "abc123"
+
+    accession = "PRJNA398089"
+
+    httpx_mock.add_response(  # basic check response for whether study is private
+        url=f"{EMG_CONFIG.ena.portal_search_api}?"
+        f"result=study&"
+        f"query=%22%28study_accession%3D{accession}+OR+secondary_study_accession%3D{accession}%29%22&"
+        f"fields=study_accession&"
+        f"limit=&"
+        f"format=json&"
+        f"dataPortal=metagenome",
+        match_headers={
+            "Authorization": "Basic ZGNjX2Zha2U6bm90LWEtZGNjLXB3"
+        },  # dcc_fake:not-a-dcc-pw
+        json=[{"study_accession": accession}],
+    )
+
+    httpx_mock.add_response(
+        url=f"{EMG_CONFIG.ena.portal_search_api}?"
+        f"result=study&"
+        f"query=%22%28study_accession%3D{accession}+OR+secondary_study_accession%3D{accession}%29%22&"
+        f"fields=study_accession&"
+        f"limit=&"
+        f"format=json&"
+        f"dataPortal=metagenome",
+        match_headers={},  # public call should not find private study
+        json=[],
+    )
+
+    httpx_mock.add_response(
+        url=f"{EMG_CONFIG.ena.portal_search_api}?"
+        f"result=study&"
+        f"query=%22%28study_accession={accession}%20OR%20secondary_study_accession={accession}%29%22&"
+        f"limit=10&"
+        f"format=json&"
+        f"fields={','.join(EMG_CONFIG.ena.study_metadata_fields)}&"
+        f"dataPortal=metagenome",
+        match_headers={
+            "Authorization": "Basic ZGNjX2Zha2U6bm90LWEtZGNjLXB3"
+        },  # dcc_fake:not-a-dcc-pw
+        json=[  # study is available privately to dcc superuser
+            {
+                "study_title": "Metagenome of a wookie",
+                "secondary_study_accession": "SRP123456",
+                "study_accession": accession,
+            }
+        ],
+    )
+
+    mock_queryset_hash_for_amplicon.return_value = "xyz789"
 
     study_accession = "PRJNA398089"
     amplicon_run_all_results = "SRR_all_results"
-    amplicon_run_failed = "SRR_failed"
-    amplicon_run_no_asv = "SRR_no_asv"
-    amplicon_run_no_qc = "SRR_no_qc"
-    amplicon_run_extra_dada2 = "SRR_extra_dada2"
     runs = [
         amplicon_run_all_results,
-        amplicon_run_failed,
-        amplicon_run_no_asv,
-        amplicon_run_no_qc,
-        amplicon_run_extra_dada2,
     ]
 
     # mock ENA response
@@ -550,6 +587,9 @@ def test_prefect_analyse_amplicon_flow(
         f"&format=json"
         f"&fields=run_accession%2Csample_accession%2Csample_title%2Csecondary_sample_accession%2Cfastq_md5%2Cfastq_ftp%2Clibrary_layout%2Clibrary_strategy%2Clibrary_source%2Cscientific_name%2Chost_tax_id%2Chost_scientific_name%2Cinstrument_platform%2Cinstrument_model%2Clocation%2Clat%2Clon"
         f"&dataPortal=metagenome",
+        match_headers={
+            "Authorization": "Basic ZGNjX2Zha2U6bm90LWEtZGNjLXB3"
+        },  # dcc_fake:not-a-dcc-pw
         json=[
             {
                 "sample_accession": "SAMN08514017",
@@ -570,88 +610,12 @@ def test_prefect_analyse_amplicon_flow(
                 "lon": "0",
                 "location": "hinxton",
             },
-            {
-                "sample_accession": "SAMN08514018",
-                "sample_title": "my data",
-                "secondary_sample_accession": "SAMN08514018",
-                "run_accession": amplicon_run_failed,
-                "fastq_md5": "123;abc",
-                "fastq_ftp": f"ftp.sra.example.org/vol/fastq/{amplicon_run_failed}/{amplicon_run_failed}_1.fastq.gz;ftp.sra.example.org/vol/fastq/{amplicon_run_failed}/{amplicon_run_failed}_2.fastq.gz",
-                "library_layout": "PAIRED",
-                "library_strategy": "AMPLICON",
-                "library_source": "METAGENOMIC",
-                "scientific_name": "metagenome",
-                "host_tax_id": "7460",
-                "host_scientific_name": "Apis mellifera",
-                "instrument_platform": "ILLUMINA",
-                "instrument_model": "Illumina MiSeq",
-                "lat": "52",
-                "lon": "0",
-                "location": "hinxton",
-            },
-            {
-                "sample_accession": "SAMN08514019",
-                "sample_title": "my data",
-                "secondary_sample_accession": "SAMN08514019",
-                "run_accession": amplicon_run_no_asv,
-                "fastq_md5": "123;abc",
-                "fastq_ftp": f"ftp.sra.example.org/vol/fastq/{amplicon_run_no_asv}/{amplicon_run_no_asv}_1.fastq.gz;ftp.sra.example.org/vol/fastq/{amplicon_run_no_asv}/{amplicon_run_no_asv}_2.fastq.gz",
-                "library_layout": "PAIRED",
-                "library_strategy": "AMPLICON",
-                "library_source": "METAGENOMIC",
-                "scientific_name": "metagenome",
-                "host_tax_id": "7460",
-                "host_scientific_name": "Apis mellifera",
-                "instrument_platform": "ILLUMINA",
-                "instrument_model": "Illumina MiSeq",
-                "lat": "52",
-                "lon": "0",
-                "location": "hinxton",
-            },
-            {
-                "sample_accession": "SAMN08514020",
-                "sample_title": "my data",
-                "secondary_sample_accession": "SAMN08514020",
-                "run_accession": amplicon_run_no_qc,
-                "fastq_md5": "123;abc",
-                "fastq_ftp": f"ftp.sra.example.org/vol/fastq/{amplicon_run_no_qc}/{amplicon_run_no_qc}_1.fastq.gz;ftp.sra.example.org/vol/fastq/{amplicon_run_no_qc}/{amplicon_run_no_qc}_2.fastq.gz",
-                "library_layout": "PAIRED",
-                "library_strategy": "AMPLICON",
-                "library_source": "METAGENOMIC",
-                "scientific_name": "metagenome",
-                "host_tax_id": "7460",
-                "host_scientific_name": "Apis mellifera",
-                "instrument_platform": "ILLUMINA",
-                "instrument_model": "Illumina MiSeq",
-                "lat": "52",
-                "lon": "0",
-                "location": "hinxton",
-            },
-            {
-                "sample_accession": "SAMN08514021",
-                "sample_title": "my data",
-                "secondary_sample_accession": "SAMN08514021",
-                "run_accession": amplicon_run_extra_dada2,
-                "fastq_md5": "123;abc",
-                "fastq_ftp": f"ftp.sra.example.org/vol/fastq/{amplicon_run_extra_dada2}/{amplicon_run_extra_dada2}_1.fastq.gz;ftp.sra.example.org/vol/fastq/{amplicon_run_extra_dada2}/{amplicon_run_extra_dada2}_2.fastq.gz",
-                "library_layout": "PAIRED",
-                "library_strategy": "AMPLICON",
-                "library_source": "METAGENOMIC",
-                "scientific_name": "metagenome",
-                "host_tax_id": "7460",
-                "host_scientific_name": "Apis mellifera",
-                "instrument_platform": "ILLUMINA",
-                "instrument_model": "Illumina MiSeq",
-                "lat": "52",
-                "lon": "0",
-                "location": "hinxton",
-            },
         ],
     )
 
     # create fake results
     amplicon_folder = Path(
-        f"{EMG_CONFIG.slurm.default_workdir}/{study_accession}_amplicon_v6/abc123"
+        f"{EMG_CONFIG.slurm.default_workdir}/{study_accession}_amplicon_v6/xyz789"
     )
     amplicon_folder.mkdir(exist_ok=True, parents=True)
 
@@ -659,71 +623,11 @@ def test_prefect_analyse_amplicon_flow(
         f"{amplicon_folder}/{EMG_CONFIG.amplicon_pipeline.completed_runs_csv}", "w"
     ) as file:
         file.write(f"{amplicon_run_all_results},all_results" + "\n")
-        file.write(f"{amplicon_run_no_asv},no_asvs" + "\n")
-        file.write(f"{amplicon_run_no_qc},no_asvs" + "\n")
-        file.write(f"{amplicon_run_extra_dada2},no_asvs")
-    with open(
-        f"{amplicon_folder}/{EMG_CONFIG.amplicon_pipeline.failed_runs_csv}", "w"
-    ) as file:
-        file.write(f"{amplicon_run_failed},failed")
 
     # ------- results for completed runs with all results
     generate_fake_pipeline_all_results(
         f"{amplicon_folder}/{amplicon_run_all_results}", amplicon_run_all_results
     )
-    # ------- results for completed runs with no asv results
-    generate_fake_pipeline_no_asvs(
-        f"{amplicon_folder}/{amplicon_run_no_asv}", amplicon_run_no_asv
-    )
-    generate_fake_pipeline_no_asvs(
-        f"{amplicon_folder}/{amplicon_run_no_qc}", amplicon_run_no_qc
-    )
-    generate_fake_pipeline_no_asvs(
-        f"{amplicon_folder}/{amplicon_run_extra_dada2}", amplicon_run_extra_dada2
-    )
-    # rm qc to generate failed sanity check run
-    shutil.rmtree(
-        f"{amplicon_folder}/{amplicon_run_no_qc}/{EMG_CONFIG.amplicon_pipeline.qc_folder}"
-    )
-    # add extra dada2 folder
-    os.makedirs(
-        f"{amplicon_folder}/{amplicon_run_extra_dada2}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-SILVA",
-        exist_ok=True,
-    )
-    with (
-        open(
-            f"{amplicon_folder}/{amplicon_run_extra_dada2}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-SILVA/{amplicon_run_extra_dada2}.html",
-            "w",
-        ),
-        open(
-            f"{amplicon_folder}/{amplicon_run_extra_dada2}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-SILVA/{amplicon_run_extra_dada2}_DADA2-SILVA.mseq",
-            "w",
-        ),
-        open(
-            f"{amplicon_folder}/{amplicon_run_extra_dada2}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-SILVA/{amplicon_run_extra_dada2}_DADA2-SILVA.tsv",
-            "w",
-        ),
-        open(
-            f"{amplicon_folder}/{amplicon_run_extra_dada2}/{EMG_CONFIG.amplicon_pipeline.taxonomy_summary_folder}/DADA2-SILVA/{amplicon_run_extra_dada2}_DADA2-SILVA.txt",
-            "w",
-        ) as dada2_silva_txt,
-    ):
-        dada2_silva_txt.write(
-            dedent(
-                """\
-        54	sk__Bacteria	k__	p__Actinomycetota	c__Actinomycetes	o__Kitasatosporales	f__Streptomycetaceae	g__Streptomyces
-        20	sk__Bacteria	k__	p__Actinomycetota	c__Actinomycetes	o__Micrococcales	f__Microbacteriaceae
-        9	sk__Bacteria	k__	p__Actinomycetota	c__Actinomycetes	o__Micrococcales	f__Micrococcaceae	g__Arthrobacter
-        28	sk__Bacteria	k__	p__Actinomycetota	c__Actinomycetes	o__Micrococcales	f__Micrococcaceae	g__Pseudarthrobacter
-        100	sk__Bacteria	k__	p__Actinomycetota	c__Actinomycetes	o__Propionibacteriales	f__Nocardioidaceae	g__Aeromicrobium
-        137	sk__Bacteria	k__	p__Actinomycetota	c__Actinomycetes	o__Propionibacteriales	f__Nocardioidaceae	g__Nocardioides
-        433	sk__Bacteria	k__	p__Bacillota	c__Bacilli	o__Bacillales	f__Paenibacillaceae	g__Paenibacillus
-        2776	sk__Bacteria	k__	p__Bacteroidota	c__Chitinophagia	o__Chitinophagales	f__Chitinophagaceae	g__Chitinophaga
-        1566	sk__Bacteria	k__	p__Bacteroidota	c__Cytophagia	o__Cytophagales	f__Spirosomataceae	g__Dyadobacter
-        135696	sk__Bacteria	k__	p__Bacteroidota	c__Flavobacteriia	o__Flavobacteriales	f__Flavobacteriaceae	g__Flavobacterium
-        """
-            )
-        )
 
     ## Pretend that a human resumed the flow with the biome picker.
     def suspend_side_effect(wait_for_input=None):
@@ -732,7 +636,7 @@ def test_prefect_analyse_amplicon_flow(
                 biome=biome_choices["root.engineered"],
                 watchers=[user_choices[admin_user.username]],
                 library_strategy_policy=ENALibraryStrategyPolicy.ONLY_IF_CORRECT_IN_ENA,
-                webin_owner=None,
+                webin_owner="webin-1",
             )
 
     mock_suspend_flow_run.side_effect = suspend_side_effect
@@ -762,33 +666,10 @@ def test_prefect_analyse_amplicon_flow(
     assert admin_user == study.watchers.first()
 
     # check completed runs (all runs in completed list - might contain sanity check not passed as well)
-    assert study.analyses.filter(status__analysis_completed=True).count() == 4
-    # check failed runs
-    assert study.analyses.filter(status__analysis_qc_failed=True).count() == 1
-    # check sanity check runs
-    assert (
-        study.analyses.filter(status__analysis_post_sanity_check_failed=True).count()
-        == 3  # 2 fail sanity check for missing qc, a third fails import
-    )
+    assert study.analyses.filter(status__analysis_completed=True).count() == 1
+
     assert (
         study.analyses.filter(status__analysis_completed_reason="all_results").count()
-        == 1
-    )
-    assert (
-        study.analyses.filter(status__analysis_completed_reason="no_asvs").count() == 3
-    )
-    assert (
-        study.analyses.filter(
-            status__analysis_post_sanity_check_failed_reason="No qc folder"
-        ).count()
-        == 1
-    )
-    assert (
-        study.analyses.filter(
-            Q(
-                status__analysis_post_sanity_check_failed_reason__icontains="DADA2-SILVA in taxonomy-summary"
-            )
-        ).count()
         == 1
     )
 
@@ -827,16 +708,16 @@ def test_prefect_analyse_amplicon_flow(
     workdir = Path(f"{EMG_CONFIG.slurm.default_workdir}/{study_accession}_v6")
     assert workdir.is_dir()
 
-    assert study.external_results_dir == f"{study_accession[:-3]}/{study_accession}"
+    assert study.external_results_dir == "SRP123/SRP123456"
 
     Directory(
         path=study.results_dir,
         glob_rules=[
-            GlobHasFilesCountRule[12]
-        ],  # 6 for the samplesheet, same 6 for the "merge"
+            GlobHasFilesCountRule[10]
+        ],  # 5 for the samplesheet, same 5 for the "merge" (only 5 here, unlike public test, which has different hypervar regions)
     )
 
-    with (workdir / "abc123_DADA2-SILVA_18S-V9_asv_study_summary.tsv").open(
+    with (workdir / "xyz789_DADA2-SILVA_18S-V9_asv_study_summary.tsv").open(
         "r"
     ) as summary:
         lines = summary.readlines()
@@ -858,18 +739,18 @@ def test_prefect_analyse_amplicon_flow(
         path=study.results_dir,
         glob_rules=[
             GlobHasFilesCountRule[
-                12
+                10
             ],  # study ones generated, and partials left in place
             GlobRule(
                 rule_name="All study level files are present",
                 glob_patten=f"{study.first_accession}*{STUDY_SUMMARY_TSV}",
-                test=lambda f: len(list(f)) == 6,
+                test=lambda f: len(list(f)) == 5,
             ),
         ],
     )
 
     study.refresh_from_db()
-    assert len(study.downloads_as_objects) == 6
+    assert len(study.downloads_as_objects) == 5
 
     # test merging of study summaries again – expect default bludgeon should overwrite the existing ones
     logged_run = run_flow_and_capture_logs(
@@ -882,21 +763,39 @@ def test_prefect_analyse_amplicon_flow(
         logged_run.logs.count(
             f"Deleting {str(Path(study.results_dir) / study.first_accession)}"
         )
-        == 6
+        == 5
     )
     Directory(
         path=study.results_dir,
         glob_rules=[
-            GlobHasFilesCountRule[6],  # partials deleted, just merged ones
+            GlobHasFilesCountRule[5],  # partials deleted, just merged ones
             GlobRule(
                 rule_name="All files are study level",
                 glob_patten=f"{study.first_accession}*{STUDY_SUMMARY_TSV}",
-                test=lambda f: len(list(f)) == 6,
+                test=lambda f: len(list(f)) == 5,
             ),
         ],
     )
 
     study.refresh_from_db()
-    assert len(study.downloads_as_objects) == 6
+    assert len(study.downloads_as_objects) == 5
     assert study.features.has_v6_analyses
 
+    assert study.is_private
+    assert study.analyses.filter(is_private=True).count() == 1
+    assert study.analyses.exclude(is_private=True).count() == 0
+    assert study.runs.filter(is_private=True).count() == 1
+    assert study.runs.exclude(is_private=True).count() == 0
+
+    for cluster_job_start_call in mock_start_cluster_job.call_args_list:
+        args, kwargs = cluster_job_start_call
+
+        job_submit_description: JobSubmitDescription = kwargs.get(
+            "job_submit_description"
+        )
+        name: str = kwargs.get("name")
+        if name.startswith("Move"):
+            assert EMG_CONFIG.slurm.private_results_dir in job_submit_description.script
+            break
+    else:
+        assert False, "No Move cluster job submitted"
